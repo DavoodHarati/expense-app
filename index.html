@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="هزینه‌ها">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>هزینه‌ها</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#1b1f23;--mut:#6b7280;--pri:#0f766e;--red:#dc2626;--grn:#16a34a}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,Tahoma,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:80px}
+header{background:var(--pri);color:#fff;padding:calc(env(safe-area-inset-top) + 14px) 16px 14px;font-weight:700}
+main{padding:12px}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px #0001}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mut{color:var(--mut);font-size:13px}
+.red{color:var(--red)}.grn{color:var(--grn)}
+button,input,textarea,select{font:inherit}
+button{border:0;border-radius:10px;padding:10px 14px;background:var(--pri);color:#fff}
+button.sec{background:#e5e7eb;color:var(--tx)}
+input,textarea,select{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;margin:6px 0;background:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{background:#e5e7eb;color:var(--tx);border-radius:20px;padding:6px 12px;font-size:14}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid #e5e7eb;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;padding:12px 4px;font-size:13px}
+nav button.on{color:var(--pri);font-weight:700}
+.bar{height:8px;background:var(--pri);border-radius:4px;margin-top:4px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<header id="title">هزینه‌ها</header>
+<main id="app"></main>
+<nav>
+  <button data-t="home">خانه</button>
+  <button data-t="report">گزارش</button>
+  <button data-t="add">افزودن</button>
+  <button data-t="settings">تنظیمات</button>
+</nav>
+<script src="parser.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
