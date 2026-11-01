@@ -24,6 +24,7 @@ function addSms(raw) {
 function handleUrl() {
   const q = new URLSearchParams(location.search);
   const sms = q.get('sms');
+  if (location.search) alert('دریافت شد: ' + decodeURIComponent(location.search).slice(0, 300));
   if (sms) {
     const r = addSms(sms);
     history.replaceState({}, '', location.pathname);
