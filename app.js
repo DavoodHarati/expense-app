@@ -5,6 +5,7 @@ let tx = load('tx', []);
 let accounts = load('accounts', { '34000': 'ملی', '481670002776322001': 'قرض‌الحسنه مهر' });
 const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
+const markDel = k => { const d = JSON.parse(localStorage.getItem('delAcc') || '[]'); d.push(k); localStorage.setItem('delAcc', JSON.stringify(d)); };
 const accName = a => accounts[a] || (a ? '…' + a.slice(-4) : 'نامشخص');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let log = load('log', []);
@@ -138,7 +139,7 @@ function render() {
   } else {
     el.innerHTML = `
       <div class="card"><b>نام حساب‌ها</b>
-        ${Object.entries(accounts).map(([k, v]) => `<div class="mut" style="margin-top:8px">${esc(k)}</div><input data-k="${esc(k)}" class="an" value="${esc(v)}">`).join('')}
+        ${Object.entries(accounts).map(([k, v]) => `<div class="mut" style="margin-top:8px">${esc(k)} · ${tx.filter(t => t.account === k).length} تراکنش</div><input data-k="${esc(k)}" class="an" value="${esc(v)}"><div class="row" style="margin-top:6px"><select class="mvs" data-k="${esc(k)}"><option value="">انتقال به…</option>${Object.entries(accounts).filter(([k2]) => k2 !== k).map(([k2, v2]) => `<option value="${esc(k2)}">${esc(v2)}</option>`).join('')}</select><button class="sec mvb" data-k="${esc(k)}">ادغام</button><button class="sec dlb" data-k="${esc(k)}">حذف</button></div>`).join('')}
         <button id="sa">ذخیره نام‌ها</button>
         <div class="mut" style="margin-top:14px">افزودن حساب جدید (شمارهٔ حساب همان که در پیامک می‌آید)</div>
         <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><button class="sec" id="na">افزودن حساب</button></div>
@@ -163,6 +164,20 @@ function render() {
       ${log.slice(0, 30).map((l, i) => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><div class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</div><div style="font-size:13px;white-space:pre-wrap">${esc(l.raw.slice(0, 200))}</div>${l.ok ? '' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : ''}</div>`).join('')}</div>`);
     document.querySelectorAll('.retry').forEach(b => b.onclick = () => { const r = addSms0(log[+b.dataset.i].raw); if (r.ok) { log[+b.dataset.i].ok = true; log[+b.dataset.i].msg = 'ثبت شد'; saveLog(); tab = 'home'; render(); } else alert(r.msg); });
     $('#na').onclick = () => { const k = $('#nk').value.trim(), n = $('#nn').value.trim(); if (!k || !n) return; accounts[k] = n; save(); render(); };
+    document.querySelectorAll('.mvb').forEach(b => b.onclick = () => {
+      const k = b.dataset.k, to = b.parentNode.querySelector('.mvs').value;
+      if (!to) { alert('اول حساب مقصد را انتخاب کن'); return; }
+      const n = tx.filter(t => t.account === k).length;
+      if (!confirm(`آیا مطمئنی؟ ${n} تراکنش «${accounts[k]}» به «${accounts[to]}» منتقل می‌شود و حساب «${accounts[k]}» حذف می‌شود.`)) return;
+      tx.forEach(t => { if (t.account === k) t.account = to; });
+      delete accounts[k]; markDel(k); save(); render();
+    });
+    document.querySelectorAll('.dlb').forEach(b => b.onclick = () => {
+      const k = b.dataset.k, n = tx.filter(t => t.account === k).length;
+      if (!confirm(`آیا مطمئنی؟ حساب «${accounts[k]}» حذف می‌شود.` + (n ? ` ${n} تراکنش آن هم برای همیشه پاک می‌شود!` : ''))) return;
+      if (n && !confirm('آخرین هشدار: این کار برگشت‌پذیر نیست. ادامه؟')) return;
+      tx = tx.filter(t => t.account !== k); delete accounts[k]; markDel(k); save(); render();
+    });
     $('#sa').onclick = () => { document.querySelectorAll('.an').forEach(i => accounts[i.dataset.k] = i.value); save(); alert('ذخیره شد'); };
     $('#ex').onclick = async () => { const s = JSON.stringify({ tx, accounts }); $('#bk').value = s; try { await navigator.clipboard.writeText(s); alert('کپی شد'); } catch { $('#bk').select(); } };
     $('#bf').onclick = () => $('#bfi').click();
@@ -187,8 +202,9 @@ function render() {
         });
         const add = list.filter(t => !ids.has(String(t.id)));
         if (!list.length) { alert('هیچ تراکنشی در فایل پیدا نشد. فایل را از گزارش بانک سامان بگیر.'); return; }
-        add.forEach(t => { t.account = 'سامان'; tx.push(t); });
-        if (!accounts['سامان']) accounts['سامان'] = 'سامان';
+        let tgt = Object.keys(accounts).find(k => /^\d{6,}$/.test(k) && accounts[k].includes('سامان'));
+        if (!tgt) { tgt = 'سامان'; if (!accounts[tgt]) accounts[tgt] = 'سامان'; }
+        add.forEach(t => { t.account = tgt; tx.push(t); });
         save(); alert(`${add.length} تراکنش جدید اضافه شد (${list.length - add.length} تکراری رد شد).`); tab = 'home'; render();
       } catch (err) { alert('خواندن فایل ناموفق بود: ' + err.message); }
       e.target.value = '';
@@ -347,7 +363,7 @@ async function pull() {
     const localOnly = tx.filter(t => !sid.has(String(t.id)));
     const base = dirty ? [...tx, ...d.tx.filter(t => !lid.has(String(t.id)))] : [...d.tx, ...localOnly];
     tx = base.sort((a, b) => (a.date < b.date ? 1 : -1));
-    accounts = { ...d.accounts, ...accounts };
+    accounts = { ...d.accounts, ...accounts }; JSON.parse(localStorage.getItem('delAcc') || '[]').forEach(k => { if (!tx.some(t => t.account === k)) delete accounts[k]; });
     const at = new Set(log.map(l => l.at)); log = [...log, ...d.log.filter(l => !at.has(l.at))].sort((a, b) => b.at - a.at).slice(0, 100);
     localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
     if (localOnly.length || (tx.length && !d.tx.length)) localStorage.setItem('dirty', '1');
