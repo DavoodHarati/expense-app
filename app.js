@@ -139,7 +139,7 @@ function render() {
   } else {
     el.innerHTML = `
       <div class="card"><b>نام حساب‌ها</b>
-        ${Object.entries(accounts).map(([k, v]) => `<div class="mut" style="margin-top:8px">${esc(k)} · ${tx.filter(t => t.account === k).length} تراکنش</div><input data-k="${esc(k)}" class="an" value="${esc(v)}"><div class="row" style="margin-top:6px"><select class="mvs" data-k="${esc(k)}"><option value="">انتقال به…</option>${Object.entries(accounts).filter(([k2]) => k2 !== k).map(([k2, v2]) => `<option value="${esc(k2)}">${esc(v2)}</option>`).join('')}</select><button class="sec mvb" data-k="${esc(k)}">ادغام</button><button class="sec dlb" data-k="${esc(k)}">حذف</button></div>`).join('')}
+        ${Object.entries(accounts).map(([k, v]) => `<div class="mut" style="margin-top:8px">${esc(k)} · ${tx.filter(t => t.account === k).length} تراکنش</div><input data-k="${esc(k)}" class="an" value="${esc(v)}"><div class="row" style="margin-top:6px"><select class="mvs" data-k="${esc(k)}"><option value="">انتقال به…</option>${Object.entries(accounts).filter(([k2]) => k2 !== k).map(([k2, v2]) => `<option value="${esc(k2)}">${esc(v2)}</option>`).join('')}</select><button class="sec edk" data-k="${esc(k)}">ویرایش شماره</button><button class="sec mvb" data-k="${esc(k)}">ادغام</button><button class="sec dlb" data-k="${esc(k)}">حذف</button></div>`).join('')}
         <button id="sa">ذخیره نام‌ها</button>
         <div class="mut" style="margin-top:14px">افزودن حساب جدید (شمارهٔ حساب همان که در پیامک می‌آید)</div>
         <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><button class="sec" id="na">افزودن حساب</button></div>
@@ -170,6 +170,16 @@ function render() {
       const n = tx.filter(t => t.account === k).length;
       if (!confirm(`آیا مطمئنی؟ ${n} تراکنش «${accounts[k]}» به «${accounts[to]}» منتقل می‌شود و حساب «${accounts[k]}» حذف می‌شود.`)) return;
       tx.forEach(t => { if (t.account === k) t.account = to; });
+      delete accounts[k]; markDel(k); save(); render();
+    });
+    document.querySelectorAll('.edk').forEach(b => b.onclick = () => {
+      const k = b.dataset.k, nk = (prompt('شمارهٔ حساب جدید (همان که در پیامک می‌آید):', k) || '').trim();
+      if (!nk || nk === k) return;
+      if (accounts[nk] !== undefined) { alert('این شماره از قبل حساب دارد. از «ادغام» استفاده کن.'); return; }
+      const n = tx.filter(t => t.account === k).length;
+      if (!confirm(`شمارهٔ «${accounts[k]}» از ${k} به ${nk} تغییر کند؟ ${n} تراکنش حفظ می‌شود.`)) return;
+      document.querySelectorAll('.an').forEach(i => { if (i.dataset.k === k) accounts[k] = i.value; });
+      accounts[nk] = accounts[k]; tx.forEach(t => { if (t.account === k) t.account = nk; });
       delete accounts[k]; markDel(k); save(); render();
     });
     document.querySelectorAll('.dlb').forEach(b => b.onclick = () => {
