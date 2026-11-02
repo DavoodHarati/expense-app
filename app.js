@@ -266,8 +266,9 @@ async function doPush() {
 async function pull() {
   if (!SYNC()) return;
   try {
-    const d = await (await fetch(SYNC())).json();
-    if (!d.ok) throw new Error('bad');
+    const rs = await fetch(SYNC()); const txt = await rs.text(); let d;
+    try { d = JSON.parse(txt); } catch (_) { throw new Error(rs.status + ' ' + (/<title>(.*?)<\/title>/i.exec(txt)?.[1] || 'پاسخ JSON نیست (دسترسی Anyone نیست؟)')); }
+    if (!d.ok) throw new Error(d.error || 'bad');
     const dirty = localStorage.getItem('dirty');
     if (d.tx.length && !dirty) {
       tx = d.tx; accounts = { ...accounts, ...d.accounts }; log = d.log.sort((a, b) => b.at - a.at).slice(0, 100);
@@ -281,7 +282,7 @@ async function pull() {
     pulled = true; syncMsg = '✅ متصل به شیت';
     matchTransfers();
     if (localStorage.getItem('dirty')) await doPush();
-  } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد'; }
+  } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); }
 }
 document.addEventListener('visibilitychange', async () => { if (document.visibilityState !== 'visible') return; if (!pulled) { await pull(); render(); } else if (localStorage.getItem('dirty')) push(); });
 addEventListener('online', () => { if (!pulled) pull().then(render); else push(); });

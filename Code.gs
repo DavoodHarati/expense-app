@@ -4,7 +4,7 @@ const TX_HEAD = ['id', 'date', 'account', 'type', 'amount', 'balance', 'cat', 'd
 const LOG_HEAD = ['at', 'time', 'ok', 'msg', 'raw'];
 
 function sh_(name, head) {
-  const ss = SpreadsheetApp.getActive();
+  const ss = SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
   let s = ss.getSheetByName(name);
   if (!s) { s = ss.insertSheet(name); s.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold'); s.setFrozenRows(1); }
   s.setRightToLeft(true);
@@ -25,11 +25,13 @@ function put_(s, head, data) {
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
 function doGet() {
+  try {
   const tx = rows_(sh_('Transactions', TX_HEAD), TX_HEAD.length).map(r => { try { return JSON.parse(r[13]); } catch (e) { return null; } }).filter(Boolean);
   const accounts = {};
   rows_(sh_('Accounts', ['key', 'name']), 2).forEach(r => { if (r[0] !== '') accounts[String(r[0])] = String(r[1]); });
   const log = rows_(sh_('SMS', LOG_HEAD), LOG_HEAD.length).map(r => ({ at: Number(r[0]), ok: r[2] === 'true' || r[2] === true, msg: String(r[3]), raw: String(r[4]) }));
   return out_({ ok: true, tx, accounts, log });
+  } catch (err) { return out_({ ok: false, error: String(err) }); }
 }
 
 function doPost(e) {
