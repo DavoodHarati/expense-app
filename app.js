@@ -3,12 +3,12 @@ const CATS = ['خوراک', 'رستوران', 'حمل‌ونقل', 'خرید', '
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 let tx = load('tx', []);
 let accounts = load('accounts', { '34000': 'ملی', '481670002776322001': 'قرض‌الحسنه مهر' });
-const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); };
+const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
 const accName = a => accounts[a] || (a ? '…' + a.slice(-4) : 'نامشخص');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let log = load('log', []);
-const saveLog = () => localStorage.setItem('log', JSON.stringify(log.slice(0, 100)));
+const saveLog = () => { localStorage.setItem('log', JSON.stringify(log.slice(0, 100))); localStorage.setItem('dirty', '1'); push(); };
 let banner = '';
 let tab = 'home', month = null;
 
@@ -48,13 +48,14 @@ function addSms0(raw) {
   if (p.ignored) return { ok: false, msg: 'پیامک رمز بود؛ نادیده گرفته شد' };
   const dup = tx.find(t => t.account === p.account && t.amount === p.amount && t.balance === p.balance && t.date === p.date);
   if (dup) return { ok: false, msg: 'تکراری بود' };
-  const t = { id: Date.now() + Math.random(), bank: p.bank, account: p.account, type: p.type, amount: p.amount, balance: p.balance, date: p.date, desc: '', cat: '', pending: true };
+  const t = { id: Date.now() + Math.random(), bank: p.bank, account: p.account, type: p.type, amount: p.amount, balance: p.balance, date: p.date, desc: '', cat: '', pending: true, raw: String(raw).slice(0, 2000) };
   tx.unshift(t); save();
   const m = matchTransfers();
   return { ok: true, t, xfer: m };
 }
 
 function handleUrl() {
+  const rawSearch = location.search;
   const q = new URLSearchParams(location.search);
   const sms = q.get('sms');
   if (location.search) {
@@ -63,7 +64,7 @@ function handleUrl() {
       const r = addSms(sms);
       banner = r.ok ? (r.t.xfer ? '🔁 انتقال بین حساب‌های خودت تشخیص داده شد.' : '✅ پیامک جدید ثبت شد؛ پایین بنویس بابت چی بود.') : '⚠️ ' + r.msg + ' (در تنظیمات ← پیامک‌های دریافتی ببین)';
     } else {
-      log.unshift({ at: Date.now(), raw: '', ok: false, msg: 'متن پیامک خالی رسید' }); saveLog();
+      log.unshift({ at: Date.now(), raw: 'URL: ' + rawSearch.slice(0, 300), ok: false, msg: 'متن پیامک خالی رسید' }); saveLog();
       banner = '⚠️ پیامک خالی رسید. اگر متن را کپی کرده‌ای: <button id="clip">چسباندن از کلیپ‌بورد</button>';
     }
   }
@@ -80,12 +81,16 @@ function pendingCard(t) {
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     <div>${debit ? 'برای چی بود؟' : 'از طرف کی / بابت چی؟'}</div>
-    <input class="d" placeholder="مثلاً: نان و ماست">
+    <input class="d" list="dl" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
+    <input class="p" list="pl" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <div class="row">${(debit ? [['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
     ${debit ? `<div class="chips">${CATS.map(c => `<button class="chip sec" data-c="${c}">${c}</button>`).join('')}</div>` : ''}
     <div class="row"><button class="ok">ذخیره</button><button class="sec skip">بعداً</button><button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
 
+const LOAN = { lent: ['قرض دادم', 1], payback: ['قرض پس دادم', 1], repaid: ['پس گرفتم', -1], borrowed: ['قرض گرفتم', -1] };
+function people() { return [...new Set(tx.filter(t => t.person).map(t => t.person))]; }
 function monthOf(t) { return t.date.slice(0, 7); }
 
 function render() {
@@ -103,7 +108,8 @@ function render() {
         <input id="ma" type="number" inputmode="numeric" placeholder="مبلغ به تومان">
         <input id="md" placeholder="بابت چی؟">
         <select id="mc">${CATS.map(c => `<option>${c}</option>`).join('')}</select>
-        <select id="mt"><option value="debit">هزینه</option><option value="credit">واریز</option><option value="xfer">انتقال بین حساب‌های خودم</option></select>
+        <select id="mt"><option value="debit">هزینه</option><option value="credit">واریز</option><option value="xfer">انتقال بین حساب‌های خودم</option>${Object.entries(LOAN).map(([k, v]) => `<option value="loan:${k}">${v[0]}</option>`).join('')}</select>
+        <input id="mp" list="pl2" placeholder="نام شخص (برای قرض)"><datalist id="pl2">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
         <div id="xs" class="hide"><div class="mut">از حساب:</div><select id="xf">${allAccs().map(a => `<option value="${esc(a)}">${esc(accName(a))}</option>`).join('')}</select><div class="mut">به حساب:</div><select id="xt">${allAccs().map(a => `<option value="${esc(a)}">${esc(accName(a))}</option>`).join('')}</select></div>
         <input id="mac" placeholder="نام حساب" value="بلو">
         <button id="mg">ثبت</button></div>`;
@@ -111,6 +117,8 @@ function render() {
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
     $('#mg').onclick = () => {
       const a = +$('#ma').value; if (!a) return;
+      const mv = $('#mt').value, lk = mv.startsWith('loan:') ? mv.slice(5) : '';
+      if (lk && !$('#mp').value.trim()) { alert('نام شخص را بنویس'); return; }
       if ($('#mt').value === 'xfer') {
         const f = $('#xf').value, to = $('#xt').value; if (f === to) { alert('مبدأ و مقصد یکی است'); return; }
         const d = nowStr(), base = { bank: '', balance: null, date: d, pending: false, amount: a * 10 };
@@ -122,7 +130,7 @@ function render() {
       const acc = $('#mac').value || 'دستی';
       if (!Object.values(accounts).includes(acc)) accounts['manual:' + acc] = acc;
       const key = Object.keys(accounts).find(k => accounts[k] === acc);
-      tx.unshift({ id: Date.now(), bank: acc, account: key, type: $('#mt').value, amount: a * 10, balance: null, date: `${g('year')}/${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`, desc: $('#md').value, cat: $('#mc').value, pending: false });
+      tx.unshift({ id: Date.now(), bank: acc, account: key, type: lk ? (LOAN[lk][1] > 0 ? 'debit' : 'credit') : mv, amount: a * 10, balance: null, date: `${g('year')}/${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`, desc: $('#md').value, cat: lk ? 'قرض' : $('#mc').value, pending: false, ...(lk ? { loan: lk, person: $('#mp').value.trim() } : {}) });
       save(); tab = 'home'; render();
     };
   } else {
@@ -136,6 +144,9 @@ function render() {
         <div class="mut">اگر مرورگر داده را پاک کند، اطلاعات از بین می‌رود؛ پشتیبان بگیرید.</div>
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
+    el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
+      <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
+      <input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button></div>`);
     el.insertAdjacentHTML('beforeend', `<div class="card"><b>پیامک‌های دریافتی (${log.length.toLocaleString('fa-IR')})</b>
       <div class="mut">هر پیامکی که به برنامه رسیده اینجاست، حتی ردشده‌ها.</div>
       ${log.slice(0, 30).map((l, i) => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><div class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</div><div style="font-size:13px;white-space:pre-wrap">${esc(l.raw.slice(0, 200))}</div>${l.ok ? '' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : ''}</div>`).join('')}</div>`);
@@ -144,6 +155,7 @@ function render() {
     $('#sa').onclick = () => { document.querySelectorAll('.an').forEach(i => accounts[i.dataset.k] = i.value); save(); alert('ذخیره شد'); };
     $('#ex').onclick = async () => { const s = JSON.stringify({ tx, accounts }); $('#bk').value = s; try { await navigator.clipboard.writeText(s); alert('کپی شد'); } catch { $('#bk').select(); } };
     $('#im').onclick = () => { try { const d = JSON.parse($('#bk').value); tx = d.tx; accounts = d.accounts; save(); alert('بازیابی شد'); } catch { alert('متن نامعتبر است'); } };
+    $('#sy').onclick = async () => { localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
   }
 }
 
@@ -161,8 +173,9 @@ function filterBar() {
   <div class="mut" style="margin:-4px 0 10px">${!sel ? 'مجموع همهٔ حساب‌ها' : sel.length === 1 ? 'فقط ' + esc(accName(sel[0])) : 'مجموع ' + sel.length.toLocaleString('fa-IR') + ' حساب انتخاب‌شده'} · برای انتخاب چند حساب روی هرکدام بزن</div>`;
 }
 function rowHtml(t) {
-  return `<div class="card"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${esc(t.desc || '—')}</b><b class="${t.xfer ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
-  <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}</span></div></div>`;
+  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(LOAN[t.loan][0]) + ' · ' + esc(t.person) + ' — ' : ''}${esc(t.desc || '—')}</b><b class="${t.xfer ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
+  <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}</span></div>
+  <div class="row" style="margin-top:6px"><button class="sec ed">ویرایش</button>${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
   const bal = {};
@@ -170,7 +183,7 @@ function homeHtml() {
   const accs = Object.keys(bal).filter(isSel);
   const total = accs.reduce((s, a) => s + bal[a], 0);
   const cur = tx.map(monthOf).sort().pop();
-  const mt = tx.filter(t => isSel(t.account) && !t.xfer && monthOf(t) === cur);
+  const mt = tx.filter(t => isSel(t.account) && !t.xfer && !t.loan && monthOf(t) === cur);
   const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const pend = tx.filter(t => t.pending && isSel(t.account));
@@ -188,7 +201,10 @@ function reportHtml() {
   const months = [...new Set(tx.map(monthOf))].sort().reverse();
   if (!month || !months.includes(month)) month = months[0];
   const list = base.filter(t => monthOf(t) === month);
-  const real = list.filter(t => !t.xfer);
+  const real = list.filter(t => !t.xfer && !t.loan);
+  const loans = {}; tx.filter(t => t.loan && isSel(t.account)).forEach(t => loans[t.person] = (loans[t.person] || 0) + LOAN[t.loan][1] * t.amount);
+  const days = new Set(real.filter(t => t.type === 'debit').map(t => t.date.slice(0, 10))).size || 1;
+  const topD = Object.entries(real.filter(t => t.type === 'debit' && t.desc).reduce((m, t) => (m[t.desc] = (m[t.desc] || 0) + t.amount, m), {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const out = real.filter(t => t.type === 'debit'), inn = real.filter(t => t.type === 'credit');
   const flows = {}; list.filter(t => t.xfer && t.type === 'debit').forEach(t => { const k = t.account + '>' + t.to; flows[k] = (flows[k] || 0) + t.amount; });
   const sum = a => a.reduce((s, t) => s + t.amount, 0);
@@ -204,6 +220,9 @@ function reportHtml() {
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
     <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b></span></div></div>
+  <div class="card"><b>میانگین خرج روزانه</b><div>${toman(Math.round(sum(out) / days))} تومان <span class="mut">(${days.toLocaleString('fa-IR')} روز دارای خرج)</span></div></div>
+  ${topD.length ? `<div class="card"><b>بیشترین خرج‌ها</b>${topD.map(([d, v]) => `<div class="row" style="margin-top:6px"><span>${esc(d)}</span><span>${toman(v)}</span></div>`).join('')}</div>` : ''}
+  ${Object.keys(loans).length ? `<div class="card"><b>🤝 قرض‌ها (کل زمان)</b>${Object.entries(loans).map(([p, v]) => `<div class="row" style="margin-top:8px"><span>${esc(p)}</span><b class="${v > 0 ? 'grn' : v < 0 ? 'red' : 'mut'}">${v > 0 ? 'بدهکار به من: ' : v < 0 ? 'من بدهکارم: ' : 'تسویه '}${v ? toman(Math.abs(v)) : ''}</b></div>`).join('')}</div>` : ''}
   <div class="card"><b>خرج به تفکیک دسته</b>${cats.map(([c, v]) => `<div style="margin-top:10px"><div class="row"><span>${esc(c)}</span><span>${toman(v)} <span class="mut">(${Math.round(v / tot * 100).toLocaleString('fa-IR')}٪)</span></span></div><div class="bar" style="width:${v / mx * 100}%"></div></div>`).join('') || '<div class="mut">خرجی نیست</div>'}</div>
   <div class="card"><b>به تفکیک حساب</b>${accRows.map(r => `<div style="margin-top:10px"><div>${badge(r.a)}</div><div class="row mut"><span>خرج: <b class="red">${toman(r.o)}</b></span><span>واریز: <b class="grn">${toman(r.i)}</b></span></div>${r.xo || r.xi ? `<div class="row mut"><span>انتقال رفته: ${toman(r.xo)}</span><span>انتقال آمده: ${toman(r.xi)}</span></div>` : ''}</div>`).join('') || '<div class="mut">—</div>'}</div>
   ${Object.keys(flows).length ? `<div class="card"><b>جابه‌جایی بین حساب‌هایم 🔁</b><div class="mut">در مجموع خرج یا درآمد حساب نمی‌شود.</div>${Object.entries(flows).map(([k, v]) => { const [f, t] = k.split('>'); return `<div class="row" style="margin-top:8px"><span>${badge(f)} ← ${badge(t)}</span><b>${toman(v)}</b></div>`; }).join('')}</div>` : ''}
@@ -220,14 +239,56 @@ document.addEventListener('click', async e => {
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; render(); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
-  if (e.target.dataset.c) { card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('sec', c !== e.target)); }
+  if (e.target.dataset.c) { card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
+  if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); t.pending = true; save(); tab = 'home'; render(); return; }
+  if (e.target.classList.contains('ln')) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.dataset.k; t.loan = k; t.person = p; t.cat = 'قرض'; t.desc = card.querySelector('.d').value || LOAN[k][0]; t.xfer = false; t.pending = false; save(); render(); return; }
   if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat);
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('del')) { tx = tx.filter(t => t.id !== id); save(); render(); }
 });
 
+// ---- همگام‌سازی با Google Sheets ----
+const DEFAULT_SYNC = '';
+const SYNC = () => localStorage.getItem('sync') || DEFAULT_SYNC;
+let pulled = false, syncMsg = '', pt = null;
+function push() {
+  if (!SYNC() || !pulled) return;
+  clearTimeout(pt); pt = setTimeout(doPush, 1200);
+}
+async function doPush() {
+  try {
+    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, log: log.slice(0, 100) }) })).json();
+    if (!r.ok) throw new Error(r.error);
+    localStorage.removeItem('dirty'); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
+  } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد؛ بعداً دوباره تلاش می‌شود'; }
+}
+async function pull() {
+  if (!SYNC()) return;
+  try {
+    const d = await (await fetch(SYNC())).json();
+    if (!d.ok) throw new Error('bad');
+    const dirty = localStorage.getItem('dirty');
+    if (d.tx.length && !dirty) {
+      tx = d.tx; accounts = { ...accounts, ...d.accounts }; log = d.log.sort((a, b) => b.at - a.at).slice(0, 100);
+      localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
+    } else if (d.tx.length) {
+      const ids = new Set(tx.map(t => t.id)); tx = [...tx, ...d.tx.filter(t => !ids.has(t.id))].sort((a, b) => (a.date < b.date ? 1 : -1));
+      accounts = { ...d.accounts, ...accounts };
+      const at = new Set(log.map(l => l.at)); log = [...log, ...d.log.filter(l => !at.has(l.at))].sort((a, b) => b.at - a.at).slice(0, 100);
+      localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
+    } else if (tx.length) localStorage.setItem('dirty', '1');
+    pulled = true; syncMsg = '✅ متصل به شیت';
+    matchTransfers();
+    if (localStorage.getItem('dirty')) await doPush();
+  } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد'; }
+}
+document.addEventListener('visibilitychange', async () => { if (document.visibilityState !== 'visible') return; if (!pulled) { await pull(); render(); } else if (localStorage.getItem('dirty')) push(); });
+addEventListener('online', () => { if (!pulled) pull().then(render); else push(); });
+navigator.storage?.persist?.();
+
 matchTransfers();
 handleUrl();
 render();
+pull().then(render);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
