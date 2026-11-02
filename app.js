@@ -67,31 +67,8 @@ function monthOf(t) { return t.date.slice(0, 7); }
 function render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const el = $('#app');
-  if (tab === 'home') {
-    const pend = tx.filter(t => t.pending);
-    const balances = {};
-    [...tx].sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(t => { if (t.balance != null && !(t.account in balances)) balances[t.account] = t.balance; });
-    el.innerHTML = `
-      ${banner ? `<div class="card">${banner}</div>` : ''}
-      ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
-      ${Object.keys(balances).map(a => `<div class="card row"><span>${esc(accName(a))}</span><b>${toman(balances[a])} تومان</b></div>`).join('') || '<div class="card mut">هنوز تراکنشی نیست.</div>'}
-      <h3>آخرین‌ها</h3>${tx.filter(t => !t.pending).slice(0, 15).map(rowHtml).join('')}`;
-  } else if (tab === 'report') {
-    const months = [...new Set(tx.map(monthOf))].sort().reverse();
-    if (!month || !months.includes(month)) month = months[0];
-    const list = tx.filter(t => monthOf(t) === month);
-    const out = list.filter(t => t.type === 'debit'), inn = list.filter(t => t.type === 'credit');
-    const sum = a => a.reduce((s, t) => s + t.amount, 0);
-    const by = (arr, f) => { const m = {}; arr.forEach(t => m[f(t)] = (m[f(t)] || 0) + t.amount); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
-    const cats = by(out, t => t.cat || 'بدون دسته'), accs = by(out, t => accName(t.account));
-    const mx = cats[0]?.[1] || 1;
-    el.innerHTML = months.length ? `
-      <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
-      <div class="card"><div class="row"><span>هزینه</span><b class="red">${toman(sum(out))}</b></div>
-        <div class="row"><span>درآمد/واریز</span><b class="grn">${toman(sum(inn))}</b></div></div>
-      <div class="card"><b>بر اساس دسته</b>${cats.map(([c, v]) => `<div style="margin-top:8px"><div class="row"><span>${esc(c)}</span><span>${toman(v)}</span></div><div class="bar" style="width:${v / mx * 100}%"></div></div>`).join('')}</div>
-      <div class="card"><b>بر اساس حساب</b>${accs.map(([c, v]) => `<div class="row"><span>${esc(c)}</span><span>${toman(v)}</span></div>`).join('')}</div>
-      <h3>تراکنش‌ها</h3>${list.map(rowHtml).join('')}` : '<div class="card mut">داده‌ای نیست.</div>';
+  if (tab === 'home' || tab === 'report') {
+    el.innerHTML = tab === 'home' ? homeHtml() : reportHtml();
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
   } else if (tab === 'add') {
     el.innerHTML = `
@@ -135,9 +112,64 @@ function render() {
   }
 }
 
+
+// ---- فیلتر حساب و رنگ بانک ----
+let sel = load('sel', null); // null = همه
+const PAL = ['#2563eb', '#0f766e', '#7c3aed', '#ea580c', '#db2777', '#0891b2'];
+const accColor = a => PAL[Math.abs([...String(a)].reduce((h, c) => h * 31 + c.charCodeAt(0), 7)) % PAL.length];
+const allAccs = () => [...new Set([...Object.keys(accounts), ...tx.map(t => t.account)])];
+const isSel = a => !sel || sel.includes(a);
+const badge = a => `<span class="bdg" style="background:${accColor(a)}22;color:${accColor(a)}">${esc(accName(a))}</span>`;
+function filterBar() {
+  const all = allAccs();
+  return `<div class="chips fb"><button class="chip ${!sel ? 'on' : 'sec'}" data-a="*">همه حساب‌ها</button>${all.map(a => `<button class="chip ${sel && sel.includes(a) ? 'on' : 'sec'}" data-a="${esc(a)}" style="${sel && sel.includes(a) ? 'background:' + accColor(a) : ''}">${esc(accName(a))}</button>`).join('')}</div>
+  <div class="mut" style="margin:-4px 0 10px">${!sel ? 'مجموع همهٔ حساب‌ها' : sel.length === 1 ? 'فقط ' + esc(accName(sel[0])) : 'مجموع ' + sel.length.toLocaleString('fa-IR') + ' حساب انتخاب‌شده'} · برای انتخاب چند حساب روی هرکدام بزن</div>`;
+}
 function rowHtml(t) {
   return `<div class="card"><div class="row"><b>${esc(t.desc || '—')}</b><b class="${t.type === 'debit' ? 'red' : 'grn'}">${t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
-  <div class="mut">${esc(t.cat)} · ${esc(accName(t.account))} · ${esc(t.date)}</div></div>`;
+  <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}</span></div></div>`;
+}
+function homeHtml() {
+  const bal = {};
+  [...tx].sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(t => { if (t.balance != null && !(t.account in bal)) bal[t.account] = t.balance; });
+  const accs = Object.keys(bal).filter(isSel);
+  const total = accs.reduce((s, a) => s + bal[a], 0);
+  const cur = tx.map(monthOf).sort().pop();
+  const mt = tx.filter(t => isSel(t.account) && monthOf(t) === cur);
+  const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
+  const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
+  const pend = tx.filter(t => t.pending && isSel(t.account));
+  return `${banner ? `<div class="card">${banner}</div>` : ''}
+  ${filterBar()}
+  <div class="hero"><div style="opacity:.8">${!sel || sel.length > 1 ? 'مجموع موجودی' : 'موجودی'}</div><div class="big">${toman(total)} <small>تومان</small></div>
+    ${cur ? `<div class="row" style="margin-top:12px"><span>هزینهٔ ${esc(cur)}: <b>${toman(spent)}</b></span><span>واریز: <b>${toman(got)}</b></span></div>` : ''}</div>
+  ${accs.length > 1 || sel ? accs.map(a => `<div class="card row"><span>${badge(a)}</span><b>${toman(bal[a])} تومان</b></div>`).join('') : accs.map(a => `<div class="card row"><span>${badge(a)}</span><b>${toman(bal[a])} تومان</b></div>`).join('')}
+  ${!accs.length ? '<div class="card mut">هنوز تراکنشی نیست.</div>' : ''}
+  ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
+  <h3>آخرین‌ها</h3>${tx.filter(t => !t.pending && isSel(t.account)).slice(0, 15).map(rowHtml).join('') || '<div class="mut">—</div>'}`;
+}
+function reportHtml() {
+  const base = tx.filter(t => isSel(t.account));
+  const months = [...new Set(tx.map(monthOf))].sort().reverse();
+  if (!month || !months.includes(month)) month = months[0];
+  const list = base.filter(t => monthOf(t) === month);
+  const out = list.filter(t => t.type === 'debit'), inn = list.filter(t => t.type === 'credit');
+  const sum = a => a.reduce((s, t) => s + t.amount, 0);
+  const by = (arr, f) => { const m = {}; arr.forEach(t => m[f(t)] = (m[f(t)] || 0) + t.amount); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+  const cats = by(out, t => t.cat || 'بدون دسته');
+  const tot = sum(out) || 1, mx = cats[0]?.[1] || 1;
+  const accRows = allAccs().filter(isSel).map(a => {
+    const l = list.filter(t => t.account === a);
+    return { a, o: sum(l.filter(t => t.type === 'debit')), i: sum(l.filter(t => t.type === 'credit')) };
+  }).filter(r => r.o || r.i);
+  if (!months.length) return filterBar() + '<div class="card mut">داده‌ای نیست.</div>';
+  return `${filterBar()}
+  <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
+  <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
+    <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b></span></div></div>
+  <div class="card"><b>خرج به تفکیک دسته</b>${cats.map(([c, v]) => `<div style="margin-top:10px"><div class="row"><span>${esc(c)}</span><span>${toman(v)} <span class="mut">(${Math.round(v / tot * 100).toLocaleString('fa-IR')}٪)</span></span></div><div class="bar" style="width:${v / mx * 100}%"></div></div>`).join('') || '<div class="mut">خرجی نیست</div>'}</div>
+  <div class="card"><b>به تفکیک حساب</b>${accRows.map(r => `<div style="margin-top:10px"><div>${badge(r.a)}</div><div class="row mut"><span>خرج: <b class="red">${toman(r.o)}</b></span><span>واریز: <b class="grn">${toman(r.i)}</b></span></div></div>`).join('') || '<div class="mut">—</div>'}</div>
+  <h3>تراکنش‌ها</h3>${list.map(rowHtml).join('')}`;
 }
 
 document.addEventListener('click', async e => {
@@ -145,6 +177,8 @@ document.addEventListener('click', async e => {
     try { const t = await navigator.clipboard.readText(); const r = addSms(t); banner = r.ok ? '✅ ثبت شد' : '⚠️ ' + r.msg; } catch { banner = '⚠️ دسترسی به کلیپ‌بورد نشد؛ از تب افزودن Paste کن.'; }
     render(); return;
   }
+  const fa = e.target.closest('.fb [data-a]');
+  if (fa) { const a = fa.dataset.a; if (a === '*') sel = null; else { sel = sel ? (sel.includes(a) ? sel.filter(x => x !== a) : [...sel, a]) : [a]; if (!sel.length) sel = null; } localStorage.setItem('sel', JSON.stringify(sel)); render(); return; }
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; render(); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
