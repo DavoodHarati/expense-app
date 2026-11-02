@@ -30,7 +30,7 @@ function doGet() {
   const accounts = {};
   rows_(sh_('Accounts', ['key', 'name']), 2).forEach(r => { if (r[0] !== '') accounts[String(r[0])] = String(r[1]); });
   const log = rows_(sh_('SMS', LOG_HEAD), LOG_HEAD.length).map(r => ({ at: Number(r[0]), ok: r[2] === 'true' || r[2] === true, msg: String(r[3]), raw: String(r[4]) }));
-  return out_({ ok: true, tx, accounts, log });
+  return out_({ ok: true, tx, accounts, log, sheetUrl: (SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'))).getUrl() });
   } catch (err) { return out_({ ok: false, error: String(err) }); }
 }
 
