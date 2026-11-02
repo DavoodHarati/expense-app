@@ -144,7 +144,7 @@ function render() {
         <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><button class="sec" id="na">افزودن حساب</button></div>
       <div class="card"><b>پشتیبان‌گیری</b>
         <div class="mut">اگر مرورگر داده را پاک کند، اطلاعات از بین می‌رود؛ پشتیبان بگیرید.</div>
-        <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button class="sec" id="im">بازیابی</button></div>
+        <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button id="bf">وارد کردن فایل بانک</button> <input type="file" id="bfi" accept=".xlsx" class="hide"> <button id="mgx" class="sec">ادغام (بدون حذف)</button> <button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
@@ -165,6 +165,35 @@ function render() {
     $('#na').onclick = () => { const k = $('#nk').value.trim(), n = $('#nn').value.trim(); if (!k || !n) return; accounts[k] = n; save(); render(); };
     $('#sa').onclick = () => { document.querySelectorAll('.an').forEach(i => accounts[i.dataset.k] = i.value); save(); alert('ذخیره شد'); };
     $('#ex').onclick = async () => { const s = JSON.stringify({ tx, accounts }); $('#bk').value = s; try { await navigator.clipboard.writeText(s); alert('کپی شد'); } catch { $('#bk').select(); } };
+    $('#bf').onclick = () => $('#bfi').click();
+    $('#bfi').onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        const ids = new Set(tx.map(t => String(t.id)));
+        const list = [];
+        rows.forEach(r => {
+          const d = r[17];
+          if (typeof d !== 'string' || !/^\d{4}\/\d{2}\/\d{2}/.test(d)) return;
+          const deposit = Number(r[3]) || 0, withdraw = Number(r[2]) || 0;
+          const kind = String(r[6] || ''), desc = String(r[10] || '');
+          const credit = deposit > 0;
+          const amount = credit ? deposit : withdraw;
+          if (!amount) return;
+          let cat = credit ? 'سایر' : (kind.includes('فروشگاه') ? 'خرید' : 'سایر');
+          list.push({ id: Number(r[15]) || (Date.parse(d) + list.length), bank: 'سامان', account: '', type: credit ? 'credit' : 'debit', amount, balance: Number(r[1]) || 0, date: d.slice(0, 16), desc: kind || desc.slice(0, 60), cat, pending: false, raw: desc.slice(0, 2000) });
+        });
+        const add = list.filter(t => !ids.has(String(t.id)));
+        if (!list.length) { alert('هیچ تراکنشی در فایل پیدا نشد. فایل را از گزارش بانک سامان بگیر.'); return; }
+        add.forEach(t => { t.account = 'سامان'; tx.push(t); });
+        if (!accounts['سامان']) accounts['سامان'] = 'سامان';
+        save(); alert(`${add.length} تراکنش جدید اضافه شد (${list.length - add.length} تکراری رد شد).`); tab = 'home'; render();
+      } catch (err) { alert('خواندن فایل ناموفق بود: ' + err.message); }
+      e.target.value = '';
+    };
+    $('#mgx').onclick = () => { try { const d = JSON.parse($('#bk').value); const ids = new Set(tx.map(t => String(t.id))); let n = 0; d.tx.forEach(t => { if (!ids.has(String(t.id))) { tx.push(t); n++; } }); Object.assign(accounts, d.accounts || {}); save(); alert(n + ' تراکنش اضافه شد'); render(); } catch { alert('متن نامعتبر است'); } };
     $('#im').onclick = () => { try { const d = JSON.parse($('#bk').value); tx = d.tx; accounts = d.accounts; save(); alert('بازیابی شد'); } catch { alert('متن نامعتبر است'); } };
     $('#sc').onclick = async () => { const c = 'EXP1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ accounts })))); $('#sk').value = c; try { await navigator.clipboard.writeText(c); alert('کد کپی شد'); } catch { $('#sk').select(); } };
     $('#sl').onclick = () => { try { const v = $('#sk').value.trim().replace(/^EXP1:/, ''); const d = JSON.parse(decodeURIComponent(escape(atob(v)))); accounts = { ...d.accounts, ...accounts }; save(); alert('راه‌اندازی شد'); pulled = false; pull().then(render); render(); } catch { alert('کد نامعتبر است'); } };
