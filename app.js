@@ -5,6 +5,8 @@ let tx = load('tx', []);
 let accounts = load('accounts', { '34000': 'ملی', '481670002776322001': 'قرض‌الحسنه مهر' });
 const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
+let undo = [];
+const snap = label => undo.push({ label, tx: JSON.parse(JSON.stringify(tx)), accounts: { ...accounts }, del: localStorage.getItem('delAcc') || '[]' });
 const markDel = k => { const d = JSON.parse(localStorage.getItem('delAcc') || '[]'); d.push(k); localStorage.setItem('delAcc', JSON.stringify(d)); };
 const accName = a => accounts[a] || (a ? '…' + a.slice(-4) : 'نامشخص');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -138,7 +140,7 @@ function render() {
     };
   } else {
     el.innerHTML = `
-      <div class="card"><b>نام حساب‌ها</b>
+      ${undo.length ? `<div class="card" style="border:2px solid #f59e0b"><b>↩️ آخرین تغییر: ${esc(undo[undo.length - 1].label)}</b><div class="mut">تا وقتی برنامه را نبسته‌ای می‌شود برگرداند. بعد از بستن برنامه قطعی می‌شود.</div><button id="undo">برگرداندن (Undo)</button></div>` : ''}<div class="card"><b>نام حساب‌ها</b>
         ${Object.entries(accounts).map(([k, v]) => `<div class="mut" style="margin-top:8px">${esc(k)} · ${tx.filter(t => t.account === k).length} تراکنش</div><input data-k="${esc(k)}" class="an" value="${esc(v)}"><div class="row" style="margin-top:6px"><select class="mvs" data-k="${esc(k)}"><option value="">انتقال به…</option>${Object.entries(accounts).filter(([k2]) => k2 !== k).map(([k2, v2]) => `<option value="${esc(k2)}">${esc(v2)}</option>`).join('')}</select><button class="sec edk" data-k="${esc(k)}">ویرایش شماره</button><button class="sec mvb" data-k="${esc(k)}">ادغام</button><button class="sec dlb" data-k="${esc(k)}">حذف</button></div>`).join('')}
         <button id="sa">ذخیره نام‌ها</button>
         <div class="mut" style="margin-top:14px">افزودن حساب جدید (شمارهٔ حساب همان که در پیامک می‌آید)</div>
@@ -169,6 +171,7 @@ function render() {
       if (!to) { alert('اول حساب مقصد را انتخاب کن'); return; }
       const n = tx.filter(t => t.account === k).length;
       if (!confirm(`آیا مطمئنی؟ ${n} تراکنش «${accounts[k]}» به «${accounts[to]}» منتقل می‌شود و حساب «${accounts[k]}» حذف می‌شود.`)) return;
+      snap(`ادغام «${accounts[k]}» در «${accounts[to]}»`);
       tx.forEach(t => { if (t.account === k) t.account = to; });
       delete accounts[k]; markDel(k); save(); render();
     });
@@ -179,6 +182,7 @@ function render() {
       const n = tx.filter(t => t.account === k).length;
       if (!confirm(`شمارهٔ «${accounts[k]}» از ${k} به ${nk} تغییر کند؟ ${n} تراکنش حفظ می‌شود.`)) return;
       document.querySelectorAll('.an').forEach(i => { if (i.dataset.k === k) accounts[k] = i.value; });
+      snap(`تغییر شماره «${accounts[k]}»`);
       accounts[nk] = accounts[k]; tx.forEach(t => { if (t.account === k) t.account = nk; });
       delete accounts[k]; markDel(k); save(); render();
     });
@@ -186,9 +190,11 @@ function render() {
       const k = b.dataset.k, n = tx.filter(t => t.account === k).length;
       if (!confirm(`آیا مطمئنی؟ حساب «${accounts[k]}» حذف می‌شود.` + (n ? ` ${n} تراکنش آن هم برای همیشه پاک می‌شود!` : ''))) return;
       if (n && !confirm('آخرین هشدار: این کار برگشت‌پذیر نیست. ادامه؟')) return;
+      snap(`حذف حساب «${accounts[k]}»`);
       tx = tx.filter(t => t.account !== k); delete accounts[k]; markDel(k); save(); render();
     });
-    $('#sa').onclick = () => { document.querySelectorAll('.an').forEach(i => accounts[i.dataset.k] = i.value); save(); alert('ذخیره شد'); };
+    if ($('#undo')) $('#undo').onclick = () => { const u = undo.pop(); tx = u.tx; accounts = u.accounts; localStorage.setItem('delAcc', u.del); save(); render(); alert('برگردانده شد'); };
+    $('#sa').onclick = () => { snap('تغییر نام‌ها'); document.querySelectorAll('.an').forEach(i => accounts[i.dataset.k] = i.value); save(); alert('ذخیره شد'); };
     $('#ex').onclick = async () => { const s = JSON.stringify({ tx, accounts }); $('#bk').value = s; try { await navigator.clipboard.writeText(s); alert('کپی شد'); } catch { $('#bk').select(); } };
     $('#bf').onclick = () => $('#bfi').click();
     $('#bfi').onchange = async e => {
