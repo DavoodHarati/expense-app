@@ -7,10 +7,19 @@ const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorag
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
 const accName = a => accounts[a] || (a ? '…' + a.slice(-4) : 'نامشخص');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let log = load('log', []);
+const saveLog = () => localStorage.setItem('log', JSON.stringify(log.slice(0, 100)));
+let banner = '';
 let tab = 'home', month = null;
 
 // ورود پیامک
 function addSms(raw) {
+  const r = addSms0(raw);
+  log.unshift({ at: Date.now(), raw: String(raw).slice(0, 600), ok: r.ok, msg: r.ok ? 'ثبت شد' : r.msg });
+  saveLog();
+  return r;
+}
+function addSms0(raw) {
   const p = parseSms(raw);
   if (!p) return { ok: false, msg: 'قالب پیامک شناخته نشد' };
   if (p.ignored) return { ok: false, msg: 'پیامک رمز بود؛ نادیده گرفته شد' };
@@ -24,11 +33,15 @@ function addSms(raw) {
 function handleUrl() {
   const q = new URLSearchParams(location.search);
   const sms = q.get('sms');
-  if (location.search) alert('دریافت شد: ' + decodeURIComponent(location.search).slice(0, 300));
-  if (sms) {
-    const r = addSms(sms);
+  if (location.search) {
     history.replaceState({}, '', location.pathname);
-    if (!r.ok) alert(r.msg);
+    if (sms) {
+      const r = addSms(sms);
+      banner = r.ok ? '✅ پیامک جدید ثبت شد؛ پایین بنویس بابت چی بود.' : '⚠️ ' + r.msg + ' (در تنظیمات ← پیامک‌های دریافتی ببین)';
+    } else {
+      log.unshift({ at: Date.now(), raw: '', ok: false, msg: 'متن پیامک خالی رسید' }); saveLog();
+      banner = '⚠️ پیامک خالی رسید. اگر متن را کپی کرده‌ای: <button id="clip">چسباندن از کلیپ‌بورد</button>';
+    }
   }
 }
 
@@ -59,8 +72,9 @@ function render() {
     const balances = {};
     [...tx].sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(t => { if (t.balance != null && !(t.account in balances)) balances[t.account] = t.balance; });
     el.innerHTML = `
-      ${Object.keys(balances).map(a => `<div class="card row"><span>${esc(accName(a))}</span><b>${toman(balances[a])} تومان</b></div>`).join('') || '<div class="card mut">هنوز تراکنشی نیست.</div>'}
+      ${banner ? `<div class="card">${banner}</div>` : ''}
       ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
+      ${Object.keys(balances).map(a => `<div class="card row"><span>${esc(accName(a))}</span><b>${toman(balances[a])} تومان</b></div>`).join('') || '<div class="card mut">هنوز تراکنشی نیست.</div>'}
       <h3>آخرین‌ها</h3>${tx.filter(t => !t.pending).slice(0, 15).map(rowHtml).join('')}`;
   } else if (tab === 'report') {
     const months = [...new Set(tx.map(monthOf))].sort().reverse();
@@ -111,6 +125,10 @@ function render() {
         <div class="mut">اگر مرورگر داده را پاک کند، اطلاعات از بین می‌رود؛ پشتیبان بگیرید.</div>
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
+    el.insertAdjacentHTML('beforeend', `<div class="card"><b>پیامک‌های دریافتی (${log.length.toLocaleString('fa-IR')})</b>
+      <div class="mut">هر پیامکی که به برنامه رسیده اینجاست، حتی ردشده‌ها.</div>
+      ${log.slice(0, 30).map((l, i) => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><div class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</div><div style="font-size:13px;white-space:pre-wrap">${esc(l.raw.slice(0, 200))}</div>${l.ok ? '' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : ''}</div>`).join('')}</div>`);
+    document.querySelectorAll('.retry').forEach(b => b.onclick = () => { const r = addSms0(log[+b.dataset.i].raw); if (r.ok) { log[+b.dataset.i].ok = true; log[+b.dataset.i].msg = 'ثبت شد'; saveLog(); tab = 'home'; render(); } else alert(r.msg); });
     $('#sa').onclick = () => { document.querySelectorAll('.an').forEach(i => accounts[i.dataset.k] = i.value); save(); alert('ذخیره شد'); };
     $('#ex').onclick = async () => { const s = JSON.stringify({ tx, accounts }); $('#bk').value = s; try { await navigator.clipboard.writeText(s); alert('کپی شد'); } catch { $('#bk').select(); } };
     $('#im').onclick = () => { try { const d = JSON.parse($('#bk').value); tx = d.tx; accounts = d.accounts; save(); alert('بازیابی شد'); } catch { alert('متن نامعتبر است'); } };
@@ -122,7 +140,11 @@ function rowHtml(t) {
   <div class="mut">${esc(t.cat)} · ${esc(accName(t.account))} · ${esc(t.date)}</div></div>`;
 }
 
-document.addEventListener('click', e => {
+document.addEventListener('click', async e => {
+  if (e.target.id === 'clip') {
+    try { const t = await navigator.clipboard.readText(); const r = addSms(t); banner = r.ok ? '✅ ثبت شد' : '⚠️ ' + r.msg; } catch { banner = '⚠️ دسترسی به کلیپ‌بورد نشد؛ از تب افزودن Paste کن.'; }
+    render(); return;
+  }
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; render(); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
