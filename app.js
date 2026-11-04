@@ -421,7 +421,7 @@ function push() {
 }
 async function doPush() {
   try {
-    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, log: log.slice(0, 100) }) })).json();
+    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, log: log.slice(0, 100) }) })).json();
     if (!r.ok) throw new Error(r.error);
     localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد؛ بعداً دوباره تلاش می‌شود'; }
@@ -439,6 +439,12 @@ async function pull() {
     const base = dirty ? [...tx, ...d.tx.filter(t => !lid.has(String(t.id)))] : [...d.tx, ...localOnly];
     tx = base.sort((a, b) => (a.date < b.date ? 1 : -1));
     accounts = { ...d.accounts, ...accounts }; JSON.parse(localStorage.getItem('delAcc') || '[]').forEach(k => { if (!tx.some(t => t.account === k)) delete accounts[k]; });
+    if (Array.isArray(d.rem)) {
+      const gone = new Set(JSON.parse(localStorage.getItem('remDel') || '[]').map(String)), lr = new Set(rem.map(r => String(r.id))), sr = new Set(d.rem.map(r => String(r.id)));
+      const merged = [...rem, ...d.rem.filter(r => !lr.has(String(r.id)) && !gone.has(String(r.id)))];
+      if (rem.some(r => !sr.has(String(r.id))) || merged.length !== d.rem.length) localStorage.setItem('dirty', '1');
+      rem = merged; localStorage.setItem('rem', JSON.stringify(rem));
+    }
     const at = new Set(log.map(l => l.at)); log = [...log, ...d.log.filter(l => !at.has(l.at))].sort((a, b) => b.at - a.at).slice(0, 100);
     localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
     if (localOnly.length || (tx.length && !d.tx.length)) localStorage.setItem('dirty', '1');
@@ -466,7 +472,7 @@ pull().then(render);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 /* ===== یادآوری‌ها (فقط روی همین دستگاه) ===== */
-const saveRem = () => localStorage.setItem('rem', JSON.stringify(rem));
+const saveRem = () => { localStorage.setItem('rem', JSON.stringify(rem)); localStorage.setItem('dirty', '1'); push(); };
 const fa = d => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium' }).format(d);
 const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 function nextDue(r) {
@@ -486,7 +492,7 @@ function remBanner() {
 }
 function remHtml() {
   const L = dueList();
-  return `<div class="card"><b>افزودن یادآوری</b>
+  return remBanner() + `<div class="card"><b>افزودن یادآوری</b>
     <select id="rt"><option value="check">ثبت/سررسید چک</option><option value="inst">قسط</option><option value="custom">سفارشی (شهریه، باشگاه…)</option></select>
     <input id="rn" placeholder="عنوان (مثلاً: چک ملت، قسط وام، شهریه)">
     <input id="ra" type="number" inputmode="numeric" placeholder="مبلغ به تومان (اختیاری)">
@@ -512,7 +518,7 @@ function remBind() {
     saveRem(); render();
   };
   document.querySelectorAll('.rdn').forEach(b => b.onclick = () => { const r = rem.find(x => x.id == b.dataset.i); r.done = !r.done; saveRem(); render(); });
-  document.querySelectorAll('.rdl2').forEach(b => b.onclick = () => { if (confirm('حذف شود؟')) { rem = rem.filter(x => x.id != b.dataset.i); saveRem(); render(); } });
+  document.querySelectorAll('.rdl2').forEach(b => b.onclick = () => { if (confirm('حذف شود؟')) { const dl = JSON.parse(localStorage.getItem('remDel') || '[]'); dl.push(b.dataset.i); localStorage.setItem('remDel', JSON.stringify(dl)); rem = rem.filter(x => x.id != b.dataset.i); saveRem(); render(); } });
   document.querySelectorAll('.rics').forEach(b => b.onclick = () => remIcs(rem.find(x => x.id == b.dataset.i)));
 }
 function remIcs(r) {
