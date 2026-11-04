@@ -49,6 +49,7 @@ function addSms0(raw) {
   const p = parseSms(raw);
   if (!p) return { ok: false, msg: 'قالب پیامک شناخته نشد' };
   if (p.ignored) return { ok: false, msg: 'پیامک رمز بود؛ نادیده گرفته شد' };
+  if (p.account && accounts[p.account] === undefined) { accounts[p.account] = /^\d{6,}$/.test(p.account) ? p.bank + ' …' + p.account.slice(-4) : p.bank; }
   const dup = tx.find(t => t.account === p.account && t.amount === p.amount && t.balance === p.balance && t.date === p.date);
   if (dup) return { ok: false, msg: 'تکراری بود' };
   const t = { id: Date.now() + Math.random(), bank: p.bank, account: p.account, type: p.type, amount: p.amount, balance: p.balance, date: p.date, desc: '', cat: '', pending: true, raw: String(raw).slice(0, 2000) };
@@ -144,14 +145,15 @@ function render() {
         ${Object.entries(accounts).map(([k, v]) => `<div class="mut" style="margin-top:8px">${esc(k)} · ${tx.filter(t => t.account === k).length} تراکنش</div><input data-k="${esc(k)}" class="an" value="${esc(v)}"><div class="row" style="margin-top:6px"><select class="mvs" data-k="${esc(k)}"><option value="">انتقال به…</option>${Object.entries(accounts).filter(([k2]) => k2 !== k).map(([k2, v2]) => `<option value="${esc(k2)}">${esc(v2)}</option>`).join('')}</select><button class="sec edk" data-k="${esc(k)}">ویرایش شماره</button><button class="sec mvb" data-k="${esc(k)}">ادغام</button><button class="sec dlb" data-k="${esc(k)}">حذف</button></div>`).join('')}
         <button id="sa">ذخیره نام‌ها</button>
         <div class="mut" style="margin-top:14px">افزودن حساب جدید (شمارهٔ حساب همان که در پیامک می‌آید)</div>
-        <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><button class="sec" id="na">افزودن حساب</button></div>
+        <select id="nb"><option value="">بانک را انتخاب کن</option><option value="مهر ایران">مهر ایران (شماره در پیامک)</option><option value="ملی">ملی (شماره حساب کوتاه)</option><option value="بلو">بلو (بدون شماره)</option><option value="سامان">سامان</option><option value="other">دیگر</option></select>
+        <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><div class="mut">حساب‌های جدید از اولین پیامک خودکار ساخته می‌شوند؛ این فرم فقط برای نام‌گذاری زودتر است.</div><button class="sec" id="na">افزودن حساب</button></div>
       <div class="card"><b>پشتیبان‌گیری</b>
         <div class="mut">اگر مرورگر داده را پاک کند، اطلاعات از بین می‌رود؛ پشتیبان بگیرید.</div>
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button id="bf">وارد کردن فایل بانک</button> <input type="file" id="bfi" accept=".xlsx" class="hide"> <button id="mgx" class="sec">ادغام (بدون حذف)</button> <button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
-      <input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button></div>`);
+      ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
     el.insertAdjacentHTML('beforeend', `<div class="card"><b>کد راه‌اندازی</b><div class="mut">فقط نام حساب‌ها و بانک‌ها (آدرس شیت داخلش نیست، پس امن است). کد را به گوشی جدید یا دوستت بده تا بچسباند.</div>
       <textarea id="sk" rows="2" placeholder="EXP1:…"></textarea><div class="row"><button id="sc">ساخت و کپی کد</button><button class="sec" id="sl">اعمال کد</button></div></div>
     <div class="card"><b>راهنمای راه‌اندازی</b><div style="font-size:14px;line-height:1.9">
@@ -165,7 +167,8 @@ function render() {
       <div class="mut">هر پیامکی که به برنامه رسیده اینجاست، حتی ردشده‌ها.</div>
       ${log.slice(0, 30).map((l, i) => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><div class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</div><div style="font-size:13px;white-space:pre-wrap">${esc(l.raw.slice(0, 200))}</div>${l.ok ? '' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : ''}</div>`).join('')}</div>`);
     document.querySelectorAll('.retry').forEach(b => b.onclick = () => { const r = addSms0(log[+b.dataset.i].raw); if (r.ok) { log[+b.dataset.i].ok = true; log[+b.dataset.i].msg = 'ثبت شد'; saveLog(); tab = 'home'; render(); } else alert(r.msg); });
-    $('#na').onclick = () => { const k = $('#nk').value.trim(), n = $('#nn').value.trim(); if (!k || !n) return; accounts[k] = n; save(); render(); };
+    $('#nb').onchange = () => { const b = $('#nb').value; if (b === 'بلو') { $('#nk').value = 'بلو'; $('#nn').value = $('#nn').value || 'بلو'; } else if (b && b !== 'other') $('#nn').value = $('#nn').value || b; };
+    $('#na').onclick = () => { const k = $('#nk').value.trim(), n = $('#nn').value.trim(); if (!k || !n) { alert('شماره/کلید و نام را پر کن'); return; } if (accounts[k] !== undefined) { alert('این حساب از قبل هست'); return; } accounts[k] = n; save(); render(); };
     document.querySelectorAll('.mvb').forEach(b => b.onclick = () => {
       const k = b.dataset.k, to = b.parentNode.querySelector('.mvs').value;
       if (!to) { alert('اول حساب مقصد را انتخاب کن'); return; }
@@ -229,7 +232,8 @@ function render() {
     $('#im').onclick = () => { try { const d = JSON.parse($('#bk').value); tx = d.tx; accounts = d.accounts; save(); alert('بازیابی شد'); } catch { alert('متن نامعتبر است'); } };
     $('#sc').onclick = async () => { const c = 'EXP1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ accounts })))); $('#sk').value = c; try { await navigator.clipboard.writeText(c); alert('کد کپی شد'); } catch { $('#sk').select(); } };
     $('#sl').onclick = () => { try { const v = $('#sk').value.trim().replace(/^EXP1:/, ''); const d = JSON.parse(decodeURIComponent(escape(atob(v)))); accounts = { ...d.accounts, ...accounts }; save(); alert('راه‌اندازی شد'); pulled = false; pull().then(render); render(); } catch { alert('کد نامعتبر است'); } };
-    $('#sy').onclick = async () => { localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
+    if ($('#ul')) $('#ul').onclick = () => { if (confirm('قفل آدرس شیت باز شود؟ فقط اگر شیت جدید می‌خواهی.')) { localStorage.removeItem('syncLock'); localStorage.removeItem('sync_bak'); pulled = false; render(); } };
+    $('#sy').onclick = async () => { if ($('#su')) localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
   }
 }
 
@@ -354,7 +358,7 @@ document.addEventListener('click', async e => {
 
 // ---- همگام‌سازی با Google Sheets ----
 const DEFAULT_SYNC = '';
-const SYNC = () => localStorage.getItem('sync') || DEFAULT_SYNC;
+const SYNC = () => localStorage.getItem('sync') || localStorage.getItem('sync_bak') || DEFAULT_SYNC;
 let pulled = false, syncMsg = '', pt = null;
 function push() {
   if (!SYNC() || !pulled) return;
@@ -384,6 +388,7 @@ async function pull() {
     localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
     if (localOnly.length || (tx.length && !d.tx.length)) localStorage.setItem('dirty', '1');
     pulled = true; syncMsg = '✅ متصل به شیت';
+    localStorage.setItem('sync_bak', SYNC()); localStorage.setItem('syncLock', '1');
     matchTransfers();
     if (localStorage.getItem('dirty')) await doPush();
   } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); }
