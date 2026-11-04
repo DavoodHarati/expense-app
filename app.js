@@ -408,6 +408,8 @@ document.addEventListener('visibilitychange', async () => { if (document.visibil
 addEventListener('online', () => { if (!pulled) pull().then(render); else push(); });
 navigator.storage?.persist?.();
 
+const RT = { check: 'چک', inst: 'قسط', custom: 'سفارشی' };
+let rem = JSON.parse(localStorage.getItem('rem') || '[]');
 matchTransfers();
 handleUrl();
 render();
@@ -415,8 +417,6 @@ pull().then(render);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 /* ===== یادآوری‌ها (فقط روی همین دستگاه) ===== */
-const RT = { check: 'چک', inst: 'قسط', custom: 'سفارشی' };
-let rem = JSON.parse(localStorage.getItem('rem') || '[]');
 const saveRem = () => localStorage.setItem('rem', JSON.stringify(rem));
 const fa = d => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium' }).format(d);
 const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
