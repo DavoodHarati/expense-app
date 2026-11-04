@@ -85,11 +85,11 @@ function pendingCard(t) {
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     <div>${debit ? 'برای چی بود؟' : 'از طرف کی / بابت چی؟'}</div>
-    <input class="d" list="dl" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
-    <input class="p" list="pl" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <input class="d" list="dl" value="${esc(t.desc || '')}" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
+    <input class="p" list="pl" value="${esc(t.person || '')}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="row">${(debit ? [['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
     ${debit ? `<div class="chips">${CATS.map(c => `<button class="chip sec" data-c="${c}">${c}</button>`).join('')}</div>` : ''}
-    <div class="row"><button class="ok">ذخیره</button><button class="sec skip">بعداً</button><button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
+    <div class="row"><button class="ok">ذخیره</button>${t.desc ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
 
@@ -353,6 +353,7 @@ document.addEventListener('click', async e => {
   if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat);
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
+  if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
   if (e.target.classList.contains('del')) { tx = tx.filter(t => t.id !== id); save(); render(); }
 });
 

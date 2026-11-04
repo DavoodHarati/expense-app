@@ -39,6 +39,19 @@
       }
     },
     {
+      bank: 'بلو',
+      test: t => /موجودی\s*:?\s*[\d,]+\s*ریال/.test(t) && /(برداشت پول|واریز پول|پرید|نشست|حساب شما)/.test(t),
+      parse(t) {
+        const a = t.match(/([\d,]{4,})\s*ریال\s*(از|به)\s*حساب/);
+        if (!a) return null;
+        const out = /برداشت|پرید|از حساب/.test(t) && !/واریز/.test(t);
+        const bal = (t.match(/موجودی\s*:?\s*([\d,]+)/) || [])[1];
+        const dm = t.match(/(1[34]\d\d)[.\/-](\d{1,2})[.\/-](\d{1,2})/);
+        const dd = dm && +dm[2] >= 1 && +dm[2] <= 12 && +dm[3] >= 1 && +dm[3] <= 31 ? `${dm[1]}/${String(dm[2]).padStart(2, '0')}/${String(dm[3]).padStart(2, '0')}` : null;
+        return { account: 'بلو', type: out ? 'debit' : 'credit', amount: num(a[1]), balance: bal ? num(bal) : null, date: dd };
+      }
+    },
+    {
       bank: 'مهر ایران',
       test: t => /^\s*\d{12,}\s*$/m.test(t) && /(?<!\d)\d{4}\/\d{1,2}\/\d{1,2}-\d{1,2}:\d{2}/.test(t),
       parse(t) {
