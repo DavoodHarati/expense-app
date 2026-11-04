@@ -343,11 +343,11 @@ function trendHtml() {
   const mx = Math.max(1, ...days.map(d => d.o), ...mrows.map(r => r.o));
   const bar = v => `<div style="height:6px;border-radius:3px;background:#e5e7eb;margin-top:3px"><div style="height:6px;border-radius:3px;background:#dc2626;width:${Math.round(v / mx * 100)}%"></div></div>`;
   const line = (l, o, i) => `<div style="margin-top:8px"><div class="row"><span>${l}</span><span><b class="red">${toman(o)}</b> · <b class="grn">${toman(i)}</b></span></div>${bar(o)}</div>`;
-  return `<div class="card"><b>۷ روز اخیر</b><div class="mut">قرمز: خرج · سبز: درآمد</div>${days.map(d => line(d.n + ' ' + d.k.slice(5), d.o, d.i)).join('')}</div>
-  <div class="card"><b>هفته (شنبه تا جمعه)</b>
+  return `<details class="card"><summary><b>۷ روز اخیر</b></summary><div class="mut">قرمز: خرج · سبز: درآمد</div>${days.map(d => line(d.n + ' ' + d.k.slice(5), d.o, d.i)).join('')}</details>
+  <details class="card"><summary><b>هفته (شنبه تا جمعه)</b></summary>
     <div class="row" style="margin-top:8px"><span>هفته جاری تا الان</span><span><b class="red">${toman(cur.o)}</b> · <b class="grn">${toman(cur.i)}</b></span></div>
-    <div class="row" style="margin-top:8px"><span>هفته قبل</span><span><b class="red">${toman(prev.o)}</b> · <b class="grn">${toman(prev.i)}</b></span></div></div>
-  <div class="card"><b>ماهانه (یک سال اخیر)</b>${mrows.map(r => line(r.m, r.o, r.i)).join('')}</div>`;
+    <div class="row" style="margin-top:8px"><span>هفته قبل</span><span><b class="red">${toman(prev.o)}</b> · <b class="grn">${toman(prev.i)}</b></span></div></details>
+  <details class="card"><summary><b>ماهانه (یک سال اخیر)</b></summary>${mrows.map(r => line(r.m, r.o, r.i)).join('')}</details>`;
 }
 function reportHtml() {
   const base = tx.filter(t => isSel(t.account));
