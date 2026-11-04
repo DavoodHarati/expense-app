@@ -29,17 +29,36 @@ function markX(d, c) {
   d.cat = c.cat = 'انتقال';
   d.desc = 'انتقال به ' + accName(c.account); c.desc = 'انتقال از ' + accName(d.account);
 }
-function matchTransfers() {
-  let n = 0;
-  const free = tx.filter(t => !t.xfer);
+const xrej = () => JSON.parse(localStorage.getItem('xrej') || '[]');
+function xsug() {
+  const rj = new Set(xrej()), used = new Set(), out = [];
+  const free = tx.filter(t => !t.xfer && !t.loan);
   free.filter(t => t.type === 'debit').forEach(d => {
-    if (d.xfer) return;
-    const c = free.find(x => !x.xfer && x.type === 'credit' && x.account !== d.account && x.amount === d.amount && Math.abs(toMin(x.date) - toMin(d.date)) <= 30);
-    if (c) { markX(d, c); n++; }
+    let best = null, bd = 1e9;
+    free.forEach(c => {
+      if (c.type !== 'credit' || c.account === d.account || used.has(c.id) || rj.has(d.id + '|' + c.id)) return;
+      const dm = Math.abs(toMin(c.date) - toMin(d.date)), fee = d.amount - c.amount;
+      if (dm <= 5 && fee >= 0 && fee <= 50000 && dm < bd) { best = c; bd = dm; }
+    });
+    if (best) { used.add(best.id); out.push({ d, c: best }); }
   });
-  if (n) save();
-  return n;
+  return out;
 }
+function xsugHtml() {
+  const L = xsug();
+  return L.map(({ d, c }) => `<div class="card" style="border:2px solid #3b82f6"><b>🔁 انتقال بین حساب‌هایت؟</b>
+    <div style="margin-top:6px">${badge(d.account)} ← ${badge(c.account)}</div>
+    <div class="mut">${toman(c.amount)} تومان${d.amount > c.amount ? ' · کارمزد ' + toman(d.amount - c.amount) : ''} · ${esc(d.date)}</div>
+    <div class="row" style="margin-top:8px"><button class="xyes" data-d="${d.id}" data-c="${c.id}">بله، انتقال است</button><button class="sec xno" data-d="${d.id}" data-c="${c.id}">نه</button></div></div>`).join('');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.xyes,.xno'); if (!b) return;
+  const d = tx.find(x => String(x.id) === b.dataset.d), c = tx.find(x => String(x.id) === b.dataset.c);
+  if (b.classList.contains('xyes') && d && c) { d.fee = Math.max(0, d.amount - c.amount); markX(d, c); save(); }
+  else { const r = xrej(); r.push(b.dataset.d + '|' + b.dataset.c); localStorage.setItem('xrej', JSON.stringify(r)); }
+  render();
+});
+function matchTransfers() { return 0; }
 // ورود پیامک
 function addSms(raw) {
   const r = addSms0(raw);
@@ -315,6 +334,7 @@ function homeHtml0() {
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const pend = tx.filter(t => t.pending);
   return `${banner ? `<div class="card">${banner}</div>` : ''}
+  ${xsugHtml()}
   ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
   ${filterBar()}
   ${statusCard()}
@@ -360,7 +380,7 @@ function reportHtml() {
   const days = new Set(real.filter(t => t.type === 'debit').map(t => t.date.slice(0, 10))).size || 1;
   const topD = Object.entries(real.filter(t => t.type === 'debit' && t.desc).reduce((m, t) => (m[t.desc] = (m[t.desc] || 0) + t.amount, m), {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const out = real.filter(t => t.type === 'debit'), inn = real.filter(t => t.type === 'credit');
-  const flows = {}; list.filter(t => t.xfer && t.type === 'debit').forEach(t => { const k = t.account + '>' + t.to; flows[k] = (flows[k] || 0) + t.amount; });
+  const flows = {}; list.filter(t => t.xfer && t.type === 'debit').forEach(t => { const k = t.account + '>' + t.to; const f = flows[k] || (flows[k] = { v: 0, n: 0, fee: 0 }); f.v += t.amount; f.n++; f.fee += t.fee || 0; });
   const sum = a => a.reduce((s, t) => s + t.amount, 0);
   const by = (arr, f) => { const m = {}; arr.forEach(t => m[f(t)] = (m[f(t)] || 0) + t.amount); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
   const cats = by(out, t => t.cat || 'بدون دسته');
@@ -380,7 +400,7 @@ function reportHtml() {
   ${Object.keys(loans).length ? `<details class="card"><summary><b>🤝 قرض‌ها (کل زمان)</b></summary>${Object.entries(loans).map(([p, v]) => `<div class="row" style="margin-top:8px"><span>${esc(p)}</span><b class="${v > 0 ? 'grn' : v < 0 ? 'red' : 'mut'}">${v > 0 ? 'بدهکار به من: ' : v < 0 ? 'من بدهکارم: ' : 'تسویه '}${v ? toman(Math.abs(v)) : ''}</b></div>`).join('')}</details>` : ''}
   <details class="card"><summary><b>خرج به تفکیک دسته</b></summary>${cats.map(([c, v]) => `<div style="margin-top:10px"><div class="row"><span>${esc(c)}</span><span>${toman(v)} <span class="mut">(${Math.round(v / tot * 100).toLocaleString('fa-IR')}٪)</span></span></div><div class="bar" style="width:${v / mx * 100}%"></div></div>`).join('') || '<div class="mut">خرجی نیست</div>'}</details>
   <details class="card"><summary><b>به تفکیک حساب</b></summary>${accRows.map(r => `<div style="margin-top:10px"><div>${badge(r.a)}</div><div class="row mut"><span>خرج: <b class="red">${toman(r.o)}</b></span><span>واریز: <b class="grn">${toman(r.i)}</b></span></div>${r.xo || r.xi ? `<div class="row mut"><span>انتقال رفته: ${toman(r.xo)}</span><span>انتقال آمده: ${toman(r.xi)}</span></div>` : ''}</div>`).join('') || '<div class="mut">—</div>'}</details>
-  ${Object.keys(flows).length ? `<details class="card"><summary><b>جابه‌جایی بین حساب‌هایم 🔁</b></summary><div class="mut">در مجموع خرج یا درآمد حساب نمی‌شود.</div>${Object.entries(flows).map(([k, v]) => { const [f, t] = k.split('>'); return `<div class="row" style="margin-top:8px"><span>${badge(f)} ← ${badge(t)}</span><b>${toman(v)}</b></div>`; }).join('')}</details>` : ''}
+  ${Object.keys(flows).length ? `<details class="card"><summary><b>جابه‌جایی بین حساب‌هایم 🔁</b></summary><div class="mut">در مجموع خرج یا درآمد حساب نمی‌شود.</div>${Object.entries(flows).map(([k, v]) => { const [f, t] = k.split('>'); return `<div class="row" style="margin-top:8px"><span>${badge(f)} ← ${badge(t)}</span><b>${toman(v.v)} تومان</b></div><div class="mut">${v.n.toLocaleString('fa-IR')} بار${v.fee ? ' · کارمزد ' + toman(v.fee) : ''}</div>`; }).join('')}</details>` : ''}
   ${incBy.cu.length ? `<details class="card"><summary><b>💰 درآمد به تفکیک مشتری</b></summary>${incBy.cu.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
   ${incBy.sv.length ? `<details class="card"><summary><b>🔧 درآمد به تفکیک خدمت</b></summary>${incBy.sv.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
   <details class="card"><summary><b>🔍 جستجوی مشتری / خدمت</b></summary><input id="cq" placeholder="نام مشتری، خدمت یا شرح..."><div id="cqr"></div></details>
@@ -412,7 +432,7 @@ document.addEventListener('click', async e => {
 });
 
 // ---- همگام‌سازی با Google Sheets ----
-const DEFAULT_SYNC = '';
+const DEFAULT_SYNC = 'https://script.google.com/macros/s/AKfycbwrmCywNUDUKJVGeLU5vkIplIaYiWmjCWpktVf-P8aRyfXyNLTOWFfk8elmlpCI2vKn/exec';
 const SYNC = () => localStorage.getItem('sync') || localStorage.getItem('sync_bak') || DEFAULT_SYNC;
 let pulled = false, syncMsg = '', pt = null;
 function push() {
