@@ -323,6 +323,32 @@ function homeHtml0() {
   ${!accs.length ? '<div class="card mut">هنوز تراکنشی نیست.</div>' : ''}
   <h3>آخرین‌ها</h3>${ordBar()}${ordTx(tx.filter(t => !t.pending && isSel(t.account))).slice(0, 15).map(rowHtml).join('') || '<div class="mut">—</div>'}`;
 }
+function jd(d) {
+  const p = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(d);
+  const g = t => String(p.find(x => x.type === t).value).padStart(2, '0');
+  return g('year') + '/' + g('month') + '/' + g('day');
+}
+function trendHtml() {
+  const real = tx.filter(t => isSel(t.account) && !t.xfer && !t.loan && !t.pending);
+  const sumD = (f, ty) => real.filter(t => t.type === ty && f(t.date.slice(0, 10))).reduce((s, t) => s + t.amount, 0);
+  const now = new Date(), DAY = 864e5;
+  const names = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+  const days = []; for (let i = 6; i >= 0; i--) { const d = new Date(now - i * DAY), k = jd(d); days.push({ k, n: names[(d.getDay() + 1) % 7], o: sumD(x => x === k, 'debit'), i: sumD(x => x === k, 'credit') }); }
+  const off = (now.getDay() + 1) % 7;
+  const wk = (a, b) => { const set = new Set(); for (let i = a; i <= b; i++) set.add(jd(new Date(now - i * DAY))); return { o: sumD(x => set.has(x), 'debit'), i: sumD(x => set.has(x), 'credit') }; };
+  const cur = wk(0, off), prev = wk(off + 1, off + 7);
+  const ms = []; const seen = new Set();
+  for (let i = 0; i < 400 && ms.length < 12; i++) { const m = jd(new Date(now - i * 30.4 * DAY)).slice(0, 7); if (!seen.has(m)) { seen.add(m); ms.push(m); } }
+  const mrows = ms.map(m => ({ m, o: sumD(x => x.slice(0, 7) === m, 'debit'), i: sumD(x => x.slice(0, 7) === m, 'credit') }));
+  const mx = Math.max(1, ...days.map(d => d.o), ...mrows.map(r => r.o));
+  const bar = v => `<div style="height:6px;border-radius:3px;background:#e5e7eb;margin-top:3px"><div style="height:6px;border-radius:3px;background:#dc2626;width:${Math.round(v / mx * 100)}%"></div></div>`;
+  const line = (l, o, i) => `<div style="margin-top:8px"><div class="row"><span>${l}</span><span><b class="red">${toman(o)}</b> · <b class="grn">${toman(i)}</b></span></div>${bar(o)}</div>`;
+  return `<div class="card"><b>۷ روز اخیر</b><div class="mut">قرمز: خرج · سبز: درآمد</div>${days.map(d => line(d.n + ' ' + d.k.slice(5), d.o, d.i)).join('')}</div>
+  <div class="card"><b>هفته (شنبه تا جمعه)</b>
+    <div class="row" style="margin-top:8px"><span>هفته جاری تا الان</span><span><b class="red">${toman(cur.o)}</b> · <b class="grn">${toman(cur.i)}</b></span></div>
+    <div class="row" style="margin-top:8px"><span>هفته قبل</span><span><b class="red">${toman(prev.o)}</b> · <b class="grn">${toman(prev.i)}</b></span></div></div>
+  <div class="card"><b>ماهانه (یک سال اخیر)</b>${mrows.map(r => line(r.m, r.o, r.i)).join('')}</div>`;
+}
 function reportHtml() {
   const base = tx.filter(t => isSel(t.account));
   const months = [...new Set(tx.map(monthOf))].sort().reverse();
@@ -343,7 +369,7 @@ function reportHtml() {
     return { a, o: sum(l.filter(t => t.type === 'debit' && !t.xfer)), i: sum(l.filter(t => t.type === 'credit' && !t.xfer)), xo: sum(l.filter(t => t.type === 'debit' && t.xfer)), xi: sum(l.filter(t => t.type === 'credit' && t.xfer)) };
   }).filter(r => r.o || r.i || r.xo || r.xi);
   if (!months.length) return filterBar() + '<div class="card mut">داده‌ای نیست.</div>';
-  return `${filterBar()}
+  return `${filterBar()}${trendHtml()}
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
     <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b></span></div></div>
