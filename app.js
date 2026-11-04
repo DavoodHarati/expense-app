@@ -103,6 +103,8 @@ function render() {
   if (tab === 'home' || tab === 'report') {
     el.innerHTML = tab === 'home' ? homeHtml() : reportHtml();
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
+  } else if (tab === 'rem') {
+    el.innerHTML = remHtml(); remBind();
   } else if (tab === 'loans') {
     el.innerHTML = loansHtml();
   } else if (tab === 'add') {
@@ -281,6 +283,9 @@ function rowHtml(t) {
   <div class="row" style="margin-top:6px"><button class="sec ed">ویرایش</button>${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
+  return remBanner() + homeHtml0();
+}
+function homeHtml0() {
   const bal = {};
   [...tx].sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(t => { if (t.balance != null && !(t.account in bal)) bal[t.account] = t.balance; });
   const accs = Object.keys(bal).filter(isSel);
@@ -391,6 +396,11 @@ async function pull() {
     pulled = true; syncMsg = '✅ متصل به شیت';
     localStorage.setItem('sync_bak', SYNC()); localStorage.setItem('syncLock', '1');
     matchTransfers();
+    if (d.inbox && d.inbox.length) {
+      d.inbox.forEach(i => addSms(i.raw)); localStorage.setItem('dirty', '1');
+      await doPush();
+      fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
+    }
     if (localStorage.getItem('dirty')) await doPush();
   } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); }
 }
@@ -403,3 +413,63 @@ handleUrl();
 render();
 pull().then(render);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+
+/* ===== یادآوری‌ها (فقط روی همین دستگاه) ===== */
+const RT = { check: 'چک', inst: 'قسط', custom: 'سفارشی' };
+let rem = JSON.parse(localStorage.getItem('rem') || '[]');
+const saveRem = () => localStorage.setItem('rem', JSON.stringify(rem));
+const fa = d => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium' }).format(d);
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+function nextDue(r) {
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  let d = new Date(r.date + 'T00:00:00'), n = 0;
+  const step = r.type === 'inst' ? 1 : r.rep === 'm' ? 1 : r.rep === 'y' ? 12 : 0;
+  const lim = r.type === 'inst' ? (r.count || 1) : 999;
+  while (d < t0 && step && n < lim - 1) { n++; d = new Date(d.getFullYear(), d.getMonth() + step, d.getDate()); }
+  return { d, left: r.type === 'inst' ? lim - n : null, days: Math.round((d - t0) / 864e5) };
+}
+function dueList() {
+  return rem.map(r => ({ r, ...nextDue(r) })).filter(x => !(x.days < 0 && (x.r.type === 'check' || !x.r.rep && x.r.type === 'custom') && x.r.done)).sort((a, b) => a.days - b.days);
+}
+function remBanner() {
+  const L = dueList().filter(x => x.days <= (x.r.before || 3) && x.days >= -30 && !x.r.done);
+  return L.length ? `<div class="card" style="border:2px solid #ef4444"><b>⏰ یادآوری</b>${L.map(x => `<div>${esc(x.r.title)} — ${x.days < 0 ? Math.abs(x.days).toLocaleString('fa-IR') + ' روز گذشته' : x.days === 0 ? 'امروز' : x.days.toLocaleString('fa-IR') + ' روز دیگر'}</div>`).join('')}</div>` : '';
+}
+function remHtml() {
+  const L = dueList();
+  return `<div class="card"><b>افزودن یادآوری</b>
+    <select id="rt"><option value="check">ثبت/سررسید چک</option><option value="inst">قسط</option><option value="custom">سفارشی (شهریه، باشگاه…)</option></select>
+    <input id="rn" placeholder="عنوان (مثلاً: چک ملت، قسط وام، شهریه)">
+    <input id="ra" type="number" inputmode="numeric" placeholder="مبلغ به تومان (اختیاری)">
+    <div class="mut" id="rdl">تاریخ سررسید:</div><input id="rd" type="date">
+    <div class="mut">چند روز قبل هشدار؟ (چند عدد با ویرگول، مثلاً ۷,۳,۱)</div><input id="rb" value="7,3,1" dir="ltr">
+    <div id="rc" class="hide"><input id="rk" type="number" inputmode="numeric" placeholder="تعداد کل اقساط (ماهانه)"></div>
+    <select id="rr" class="hide"><option value="">تکرار ندارد</option><option value="m">هر ماه</option><option value="y">هر سال</option></select>
+    <button id="rg">افزودن</button>
+    <div class="mut" style="margin-top:8px">قسط یعنی بدهی که ماهانه و در مبلغ ثابت پرداخت می‌شود (وام، خرید اقساطی). برنامه هر ماه سررسید بعدی را نشان می‌دهد.</div></div>
+  <div class="card"><b>لیست</b>${L.length ? L.map(x => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><b>${RT[x.r.type]} · ${esc(x.r.title)}</b>${x.r.amount ? ' · ' + toman(x.r.amount * 10) + ' تومان' : ''}
+    <div class="mut">${fa(x.d)} · ${x.r.done ? '✅ انجام شد' : x.days < 0 ? Math.abs(x.days).toLocaleString('fa-IR') + ' روز گذشته' : x.days.toLocaleString('fa-IR') + ' روز مانده'}${x.left != null ? ' · ' + x.left.toLocaleString('fa-IR') + ' قسط باقی‌مانده' : ''}</div>
+    <div class="row"><button class="sec rdn" data-i="${x.r.id}">${x.r.done ? 'برگشت' : 'انجام شد'}</button><button class="sec rics" data-i="${x.r.id}">تقویم (هشدار)</button><button class="sec rdl2" data-i="${x.r.id}">حذف</button></div></div>`).join('') : '<div class="mut">چیزی ثبت نشده</div>'}</div>
+  <div class="card"><div class="mut">اعلان خودکار در PWA آیفون بدون سرور مطمئن نیست؛ پس «تقویم (هشدار)» فایل تقویم با هشدارهای تعیین‌شده می‌سازد که آیفون خودش اعلان می‌دهد. همچنین موارد نزدیک بالای صفحهٔ خانه نشان داده می‌شوند. یادآوری‌ها فقط روی همین دستگاه ذخیره می‌شوند.</div></div>`;
+}
+function remBind() {
+  const ty = () => { const t = $('#rt').value; $('#rc').classList.toggle('hide', t !== 'inst'); $('#rr').classList.toggle('hide', t !== 'custom'); $('#rdl').textContent = t === 'inst' ? 'تاریخ اولین قسط:' : 'تاریخ سررسید:'; };
+  $('#rt').onchange = ty; ty();
+  $('#rg').onclick = () => {
+    const title = $('#rn').value.trim(), date = $('#rd').value; if (!title || !date) { alert('عنوان و تاریخ لازم است'); return; }
+    const bs = $('#rb').value.split(/[,،]/).map(x => +x.trim()).filter(x => x >= 0);
+    const t = $('#rt').value;
+    rem.push({ id: Date.now(), type: t, title, date, amount: +$('#ra').value || 0, alerts: bs.length ? bs : [3], before: Math.max(...(bs.length ? bs : [3])), count: t === 'inst' ? +$('#rk').value || 1 : 0, rep: t === 'custom' ? $('#rr').value : '' });
+    saveRem(); render();
+  };
+  document.querySelectorAll('.rdn').forEach(b => b.onclick = () => { const r = rem.find(x => x.id == b.dataset.i); r.done = !r.done; saveRem(); render(); });
+  document.querySelectorAll('.rdl2').forEach(b => b.onclick = () => { if (confirm('حذف شود؟')) { rem = rem.filter(x => x.id != b.dataset.i); saveRem(); render(); } });
+  document.querySelectorAll('.rics').forEach(b => b.onclick = () => remIcs(rem.find(x => x.id == b.dataset.i)));
+}
+function remIcs(r) {
+  const d = new Date(r.date + 'T09:00:00'), f = x => x.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const rr = r.type === 'inst' ? `RRULE:FREQ=MONTHLY;COUNT=${r.count || 1}\n` : r.rep === 'm' ? 'RRULE:FREQ=MONTHLY\n' : r.rep === 'y' ? 'RRULE:FREQ=YEARLY\n' : '';
+  const al = (r.alerts || [3]).map(n => `BEGIN:VALARM\nACTION:DISPLAY\nDESCRIPTION:${r.title}\nTRIGGER:-P${n}D\nEND:VALARM\n`).join('') + 'BEGIN:VALARM\nACTION:DISPLAY\nDESCRIPTION:' + r.title + '\nTRIGGER:PT0S\nEND:VALARM\n';
+  const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//exp//FA\nBEGIN:VEVENT\nUID:${r.id}@exp\nDTSTAMP:${f(new Date())}\nDTSTART:${f(d)}\nSUMMARY:${RT[r.type]}: ${r.title}\n${rr}${al}END:VEVENT\nEND:VCALENDAR\n`.replace(/\n/g, '\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' })); a.download = 'reminder.ics'; a.click();
+}

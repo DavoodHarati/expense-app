@@ -30,7 +30,8 @@ function doGet() {
   const accounts = {};
   rows_(sh_('Accounts', ['key', 'name']), 2).forEach(r => { if (r[0] !== '') accounts[String(r[0])] = String(r[1]); });
   const log = rows_(sh_('SMS', LOG_HEAD), LOG_HEAD.length).map(r => ({ at: Number(r[0]), ok: r[2] === 'true' || r[2] === true, msg: String(r[3]), raw: String(r[4]) }));
-  return out_({ ok: true, tx, accounts, log, sheetUrl: (SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'))).getUrl() });
+  const inbox = rows_(sh_('Inbox', ['id', 'raw']), 2).map(r => ({ id: String(r[0]), raw: String(r[1]) }));
+  return out_({ ok: true, inbox, tx, accounts, log, sheetUrl: (SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'))).getUrl() });
   } catch (err) { return out_({ ok: false, error: String(err) }); }
 }
 
@@ -38,6 +39,11 @@ function doPost(e) {
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const d = JSON.parse(e.postData.contents);
+    if (d.inbox) { sh_('Inbox', ['id', 'raw']).appendRow([String(Date.now()) + Math.floor(Math.random() * 1000), String(d.inbox)]); return out_({ ok: true }); }
+    if (d.ack) {
+      const s = sh_('Inbox', ['id', 'raw']), keep = rows_(s, 2).filter(r => d.ack.indexOf(String(r[0])) < 0);
+      put_(s, ['id', 'raw'], keep); return out_({ ok: true });
+    }
     if (d.tx) put_(sh_('Transactions', TX_HEAD), TX_HEAD, d.tx.map(t => [String(t.id), t.date || '', t.account || '', t.type || '', String(t.amount), t.balance == null ? '' : String(t.balance), t.cat || '', t.desc || '', String(!!t.pending), String(!!t.xfer), t.person || '', t.loan || '', t.raw || '', JSON.stringify(t)]));
     if (d.accounts) put_(sh_('Accounts', ['key', 'name']), ['key', 'name'], Object.entries(d.accounts).map(([k, v]) => [k, v]));
     if (d.log) {
