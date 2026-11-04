@@ -48,7 +48,8 @@
         const bal = (t.match(/موجودی\s*:?\s*([\d,]+)/) || [])[1];
         const dm = t.match(/(1[34]\d\d)[.\/-](\d{1,2})[.\/-](\d{1,2})/);
         const dd = dm && +dm[2] >= 1 && +dm[2] <= 12 && +dm[3] >= 1 && +dm[3] <= 31 ? `${dm[1]}/${String(dm[2]).padStart(2, '0')}/${String(dm[3]).padStart(2, '0')}` : null;
-        return { account: 'بلو', type: out ? 'debit' : 'credit', amount: num(a[1]), balance: bal ? num(bal) : null, date: dd };
+        const tm = t.match(/(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/);
+        return { account: 'بلو', type: out ? 'debit' : 'credit', amount: num(a[1]), balance: bal ? num(bal) : null, date: dd && tm ? dd + ' ' + pad(+tm[1]) + ':' + tm[2] : dd };
       }
     },
     {
