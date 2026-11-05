@@ -85,7 +85,10 @@ function handleUrl() {
   const sms = q.get('sms');
   if (location.search) {
     history.replaceState({}, '', location.pathname);
-    if (sms) {
+    if (q.get('add') && !sms) {
+      tab = 'add';
+      setTimeout(() => { const m = $('#ma'); if (m) { m.scrollIntoView(); m.focus(); } }, 400);
+    } else if (sms) {
       const r = addSms(sms);
       banner = r.ok ? (r.t.xfer ? '🔁 انتقال بین حساب‌های خودت تشخیص داده شد.' : '✅ پیامک جدید ثبت شد؛ پایین بنویس بابت چی بود.') : '⚠️ ' + r.msg + ' (در تنظیمات ← پیامک‌های دریافتی ببین)';
     } else {
@@ -162,6 +165,7 @@ function monthOf(t) { return t.date.slice(0, 7); }
 function render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const el = $('#app');
+  if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
   if (tab === 'home' || tab === 'report') {
     el.innerHTML = tab === 'home' ? homeHtml() : reportHtml();
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
@@ -471,8 +475,7 @@ document.addEventListener('click', async e => {
 });
 
 // ---- همگام‌سازی با Google Sheets ----
-const DEFAULT_SYNC = 'https://script.google.com/macros/s/AKfycbwrmCywNUDUKJVGeLU5vkIplIaYiWmjCWpktVf-P8aRyfXyNLTOWFfk8elmlpCI2vKn/exec';
-const SYNC = () => localStorage.getItem('sync') || localStorage.getItem('sync_bak') || DEFAULT_SYNC;
+const SYNC = () => localStorage.getItem('sync') || localStorage.getItem('sync_bak');
 let pulled = false, syncMsg = '', pt = null;
 function push() {
   if (!SYNC() || !pulled) return;
@@ -601,3 +604,45 @@ document.addEventListener('input', e => {
   const tot = r.reduce((s, t) => s + (t.type === 'credit' ? t.amount : -t.amount), 0);
   box.innerHTML = `<div class="mut" style="margin:8px 0">${r.length.toLocaleString('fa-IR')} مورد · جمع: ${toman(tot)}</div>` + r.slice(0, 50).map(rowHtml).join('');
 });
+
+// ---- صفحهٔ راه‌اندازی ----
+function setupHtml() {
+  const st = n => `<span class="chip" style="display:inline-block;margin-left:6px">${n}</span>`;
+  return `<div class="card"><b>👋 خوش آمدید؛ راه‌اندازی (حدود ۵ دقیقه، فقط یک بار)</b>
+    <div class="mut">اطلاعات شما فقط در Google Sheet خودتان ذخیره می‌شود و هیچ‌کس دیگری به آن دسترسی ندارد. برای این کار به یک حساب Gmail نیاز دارید.</div></div>
+  <div class="card"><div>${st(1)}دکمهٔ زیر را بزنید تا کد کپی شود:</div><button id="stc">📋 کپی کد</button> <span class="mut" id="stm"></span></div>
+  <div class="card"><div>${st(2)}یک شیت خالی بسازید:</div><button class="sec" id="sto">📄 باز کردن Google Sheet جدید</button></div>
+  <div class="card"><div>${st(3)}در شیت: منوی <b>Extensions</b> ← <b>Apps Script</b>. همهٔ کدِ داخل صفحه را پاک کنید و کد کپی‌شده را بچسبانید. سپس دکمهٔ ذخیره (💾).</div></div>
+  <div class="card"><div>${st(4)}بالا سمت راست <b>Deploy</b> ← <b>New deployment</b> ← چرخ‌دنده ⚙ ← <b>Web app</b>. این دو را تنظیم کنید:</div>
+    <div class="mut">Execute as: <b>Me</b><br>Who has access: <b>Anyone</b></div>
+    <div class="mut">روی Deploy بزنید و اجازه‌ها را بپذیرید (اگر «Google hasn't verified» آمد: Advanced ← Go to … ← Allow).</div></div>
+  <div class="card"><div>${st(5)}آدرس Web app (که به <code>/exec</code> ختم می‌شود) را کپی و اینجا بچسبانید:</div>
+    <input id="stu" placeholder="https://script.google.com/macros/s/…/exec" dir="ltr"><button id="stt">✅ امتحان اتصال</button>
+    <div class="mut" id="stx"></div></div>
+  <div class="card"><b>📱 ثبت خودکار پیامک (اختیاری، بعد از راه‌اندازی)</b>
+    <div class="mut"><b>آیفون:</b> برنامهٔ Shortcuts ← Automation ← «+» ← Message ← فرستنده: شمارهٔ بانک ← Run Immediately. عمل: «Get Contents of URL» با آدرس <code>آدرس‌اسکریپت?sms=</code> + متن پیام (Message).<br>
+    <b>اندروید:</b> برنامهٔ MacroDroid ← ماکروی جدید ← Trigger: «SMS Received» (فرستندهٔ بانک) ← Action: «HTTP Request» (GET) به <code>آدرس‌اسکریپت?sms=</code> + متغیر <code>[sms_message]</code>.<br>
+    برای ثبت دستی سریع: صفحهٔ برنامه را با <code>؟add=1</code> به صفحهٔ اصلی گوشی اضافه کنید.</div></div>
+  <div class="card"><button class="sec" id="stn">بدون شیت ادامه می‌دهم (فقط روی همین گوشی)</button></div>`;
+}
+document.addEventListener('click', async e => {
+  const id = e.target.id; if (!id || id[0] !== 's' || id[1] !== 't') return;
+  if (id === 'stc') { try { const t = await (await fetch('Code.gs')).text(); await navigator.clipboard.writeText(t); $('#stm').textContent = '✅ کپی شد'; } catch (_) { $('#stm').textContent = 'کپی نشد؛ دوباره امتحان کنید'; } }
+  if (id === 'sto') window.open('https://sheets.new', '_blank');
+  if (id === 'stn') { localStorage.setItem('noSync', '1'); render(); }
+  if (id === 'stt') {
+    const u = $('#stu').value.trim();
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)) { $('#stx').textContent = '⚠️ آدرس باید با https://script.google.com شروع و به /exec ختم شود'; return; }
+    $('#stx').textContent = 'در حال اتصال…';
+    localStorage.setItem('sync', u); pulled = false; await pull();
+    if (pulled) render(); else { localStorage.removeItem('sync'); $('#stx').textContent = syncMsg; }
+  }
+});
+
+// ---- شمارش ناشناس بازدید (GoatCounter؛ فقط تعداد، بدون هیچ اطلاعات مالی) ----
+const GC_CODE = ''; // مثلاً 'expense-app' برای expense-app.goatcounter.com
+(function () {
+  if (!GC_CODE) return;
+  try { const k = new Date().toDateString(); if (localStorage.getItem('gcDay') === k) return; localStorage.setItem('gcDay', k);
+    new Image().src = `https://${GC_CODE}.goatcounter.com/count?p=/open&t=open&r=&rnd=${Date.now()}`; } catch (_) {}
+})();
