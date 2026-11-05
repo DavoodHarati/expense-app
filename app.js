@@ -99,24 +99,27 @@ function setDesc(id, desc, cat, ex) {
   const t = tx.find(x => x.id === id);
   t.desc = desc; t.cat = cat || t.cat || 'سایر'; t.pending = false;
   if (ex) {
-    if (ex.customer) t.customer = ex.customer; if (ex.service) t.service = ex.service;
+    t.customer = ex.customer || ''; t.service = ex.service || '';
     if (ex.remDate) { rem.push({ id: Date.now(), type: 'custom', title: desc || t.customer || 'یادآوری', date: ex.remDate, amount: Math.round(t.amount / 10), alerts: [3, 1], before: 3, count: 0, rep: '' }); saveRem(); }
   }
   save(); render();
 }
 
+const drafts = {}, editing = new Set();
+document.addEventListener('input', e => { const c = e.target.closest('.card[data-id]'); if (c && e.target.matches('input')) (drafts[c.dataset.id] = drafts[c.dataset.id] || {})[e.target.className.split(' ')[0]] = e.target.value; });
 function pendingCard(t) {
   const debit = t.type === 'debit';
-  return `<div class="card" data-id="${t.id}">
+  const D = drafts[t.id] || {}, cat0 = D.cat || t.cat || '';
+  return `<div class="card" data-id="${t.id}" data-cat="${esc(cat0)}">
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     <div>${debit ? 'برای چی بود؟' : 'از طرف کی / بابت چی؟'}</div>
-    <input class="d" list="dl" value="${esc(t.desc || '')}" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
-    <input class="p" list="pl" value="${esc(t.person || '')}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
+    <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="row">${(debit ? [['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
-    ${debit ? '' : `<input class="cu" value="${esc(t.customer || '')}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(t.service || '')}" placeholder="بابت چه خدمات/کالایی؟ (اختیاری)">`}
-    <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-    <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date">
+    ${debit ? '' : `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ (اختیاری)">`}
+    <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+    <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date" value="${esc(D.rdt || '')}">
     <div class="row"><button class="ok">ذخیره</button>${t.desc ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
@@ -315,6 +318,7 @@ function loansHtml() {
   ${ppl.map(p => `<div class="card row lp" data-p="${esc(p)}"><b>${esc(p)}</b><b class="${bal[p] > 0 ? 'grn' : bal[p] < 0 ? 'red' : 'mut'}">${bal[p] > 0 ? 'طلبکار ' : bal[p] < 0 ? 'بدهکار ' : 'تسویه '}${toman(Math.abs(bal[p]))}</b></div>`).join('') || '<div class="card mut">هنوز قرضی ثبت نشده. در «افزودن» یا روی پیامک، دکمهٔ قرض را بزن.</div>'}`;
 }
 function rowHtml(t) {
+  if (editing.has(String(t.id))) return pendingCard(t);
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(LOAN[t.loan][0]) + ' · ' + esc(t.person) + ' — ' : ''}${esc(t.desc || '—')}</b><b class="${t.xfer ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}</span></div>
   ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? 'مشتری: ' + esc(t.customer) : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
@@ -394,7 +398,7 @@ function reportHtml() {
   return `${filterBar()}${trendHtml()}
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
-    <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b></span></div></div>
+    <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b><div style="font-size:11px;opacity:.75">درآمد منهای خرج</div></span></div></div>
   <details class="card"><summary><b>میانگین خرج روزانه</b></summary><div>${toman(Math.round(sum(out) / days))} تومان <span class="mut">(${days.toLocaleString('fa-IR')} روز دارای خرج)</span></div></details>
   ${topD.length ? `<details class="card"><summary><b>بیشترین خرج‌ها</b></summary>${topD.map(([d, v]) => `<div class="row" style="margin-top:6px"><span>${esc(d)}</span><span>${toman(v)}</span></div>`).join('')}</details>` : ''}
   ${Object.keys(loans).length ? `<details class="card"><summary><b>🤝 قرض‌ها (کل زمان)</b></summary>${Object.entries(loans).map(([p, v]) => `<div class="row" style="margin-top:8px"><span>${esc(p)}</span><b class="${v > 0 ? 'grn' : v < 0 ? 'red' : 'mut'}">${v > 0 ? 'بدهکار به من: ' : v < 0 ? 'من بدهکارم: ' : 'تسویه '}${v ? toman(Math.abs(v)) : ''}</b></div>`).join('')}</details>` : ''}
@@ -421,8 +425,9 @@ document.addEventListener('click', async e => {
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
-  if (e.target.dataset.c) { card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
-  if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); card.outerHTML = pendingCard(t); return; }
+  if (e.target.matches('.ok,.cx,.xf,.del,.skip') || (e.target.classList.contains('ln') && card.querySelector('.p').value.trim())) { delete drafts[id]; editing.delete(String(id)); }
+  if (e.target.dataset.c) { (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
+  if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); editing.add(String(id)); card.outerHTML = pendingCard(t); return; }
   if (e.target.classList.contains('ln')) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.dataset.k; t.loan = k; t.person = p; t.cat = 'قرض'; t.desc = card.querySelector('.d').value || LOAN[k][0]; t.xfer = false; t.pending = false; save(); render(); return; }
   if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), remDate: card.querySelector('.rdt').value });
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
