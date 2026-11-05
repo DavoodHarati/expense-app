@@ -606,11 +606,12 @@ document.addEventListener('input', e => {
 });
 
 // ---- صفحهٔ راه‌اندازی ----
+if (!window._gs) fetch('Code.gs').then(r => r.text()).then(t => { window._gs = t; }).catch(() => {});
 function setupHtml() {
   const st = n => `<span class="chip" style="display:inline-block;margin-left:6px">${n}</span>`;
   return `<div class="card"><b>👋 خوش آمدید؛ راه‌اندازی (حدود ۵ دقیقه، فقط یک بار)</b>
     <div class="mut">اطلاعات شما فقط در Google Sheet خودتان ذخیره می‌شود و هیچ‌کس دیگری به آن دسترسی ندارد. برای این کار به یک حساب Gmail نیاز دارید.</div></div>
-  <div class="card"><div>${st(1)}دکمهٔ زیر را بزنید تا کد کپی شود:</div><button id="stc">📋 کپی کد</button> <span class="mut" id="stm"></span></div>
+  <div class="card"><div>${st(1)}دکمهٔ زیر را بزنید تا کد کپی شود:</div><button id="stc">📋 کپی کد</button> <span class="mut" id="stm"></span><div id="stbox"></div></div>
   <div class="card"><div>${st(2)}یک شیت خالی بسازید:</div><button class="sec" id="sto">📄 باز کردن Google Sheet جدید</button></div>
   <div class="card"><div>${st(3)}در شیت: منوی <b>Extensions</b> ← <b>Apps Script</b>. همهٔ کدِ داخل صفحه را پاک کنید و کد کپی‌شده را بچسبانید. سپس دکمهٔ ذخیره (💾).</div></div>
   <div class="card"><div>${st(4)}بالا سمت راست <b>Deploy</b> ← <b>New deployment</b> ← چرخ‌دنده ⚙ ← <b>Web app</b>. این دو را تنظیم کنید:</div>
@@ -627,7 +628,7 @@ function setupHtml() {
 }
 document.addEventListener('click', async e => {
   const id = e.target.id; if (!id || id[0] !== 's' || id[1] !== 't') return;
-  if (id === 'stc') { try { const t = await (await fetch('Code.gs')).text(); await navigator.clipboard.writeText(t); $('#stm').textContent = '✅ کپی شد'; } catch (_) { $('#stm').textContent = 'کپی نشد؛ دوباره امتحان کنید'; } }
+  if (id === 'stc') { const t = window._gs || ''; let ok = false; if (t) { try { const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;top:0;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, t.length); ok = document.execCommand('copy'); ta.remove(); } catch (_) {} } if (ok) $('#stm').textContent = '✅ کپی شد'; else { $('#stm').textContent = 'کپی خودکار نشد؛ داخل کادر زیر نگه دارید ← Select All ← Copy'; $('#stbox').innerHTML = '<textarea readonly style="width:100%;height:120px;direction:ltr" onfocus="this.select()">' + t.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</textarea>'; } }
   if (id === 'sto') window.open('https://sheets.new', '_blank');
   if (id === 'stn') { localStorage.setItem('noSync', '1'); render(); }
   if (id === 'stt') {
