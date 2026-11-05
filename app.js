@@ -106,10 +106,41 @@ function setDesc(id, desc, cat, ex) {
 }
 
 const drafts = {}, editing = new Set();
+const JOBS = ['', 'راننده', 'فروشنده', 'تعمیرکار / خدماتی', 'معلم', 'کارمند', 'بازنشسته', 'سایر'];
+const job = () => localStorage.getItem('job') || '', work = () => localStorage.getItem('work') || '';
+const salaryJob = () => ['معلم', 'کارمند', 'بازنشسته'].includes(job());
+const defIncCat = () => salaryJob() ? 'حقوق' : job() === 'فروشنده' ? 'فروش' : job() ? 'مشتری' : '';
+const nrm = s => String(s).replace(/\u064a/g, 'ی').replace(/\u0643/g, 'ک').replace(/[آأإ]/g, 'ا').replace(/[\s\u200c]/g, '').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toLowerCase();
+function lev(a, b) { const m = []; for (let i = 0; i <= a.length; i++) { m[i] = [i]; } for (let j = 1; j <= b.length; j++) m[0][j] = j; for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return m[a.length][b.length]; }
+function nameSugs() {
+  const rej = lsj('nameRej', []), out = [];
+  ['customer', 'service'].forEach(f => {
+    const cnt = {}; tx.forEach(t => { if (t[f]) cnt[t[f]] = (cnt[t[f]] || 0) + 1; });
+    const names = Object.keys(cnt);
+    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
+      const a = names[i], b = names[j], x = nrm(a), y = nrm(b);
+      const near = x === y || (Math.min(x.length, y.length) >= 4 && lev(x, y) <= (Math.max(x.length, y.length) >= 9 ? 2 : 1));
+      if (!near) continue;
+      const [lo, hi] = cnt[a] > cnt[b] ? [b, a] : [a, b];
+      if (!rej.includes(f + '|' + lo + '|' + hi) && !rej.includes(f + '|' + hi + '|' + lo)) out.push({ f, lo, hi });
+    }
+  });
+  return out.slice(0, 3);
+}
+function nameSugHtml() {
+  return nameSugs().map(s => `<div class="card" style="background:#eef4ff" data-nf="${s.f}" data-lo="${esc(s.lo)}" data-hi="${esc(s.hi)}"><b>این‌ها یکی هستند؟</b><div style="margin:6px 0">«${esc(s.lo)}» و «${esc(s.hi)}» <span class="mut">(${s.f === 'customer' ? 'مشتری' : 'خدمت'})</span></div><div class="row"><button class="nmy">بله، یکی کن (${esc(s.hi)})</button><button class="sec nmn">نه، جدا هستند</button></div></div>`).join('');
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-nf]'); if (!c) return;
+  const f = c.dataset.nf, lo = c.dataset.lo, hi = c.dataset.hi;
+  if (e.target.classList.contains('nmy')) { tx.forEach(t => { if (t[f] === lo) t[f] = hi; }); save(); render(); }
+  else if (e.target.classList.contains('nmn')) { const r = lsj('nameRej', []); r.push(f + '|' + lo + '|' + hi); localStorage.setItem('nameRej', JSON.stringify(r)); render(); }
+});
 document.addEventListener('input', e => { const c = e.target.closest('.card[data-id]'); if (c && e.target.matches('input')) (drafts[c.dataset.id] = drafts[c.dataset.id] || {})[e.target.className.split(' ')[0]] = e.target.value; });
 function pendingCard(t) {
   const debit = t.type === 'debit';
-  const D = drafts[t.id] || {}, cat0 = D.cat || t.cat || '';
+  const D = drafts[t.id] || {}, cat0 = D.cat || t.cat || (debit ? '' : defIncCat());
+  const showCu = !debit && (!salaryJob() || t.customer || t.service);
   return `<div class="card" data-id="${t.id}" data-cat="${esc(cat0)}">
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
@@ -117,7 +148,7 @@ function pendingCard(t) {
     <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
     <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="row">${(debit ? [['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
-    ${debit ? '' : `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ (اختیاری)">`}
+    ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">` : ''}
     <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date" value="${esc(D.rdt || '')}">
     <div class="row"><button class="ok">ذخیره</button>${t.desc ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
@@ -188,6 +219,9 @@ function render() {
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
     const labHtml = () => [['cats', 'برچسب‌های هزینه', CATS], ['icats', 'برچسب‌های درآمد', INC]].map(([k, n, L]) => `<div class="mut" style="margin-top:8px">${n}</div><div class="chips">${L.map((c, i) => `<button class="chip sec lbd" data-k="${k}" data-i="${i}">${esc(c)} ✕</button>`).join('')}</div><div class="row"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div>`).join('');
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
+    $('#jobs').onchange = e => localStorage.setItem('job', e.target.value);
+    $('#wk').onchange = e => localStorage.setItem('work', e.target.value.trim());
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">برای حذف روی برچسب بزن. در صفحهٔ پیامک جدید همین‌ها دیده می‌شوند. فقط روی همین دستگاه ذخیره می‌شود.</div><div id="lbx">${labHtml()}</div></div>`);
     $('#lbc').onclick = e => {
       const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k, L = k === 'cats' ? CATS : INC;
@@ -395,7 +429,7 @@ function reportHtml() {
     return { a, o: sum(l.filter(t => t.type === 'debit' && !t.xfer)), i: sum(l.filter(t => t.type === 'credit' && !t.xfer)), xo: sum(l.filter(t => t.type === 'debit' && t.xfer)), xi: sum(l.filter(t => t.type === 'credit' && t.xfer)) };
   }).filter(r => r.o || r.i || r.xo || r.xi);
   if (!months.length) return filterBar() + '<div class="card mut">داده‌ای نیست.</div>';
-  return `${filterBar()}${trendHtml()}
+  return `${filterBar()}${nameSugHtml()}${trendHtml()}
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
     <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b><div style="font-size:11px;opacity:.75">درآمد منهای خرج</div></span></div></div>
