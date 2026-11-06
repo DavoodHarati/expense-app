@@ -688,6 +688,7 @@ document.addEventListener('click', async e => {
       if (nm) { tt.customer = card.querySelector('.cu')?.value.trim() || tt.customer; }
     }
   }
+  if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.loan = ''; t0.person = ''; } }
   if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value });
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
