@@ -5,6 +5,7 @@ const INC = lsj('icats', ['فروش', 'مشتری', 'حقوق', 'سایر']);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 let tx = load('tx', []);
 let accounts = load('accounts', {});
+const tomb = ids => { const g = JSON.parse(localStorage.getItem('txDel') || '[]'); ids.forEach(i => g.push(String(i))); localStorage.setItem('txDel', JSON.stringify([...new Set(g)].slice(-500))); };
 const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
 let undo = [];
@@ -441,13 +442,13 @@ function loansHtml() {
     const isCo = CO[lp] !== undefined;
     const l = ordTx(L.filter(t => t.person === lp));
     return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div style="opacity:.8">${esc(lp)}</div><div class="big">${toman(Math.abs(bal[lp]))} <small>تومان</small></div><div>${isCo ? (bal[lp] > 0 ? 'پیش‌پرداخت دستمزد' : bal[lp] < 0 ? 'مانده دستمزد (بدهی من)' : '✓ تسویه کامل') : (bal[lp] > 0 ? 'او به من بدهکار است' : bal[lp] < 0 ? 'من به او بدهکارم' : '✓ تسویه کامل')}</div>${(() => { const sh = L.filter(t => t.person === lp && t.loan === 'share').reduce((x, t) => x + t.amount, 0), pd = L.filter(t => t.person === lp && t.loan === 'wage').reduce((x, t) => x + t.amount, 0); return sh || pd ? `<div style="margin-top:8px;font-size:14px">کل سهم: ${toman(sh)} · پرداخت‌شده: ${toman(pd)}</div>` : ''; })()}</div>
-    <div class="card"><b>مشخصات</b><div class="mut" style="margin:4px 0">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً راننده"></div>
+    <details class="card"><summary><b>مشخصات</b></summary><div class="mut" style="margin:4px 0">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً راننده"></div>
     <select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 همکار (سهم دارد، کارکرد ثبت می‌شود)</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select>
-    <div class="mut" style="margin:4px 0">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></div>${isCo ? `<div class="card"><b>➕ ثبت کارکرد</b><div class="mut">هر کاری که سیامک انجام داده را بنویس؛ مبلغ سهمش به «مانده» اضافه می‌شود. بعداً که پول دادی با «پرداخت دستمزد» کم می‌شود.</div><input id="wd" placeholder="شرح کار (مثلاً نصب کولر خانم رضایی)"><input id="wa" type="number" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><button id="wadd">ثبت کارکرد</button></div>` : ''}${ordBar()}${l.map(rowHtml).join('')}`;
+    <div class="mut" style="margin:4px 0">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد</b></summary><div class="mut">هر کاری که سیامک انجام داده را بنویس؛ مبلغ سهمش به «مانده» اضافه می‌شود. بعداً که پول دادی با «پرداخت دستمزد» کم می‌شود.</div><input id="wd" placeholder="شرح کار (مثلاً نصب کولر خانم رضایی)"><input id="wa" type="number" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><div class="mut" style="margin-top:6px">تاریخ (خالی = امروز)</div><input id="wdt" value="${nowStr().slice(0, 10)}" placeholder="1405/08/15"><button id="wadd">ثبت کارکرد</button></details>` : ''}${ordBar()}${l.map(rowHtml).join('')}`;
   }
   const addP = `<div class="card"><b>➕ شخص جدید</b><input id="nn" placeholder="نام"><input id="nj" placeholder="کار (مثلاً راننده)"><select id="ncb"><option value="1">👷 همکار (سهم دارد، کارکرد ثبت می‌شود)</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></div>`;
   return `<div class="hero"><div class="row"><span>طلب من: <b>${toman(cr)}</b></span><span>بدهی من: <b>${toman(db)}</b></span></div></div>
-  ${addP}${ppl.map(p => `<div class="card row lp" data-p="${esc(p)}"><div><b>${esc(p)}</b><div class="mut">${esc(PJ[p] || '')}${CO[p] !== undefined ? (PJ[p] ? ' · ' : '') + 'همکار ' + Number(CO[p]).toLocaleString('fa-IR') + '٪' : ''}</div></div><b class="${bal[p] > 0 ? 'grn' : bal[p] < 0 ? 'red' : 'mut'}">${CO[p] !== undefined ? (bal[p] > 0 ? 'پیش‌پرداخت ' : bal[p] < 0 ? 'مانده دستمزد ' : '✓ تسویه کامل') : (bal[p] > 0 ? 'طلبکار ' : bal[p] < 0 ? 'بدهکار ' : '✓ تسویه کامل')}${bal[p] ? toman(Math.abs(bal[p])) : ''}</b></div>`).join('') || '<div class="card mut">هنوز قرضی ثبت نشده. در «افزودن» یا روی پیامک، دکمهٔ قرض را بزن.</div>'}`;
+  ${addP}${ppl.map(p => `<div class="card row lp" data-p="${esc(p)}"><div><b>${esc(p)}${CO[p] !== undefined ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${CO[p] !== undefined ? (PJ[p] ? ' · ' : '') + 'همکار' : ''}</div></div><b class="${bal[p] > 0 ? 'grn' : bal[p] < 0 ? 'red' : 'mut'}">${CO[p] !== undefined ? (bal[p] > 0 ? 'پیش‌پرداخت ' : bal[p] < 0 ? 'مانده دستمزد ' : '✓ تسویه کامل') : (bal[p] > 0 ? 'طلبکار ' : bal[p] < 0 ? 'بدهکار ' : '✓ تسویه کامل')}${bal[p] ? toman(Math.abs(bal[p])) : ''}</b></div>`).join('') || '<div class="card mut">هنوز قرضی ثبت نشده. در «افزودن» یا روی پیامک، دکمهٔ قرض را بزن.</div>'}`;
 }
 function rowHtml(t) {
   if (editing.has(String(t.id))) return pendingCard(t);
@@ -561,9 +562,9 @@ document.addEventListener('pointerdown', e => {
   b.addEventListener('pointerleave', () => { clearTimeout(_ht); clearInterval(_hi); b._held = true; }, { once: true });
 });
 document.addEventListener('click', async e => {
-  if (e.target.id === 'wadd') { const a = Number($('#wa').value), d = $('#wd').value.trim(); if (!a || !lp) { alert('مبلغ را بنویس'); return; } const b = tx.find(x => x.account) || {}; tx.push({ id: Date.now(), ghost: true, bank: b.bank, account: b.account, type: 'credit', amount: a * 10, balance: null, date: nowStr(), cat: 'قرض', loan: 'share', person: lp, desc: d || 'کارکرد', pending: false }); save(); render(); return; }
-  if (e.target.classList.contains('wdel')) { if (confirm('این ردیف حذف شود؟')) { tx = tx.filter(x => x.id !== Number(e.target.dataset.id)); save(); render(); } return; }
-  if (e.target.id === 'pdel') { if (confirm('«' + lp + '» و همهٔ ردیف‌های حساب او حذف شود؟')) { const c = cols(), j = pjobs(); delete c[lp]; delete j[lp]; setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); tx.forEach(x => { if (x.colleague === lp) { x.colleague = ''; x.pct = 0; } }); tx = tx.filter(x => x.person !== lp); lp = null; save(); render(); } return; }
+  if (e.target.id === 'wadd') { const a = Number($('#wa').value), d = $('#wd').value.trim(); if (!a || !lp) { alert('مبلغ را بنویس'); return; } const b = tx.find(x => x.account) || {}; let dt = ($('#wdt').value || '').trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/'); const nw = nowStr(), m = dt.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (dt && !m) { alert('تاریخ را مثل 1405/08/15 بنویس'); return; } const wdate = m ? `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nw.slice(11)}` : nw; tx.push({ id: Date.now(), ghost: true, bank: b.bank, account: b.account, type: 'credit', amount: a * 10, balance: null, date: wdate, cat: 'قرض', loan: 'share', person: lp, desc: d || 'کارکرد', pending: false }); save(); render(); return; }
+  if (e.target.classList.contains('wdel')) { if (confirm('این ردیف حذف شود؟')) { tomb([e.target.dataset.id]); tx = tx.filter(x => x.id !== Number(e.target.dataset.id)); save(); render(); } return; }
+  if (e.target.id === 'pdel') { if (confirm('«' + lp + '» و همهٔ ردیف‌های حساب او حذف شود؟')) { const c = cols(), j = pjobs(); delete c[lp]; delete j[lp]; setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); tx.forEach(x => { if (x.colleague === lp) { x.colleague = ''; x.pct = 0; } }); tomb(tx.filter(x => x.person === lp).map(x => x.id)); tx = tx.filter(x => x.person !== lp); lp = null; save(); render(); } return; }
   const cpb = e.target.closest('.cp'); if (cpb) { const cd = cpb.closest('.card'), pi = cd.querySelector('.p'); pi.value = cpb.dataset.n; (drafts[cd.dataset.id] = drafts[cd.dataset.id] || {}).p = pi.value; balHint(cd); return; }
   if (e.target.id === 'nadd' || e.target.id === 'psv') {
     const nw = e.target.id === 'nadd', nm = nw ? $('#nn').value.trim() : lp; if (!nm) return;
@@ -605,7 +606,7 @@ document.addEventListener('click', async e => {
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
-  if (e.target.classList.contains('del')) { tx = tx.filter(t => t.id !== id && t.parent !== id); save(); render(); }
+  if (e.target.classList.contains('del')) { tomb(tx.filter(t => t.id === id || t.parent === id).map(t => t.id)); tx = tx.filter(t => t.id !== id && t.parent !== id); save(); render(); }
 });
 
 // ---- همگام‌سازی با Google Sheets ----
@@ -630,6 +631,7 @@ async function pull() {
     if (!d.ok) throw new Error(d.error || 'bad');
     if (d.sheetUrl) localStorage.setItem('sheetUrl', d.sheetUrl);
     const dirty = localStorage.getItem('dirty');
+    const gone0 = new Set(JSON.parse(localStorage.getItem('txDel') || '[]')); d.tx = d.tx.filter(t => !gone0.has(String(t.id)));
     const sid = new Set(d.tx.map(t => String(t.id))), lid = new Set(tx.map(t => String(t.id)));
     const localOnly = tx.filter(t => !sid.has(String(t.id)));
     const base = dirty ? [...tx, ...d.tx.filter(t => !lid.has(String(t.id)))] : [...d.tx, ...localOnly];
