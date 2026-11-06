@@ -20,7 +20,7 @@ let banner = '';
 let tab = 'home', month = null;
 
 // انتقال بین حساب‌های خودم
-const toMin = d => { const [x, h = '0:0'] = d.split(' '); const [y, m, dd] = x.split('/').map(Number); const [hh, mm] = h.split(':').map(Number); return ((y * 372 + m * 31 + dd) * 24 + hh) * 60 + mm; };
+const toMin = d => { d = String(d).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).trim(); const [x, h = '0:0'] = d.split(/\s+/); const [y, m, dd] = x.split('/').map(Number); const [hh, mm] = h.split(':').map(Number); return ((y * 372 + m * 31 + dd) * 24 + hh) * 60 + mm; };
 function nowStr() {
   const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
   const g = t => n.find(x => x.type === t).value;
@@ -74,7 +74,7 @@ function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
   const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
-  const cs = tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 500000 && dist(t) <= 1440).sort((p, q) => dist(p) - dist(q)).slice(0, 5);
+  const cs = tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 500000 && dist(t) <= 1440).sort((p, q) => (dist(p) || 0) - (dist(q) || 0)).slice(0, 5);
   const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
   const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name, isCol = Object.keys(cols()).some(k => nrm(k) === nrm(nm));
   const head = `<div class="card" style="background:#eefaf6"><b>🧾 رسید خوانده شد</b><div>${toman(rc.amount)} تومان به «${esc(nm)}» · ${esc(rc.date)}</div><div class="mut">ثبت می‌شود به‌عنوان ${isCol ? 'پرداخت دستمزد به همکار' : 'قرضِ داده‌شده به این شخص'}</div>`;
