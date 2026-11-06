@@ -346,18 +346,22 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
-    const labHtml = () => [['cats', 'برچسب‌های هزینه', CATS], ['icats', 'برچسب‌های درآمد', INC], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)', lsj('ctypes', [])], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»', lsj('svq', [])]].map(([k, n, L]) => `<div class="mut" style="margin-top:8px">${n}</div><div class="chips">${L.map((c, i) => `<button class="chip sec lbd" data-k="${k}" data-i="${i}">${esc(c)} ✕</button>`).join('')}</div><div class="row"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div>`).join('');
     el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
-    el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">برای حذف روی برچسب بزن. در صفحهٔ پیامک جدید همین‌ها دیده می‌شوند. فقط روی همین دستگاه ذخیره می‌شود.</div><div id="lbx">${labHtml()}</div></div>`);
+    const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [] };
+    const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : lsj(k, []);
+    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">با زدن × برچسب حذف می‌شود، با نوشتن نام و «افزودن» (یا Enter) اضافه می‌شود. همه‌جا همین‌ها دیده می‌شوند و بین دستگاه‌ها همگام می‌شوند.</div><div class="mut" id="lbm" style="color:#0f766e;min-height:18px"></div><div id="lbx">${labHtml()}</div></div>`);
+    const lbSet = (k, L, m) => { if (k === 'cats') { CATS.length = 0; CATS.push(...L); } else if (k === 'icats') { INC.length = 0; INC.push(...L); } localStorage.setItem(k, JSON.stringify(L)); localStorage.setItem('dirty', '1'); $('#lbx').innerHTML = labHtml(); $('#lbm').textContent = m; push(); };
+    const lbAdd = k => { const inp = $('#lbc .lbn[data-k="' + k + '"]'), v = inp.value.trim(), L = labList(k).slice(); if (!v) return; if (L.includes(v)) { $('#lbm').textContent = '«' + v + '» از قبل هست'; return; } L.push(v); lbSet(k, L, '✅ «' + v + '» اضافه شد'); };
     $('#lbc').onclick = e => {
-      const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k, L = k === 'cats' ? CATS : k === 'icats' ? INC : lsj(k, []);
-      if (b.classList.contains('lbd')) { if (k !== 'ctypes' && k !== 'svq' && L.length < 2) return; if (!confirm('«' + L[+b.dataset.i] + '» حذف شود؟ مطمئنی؟')) return; L.splice(+b.dataset.i, 1); }
-      else if (b.classList.contains('lba')) { const v = $('#lbc .lbn[data-k="' + k + '"]').value.trim(); if (!v || L.includes(v)) return; L.push(v); }
-      else return;
-      localStorage.setItem(k, JSON.stringify(L)); $('#lbx').innerHTML = labHtml();
+      const b = e.target.closest('.lbd,.lba,.lbr'); if (!b) return; const k = b.dataset.k, L = labList(k).slice();
+      if (b.classList.contains('lbd')) { if ((k === 'cats' || k === 'icats') && L.length < 2) { $('#lbm').textContent = 'حداقل یک برچسب باید بماند'; return; } const v = L.splice(+b.dataset.i, 1)[0]; lbSet(k, L, '🗑 «' + v + '» حذف شد'); }
+      else if (b.classList.contains('lba')) lbAdd(k);
+      else if (confirm('این فهرست به حالت اولیه برگردد؟')) lbSet(k, LDEF[k].slice(), '↩️ به حالت اولیه برگشت');
     };
+    $('#lbc').onkeydown = e => { if (e.key === 'Enter' && e.target.classList.contains('lbn')) { e.preventDefault(); lbAdd(e.target.dataset.k); } };
     el.insertAdjacentHTML('beforeend', `<div class="card"><b>کد راه‌اندازی</b><div class="mut">فقط نام حساب‌ها و بانک‌ها (آدرس شیت داخلش نیست، پس امن است). کد را به گوشی جدید یا دوستت بده تا بچسباند.</div>
       <textarea id="sk" rows="2" placeholder="EXP1:…"></textarea><div class="row"><button id="sc">ساخت و کپی کد</button><button class="sec" id="sl">اعمال کد</button></div></div>
     <div class="card"><b>راهنمای راه‌اندازی</b><div style="font-size:14px;line-height:1.9">
@@ -539,7 +543,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T16:30:00Z';
+const BUILD = '2026-11-06T17:00:00Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
