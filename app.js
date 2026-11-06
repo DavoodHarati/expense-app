@@ -293,6 +293,8 @@ function _render() {
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
   } else if (tab === 'rem') {
     el.innerHTML = remHtml(); accordion(el, 'rem'); remBind();
+  } else if (tab === 'contacts') {
+    el.innerHTML = contactsHtml();
   } else if (tab === 'loans') {
     el.innerHTML = loansHtml();
   } else if (tab === 'add') {
@@ -451,7 +453,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۷۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۷۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -763,7 +765,7 @@ function push() {
 }
 async function doPush() {
   try {
-    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq') }) }, log: log.slice(0, 100) }) })).json();
+    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), ppl: localStorage.getItem('ppl') }) }, log: log.slice(0, 100) }) })).json();
     if (!r.ok) throw new Error(r.error);
     localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد؛ بعداً دوباره تلاش می‌شود'; }
@@ -969,3 +971,49 @@ document.addEventListener('change', e => { if (!e.target.classList.contains('cs'
 document.addEventListener('click', e => { if (!e.target.classList.contains('cp')) return; const l = e.target.closest('.card').querySelector('.lk'); if (l && !l.value) l.value = 'wage'; });
 
 document.addEventListener('change', e => { if (!e.target.classList.contains('catsel')) return; const c = e.target.closest('.card'); c.dataset.cat = e.target.value; (drafts[c.dataset.id] = drafts[c.dataset.id] || {}).cat = e.target.value; });
+
+
+// ===== مخاطبین =====
+let ppl = load('ppl', []), cv = 'list', pe = null, pq = '', pf = '';
+const savePpl = () => { localStorage.setItem('ppl', JSON.stringify(ppl)); localStorage.setItem('dirty', '1'); push(); };
+const PT0 = ['مشتری', 'راننده', 'همکار', 'تأمین‌کننده', 'خانواده'];
+const ptags = () => [...new Set([...PT0, ...ppl.flatMap(p => p.tags || [])])];
+const pfa = s => String(s || '').replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c));
+function contactsHtml() {
+  ppl = load('ppl', []);
+  const sw = `<div class="row" style="margin-bottom:8px"><button class="${cv === 'list' ? '' : 'sec'}" data-cv="list">👥 مخاطبین</button><button class="${cv === 'work' ? '' : 'sec'}" data-cv="work">🤝 همکاران و کارکردها</button></div>`;
+  if (cv === 'work') return sw + loansHtml();
+  if (pe !== null) {
+    const p = pe === 'new' ? { tags: [] } : ppl.find(x => x.id === pe) || { tags: [] };
+    return sw + `<div class="card" id="pform"><b>${pe === 'new' ? 'مخاطب جدید' : 'پروندهٔ ' + esc(p.name)}</b>
+      <input id="pn" placeholder="نام" value="${esc(p.name || '')}"><input id="pp" inputmode="tel" placeholder="تلفن" value="${esc(p.phone || '')}">
+      <div class="mut">برچسب‌ها (چندتایی)</div><div class="row" style="flex-wrap:wrap;gap:6px">${ptags().map(t => `<button class="ptg ${(p.tags || []).includes(t) ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      <input id="pnt" placeholder="برچسب تازه (نوشتن و Enter)"><textarea id="pno" rows="3" placeholder="یادداشت">${esc(p.note || '')}</textarea>
+      <div class="row"><button id="psv">ذخیره</button><button class="sec" id="pcn">بستن</button>${pe === 'new' ? '' : '<button class="sec" id="pdl">🗑 حذف</button>'}</div></div>`;
+  }
+  const q = pfa(pq).trim(), L = ppl.filter(p => (!pf || (p.tags || []).includes(pf)) && (!q || (p.name + ' ' + (p.phone || '')).includes(q)));
+  return sw + `<div class="card"><div class="row"><b>مخاطبین (${ppl.length.toLocaleString('fa-IR')})</b><button id="pnew">＋ جدید</button></div>
+    <input id="pq" placeholder="جستجوی نام یا تلفن" value="${esc(pq)}">
+    <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="pfl ${pf ? 'sec' : ''}" data-t="">همه</button>${ptags().map(t => `<button class="pfl ${pf === t ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
+    ${L.map(p => `<div class="card pc" data-pid="${p.id}"><b>${esc(p.name)}</b> <span class="mut" dir="ltr">${esc(p.phone || '')}</span><div class="mut">${(p.tags || []).map(esc).join(' · ')}</div>${p.note ? `<div class="mut">${esc(p.note)}</div>` : ''}</div>`).join('') || '<div class="mut" style="padding:12px">مخاطبی نیست.</div>'}`;
+}
+const pRead = () => ({ name: $('#pn').value.trim(), phone: pfa($('#pp').value.trim()), note: $('#pno').value.trim(), tags: [...document.querySelectorAll('#pform .ptg:not(.sec)')].map(b => b.dataset.t) });
+document.addEventListener('click', e => {
+  if (tab !== 'contacts') return;
+  const g = s => e.target.closest(s);
+  if (g('[data-cv]')) { cv = g('[data-cv]').dataset.cv; pe = null; render(); return; }
+  if (g('#pnew')) { pe = 'new'; render(); return; }
+  if (g('#pcn')) { pe = null; render(); return; }
+  if (g('.pfl')) { pf = g('.pfl').dataset.t; render(); return; }
+  if (g('.ptg')) { g('.ptg').classList.toggle('sec'); return; }
+  if (g('.pc')) { pe = +g('.pc').dataset.pid; render(); return; }
+  if (g('#pdl')) { if (confirm('این مخاطب حذف شود؟')) { ppl = ppl.filter(x => x.id !== pe); savePpl(); pe = null; render(); } return; }
+  if (g('#psv')) {
+    const d = pRead(); if (!d.name) { alert('نام را بنویس'); return; }
+    if (pe === 'new') { if (d.phone && ppl.some(x => x.phone === d.phone)) { alert('این تلفن قبلاً ثبت شده'); return; } ppl.push({ id: Date.now(), ...d }); }
+    else Object.assign(ppl.find(x => x.id === pe), d);
+    savePpl(); pe = null; render();
+  }
+});
+document.addEventListener('input', e => { if (e.target.id === 'pq') { pq = e.target.value; const p = e.target.selectionStart; render(); const i = $('#pq'); if (i) { i.focus(); i.setSelectionRange(p, p); } } });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pnt') { e.preventDefault(); const v = e.target.value.trim(); if (!v) return; const d = pRead(); d.tags.push(v); const o = pe === 'new' ? null : ppl.find(x => x.id === pe); if (o) { Object.assign(o, d); savePpl(); } else { ppl.push({ id: Date.now(), ...d, name: d.name || 'بی‌نام' }); pe = ppl[ppl.length - 1].id; savePpl(); } render(); } });
