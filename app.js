@@ -77,7 +77,7 @@ function rcCands(rc) {
 function rcAttach(c, rc, raw) {
   const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
   const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name, isCol = Object.keys(cols()).some(k => nrm(k) === nrm(nm));
-  c.receipt = String(raw).trim().slice(0, 1000); c.person = nm; c.loan = isCol ? 'wage' : 'lent'; c.cat = lcat(c.loan); c.pending = false; c.xfer = false;
+  c.receipt = String(raw).trim().slice(0, 1000); c.seller = nm;
 }
 function rcPending() { try { return JSON.parse(localStorage.getItem('prc')) || []; } catch { return []; } }
 function rcTryPending() {
@@ -199,7 +199,7 @@ function pendingCard(t) {
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
     <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><datalist id="dl"></datalist>
-    <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص / فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
     ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage">دستمزد / حقوق همکار</option><option value="lent">قرض دادم</option><option value="payback">قرض پس دادم</option></select>` : ''}
     ${debit ? '' : `<div class="row">${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
@@ -582,7 +582,7 @@ function loansHtml() {
 }
 function rowHtml(t) {
   if (editing.has(String(t.id))) return pendingCard(t);
-  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}</b><b class="${t.xfer || t.ghost ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost ? '' : t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
+  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${t.xfer || t.ghost ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost ? '' : t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? (t.ctype === 'driver' ? '🚚 راننده: ' : 'مشتری: ') + esc(t.customer) : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
@@ -733,7 +733,7 @@ document.addEventListener('click', async e => {
   if (e.target.dataset.c) { const cb = card.querySelector('.ctbox'); if (cb) cb.classList.toggle('hide', e.target.dataset.c === 'فروش'); (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
   if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); editing.add(String(id)); card.outerHTML = pendingCard(t); return; }
   const lkS = card.querySelector('.lk'); if (e.target.classList.contains('ok') && lkS && lkS.value && !card.querySelector('.p').value.trim()) { alert('اول نام شخص/همکار را انتخاب کن'); return; }
-  if (e.target.classList.contains('ln') || (e.target.classList.contains('ok') && lkS && lkS.value)) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.classList.contains('ln') ? e.target.dataset.k : lkS.value; t.loan = k; t.person = p; t.cat = lcat(k); { const dv = card.querySelector('.d').value.trim(); t.desc = Object.values(LOAN).some(x => x[0] === dv) ? '' : dv; } t.xfer = false; t.pending = false; save(); render(); return; }
+  if (e.target.classList.contains('ln') || (e.target.classList.contains('ok') && lkS && lkS.value)) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.classList.contains('ln') ? e.target.dataset.k : lkS.value; t.loan = k; t.person = p; t.seller = ''; t.cat = lcat(k); { const dv = card.querySelector('.d').value.trim(); t.desc = Object.values(LOAN).some(x => x[0] === dv) ? '' : dv; } t.xfer = false; t.pending = false; save(); render(); return; }
   if (e.target.classList.contains('ok')) {
     const co = card.querySelector('.co'); let nm = '';
     if (co) {
@@ -746,7 +746,7 @@ document.addEventListener('click', async e => {
       if (nm) { tt.customer = card.querySelector('.cu')?.value.trim() || tt.customer; }
     }
   }
-  if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.loan = ''; t0.person = ''; } }
+  if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.seller = card.querySelector('.p').value.trim() || t0.seller || ''; t0.loan = ''; t0.person = ''; } }
   if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value });
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
