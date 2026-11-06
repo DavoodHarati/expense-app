@@ -62,8 +62,8 @@ document.addEventListener('click', e => {
 });
 const MON = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 function parseReceipt(raw) {
-  const x = String(raw).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c));
-  if (!/انتقال\s*وجه/.test(x) || !/به\s*نام/.test(x)) return null;
+  const x = String(raw).replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff\u0640]/g, '').replace(/[\u00a0\u2007\u202f]/g, ' ').replace(/\u064a/g, 'ی').replace(/\u0643/g, 'ک').replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c));
+  if (!/انتقال\s*(وجه|پایا|ساتنا|پل|کارت)?/.test(x) || !/به\s*نام/.test(x)) return null;
   const a = x.match(/مبلغ\s*([\d,٬]+)/), d = x.match(/(\d{1,2})\s+(\S+)\s+(\d{4})\s*-?\s*(\d{1,2}):(\d{2})/), n = x.match(/به\s*نام\s*(.+?)\s*(با\s*کد|انجام|$)/);
   if (!a || !d || !n) return null;
   const m = MON.indexOf(d[2].replace(/ي/g, 'ی')) + 1; if (!m) return null;
@@ -201,6 +201,7 @@ function pendingCard(t) {
     <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
     <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص">${Object.keys(cols()).length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${Object.keys(cols()).map(n => `<button type="button" class="sec cp" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}<datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
+    ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage">دستمزد / حقوق همکار</option><option value="lent">قرض دادم</option><option value="payback">قرض پس دادم</option></select>` : ''}
     <div class="row">${(debit ? [['wage', '💼 پرداخت دستمزد'], ['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
     ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
     ${showCu ? ctBlock(t, D, cat0) : ''}
@@ -538,7 +539,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T14:00:00Z';
+const BUILD = '2026-11-06T15:00:00Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
@@ -721,13 +722,14 @@ document.addEventListener('click', async e => {
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
-  if (e.target.matches('.ok,.cx,.xf,.del,.skip') || (e.target.classList.contains('ln') && card.querySelector('.p').value.trim())) { delete drafts[id]; editing.delete(String(id)); }
+  if (e.target.matches('.ok,.cx,.xf,.del,.skip') || ((e.target.classList.contains('ln') || (e.target.classList.contains('ok') && card.querySelector('.lk')?.value)) && card.querySelector('.p').value.trim())) { delete drafts[id]; editing.delete(String(id)); }
   if (e.target.classList.contains('sqn')) { const i = card.querySelector('.sv'); i.value = e.target.dataset.n; (drafts[id] = drafts[id] || {}).sv = i.value; return; }
   if (e.target.classList.contains('cqn')) { const i = card.querySelector('.cu'); i.value = e.target.dataset.n; i.dispatchEvent(new Event('input', { bubbles: true })); (drafts[id] = drafts[id] || {}).cu = i.value; return; }
   if (e.target.classList.contains('ctb')) { const b = card.querySelector('.ctbox'), v = e.target.dataset.v; b.dataset.ct = b.dataset.ct === v ? '' : v; b.querySelectorAll('.ctb').forEach(x => x.classList.toggle('on', x.dataset.v === b.dataset.ct)); (drafts[id] = drafts[id] || {}).ct = b.dataset.ct; return; }
   if (e.target.dataset.c) { const cb = card.querySelector('.ctbox'); if (cb) cb.classList.toggle('hide', e.target.dataset.c === 'فروش'); (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
   if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); editing.add(String(id)); card.outerHTML = pendingCard(t); return; }
-  if (e.target.classList.contains('ln')) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.dataset.k; t.loan = k; t.person = p; t.cat = lcat(k); { const dv = card.querySelector('.d').value.trim(); t.desc = Object.values(LOAN).some(x => x[0] === dv) ? '' : dv; } t.xfer = false; t.pending = false; save(); render(); return; }
+  const lkS = card.querySelector('.lk'); if (e.target.classList.contains('ok') && lkS && lkS.value && !card.querySelector('.p').value.trim()) { alert('اول نام شخص/همکار را انتخاب کن'); return; }
+  if (e.target.classList.contains('ln') || (e.target.classList.contains('ok') && lkS && lkS.value)) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.classList.contains('ln') ? e.target.dataset.k : lkS.value; t.loan = k; t.person = p; t.cat = lcat(k); { const dv = card.querySelector('.d').value.trim(); t.desc = Object.values(LOAN).some(x => x[0] === dv) ? '' : dv; } t.xfer = false; t.pending = false; save(); render(); return; }
   if (e.target.classList.contains('ok')) {
     const co = card.querySelector('.co'); let nm = '';
     if (co) {
@@ -947,3 +949,6 @@ document.addEventListener('input', e => {
   b.dataset.ct = p.ctype; b.querySelectorAll('.ctb').forEach(x => x.classList.toggle('on', x.dataset.v === p.ctype));
   const ph = card.querySelector('.cph'); if (ph && !ph.value && p.cphone) ph.value = p.cphone;
 });
+
+document.addEventListener('change', e => { if (!e.target.classList.contains('cs')) return; const c = e.target.closest('.card'); c.querySelector('.p').value = e.target.value; const l = c.querySelector('.lk'); if (l && e.target.value && !l.value) l.value = 'wage'; });
+document.addEventListener('click', e => { if (!e.target.classList.contains('cp')) return; const l = e.target.closest('.card').querySelector('.lk'); if (l && !l.value) l.value = 'wage'; });
