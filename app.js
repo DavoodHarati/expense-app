@@ -70,20 +70,39 @@ function parseReceipt(raw) {
   const p2 = v => String(v).padStart(2, '0');
   return { amount: Number(a[1].replace(/[,٬]/g, '')), date: `${d[3]}/${p2(m)}/${p2(d[1])} ${p2(d[4])}:${d[5]}`, name: n[1].trim() };
 }
+function rcCands(rc) {
+  const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
+  return tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 1000000 && dist(t) <= 4320).sort((p, q) => (dist(p) || 0) - (dist(q) || 0)).slice(0, 5);
+}
+function rcAttach(c, rc, raw) {
+  const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
+  const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name, isCol = Object.keys(cols()).some(k => nrm(k) === nrm(nm));
+  c.receipt = String(raw).trim().slice(0, 1000); c.person = nm; c.loan = isCol ? 'wage' : 'lent'; c.cat = lcat(c.loan); c.pending = false; c.xfer = false;
+}
+function rcPending() { try { return JSON.parse(localStorage.getItem('prc')) || []; } catch { return []; } }
+function rcTryPending() {
+  const L = rcPending(); if (!L.length) return 0; let n = 0;
+  const rest = L.filter(raw => { const rc = parseReceipt(raw); if (!rc) return false; const cs = rcCands(rc); const dist = t => Math.abs(toMin(t.date) - toMin(rc.date)); if (cs.length && dist(cs[0]) <= 30) { rcAttach(cs[0], rc, raw); n++; return false; } return true; });
+  if (n) { localStorage.setItem('prc', JSON.stringify(rest)); save(); }
+  return n;
+}
 function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
   const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
-  const cs = tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 500000 && dist(t) <= 1440).sort((p, q) => (dist(p) || 0) - (dist(q) || 0)).slice(0, 5);
-  const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
-  const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name, isCol = Object.keys(cols()).some(k => nrm(k) === nrm(nm));
-  const head = `<div class="card" style="background:#eefaf6"><b>🧾 رسید خوانده شد</b><div>${toman(rc.amount)} تومان به «${esc(nm)}» · ${esc(rc.date)}</div><div class="mut">ثبت می‌شود به‌عنوان ${isCol ? 'پرداخت دستمزد به همکار' : 'قرضِ داده‌شده به این شخص'}</div>`;
-  if (!cs.length) { box.innerHTML = head + '<div class="red">پیامک کسر از حساب نزدیک به این رسید پیدا نشد. اگر هنوز نرسیده، بعداً دوباره بچسبان.</div></div>'; return true; }
-  box.innerHTML = head + '<div style="margin-top:8px">کدام پرداخت است؟ روی ✓ بزن:</div>' + cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}${t.desc ? ' · ' + esc(t.desc) : ''}</div></span><button class="rcok" data-id="${t.id}">✓ این است</button></div>`).join('') + '</div>';
+  const cs = rcCands(rc);
+  const head = `<div class="card" style="background:#eefaf6"><b>🧾 رسید خوانده شد</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div>`;
+  if (!cs.length) {
+    const L = rcPending(); if (!L.includes(raw)) { L.push(String(raw).trim()); localStorage.setItem('prc', JSON.stringify(L)); }
+    box.innerHTML = head + '<div class="red">پیامک کسر از حساب هنوز نیامده. رسید نگه داشته شد؛ به‌محض رسیدن پیامک خودکار به آن می‌چسبد ✅</div></div>'; return true;
+  }
+  if (cs.length === 1 || dist(cs[0]) <= 30 && (cs.length < 2 || dist(cs[1]) > 30)) {
+    rcAttach(cs[0], rc, raw); save(); render(); const m = $('#msg'); if (m) m.textContent = 'رسید خودکار به تراکنش ' + toman(cs[0].amount) + ' تومان (' + cs[0].date + ') چسبید ✅'; return true;
+  }
+  box.innerHTML = head + '<div style="margin-top:8px">چند مورد نزدیک پیدا شد؛ کدام است؟</div>' + cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}${t.desc ? ' · ' + esc(t.desc) : ''}</div></span><button class="rcok" data-id="${t.id}">✓ این است</button></div>`).join('') + '</div>';
   box.querySelectorAll('.rcok').forEach(b => b.onclick = () => {
     const c = tx.find(t => String(t.id) === b.dataset.id); if (!c) return;
-    c.receipt = String(raw).trim().slice(0, 1000); c.person = nm; c.loan = isCol ? 'wage' : 'lent'; c.cat = lcat(c.loan); c.pending = false; c.xfer = false;
-    save(); render(); const m = $('#msg'); if (m) m.textContent = 'رسید در تراکنش ثبت شد ✅';
+    rcAttach(c, rc, raw); save(); render(); const m = $('#msg'); if (m) m.textContent = 'رسید در تراکنش ثبت شد ✅';
   });
   return true;
 }
@@ -103,7 +122,7 @@ function addSms0(raw) {
   const dup = tx.find(t => t.account === p.account && t.amount === p.amount && t.balance === p.balance && t.date === p.date);
   if (dup) return { ok: false, msg: 'تکراری بود' };
   const t = { id: Date.now() + Math.random(), bank: p.bank, account: p.account, type: p.type, amount: p.amount, balance: p.balance, date: p.date, desc: '', cat: '', pending: true, raw: String(raw).slice(0, 2000) };
-  tx.unshift(t); save();
+  tx.unshift(t); save(); rcTryPending();
   const m = matchTransfers();
   return { ok: true, t, xfer: m };
 }
@@ -419,6 +438,13 @@ function _render() {
     $('#sl').onclick = () => { try { const v = $('#sk').value.trim().replace(/^EXP1:/, ''); const d = JSON.parse(decodeURIComponent(escape(atob(v)))); accounts = { ...d.accounts, ...accounts }; save(); alert('راه‌اندازی شد'); pulled = false; pull().then(render); render(); } catch { alert('کد نامعتبر است'); } };
     if ($('#ul')) $('#ul').onclick = () => { if (confirm('قفل آدرس شیت باز شود؟ فقط اگر شیت جدید می‌خواهی.')) { localStorage.removeItem('syncLock'); localStorage.removeItem('sync_bak'); pulled = false; render(); } };
     $('#sy').onclick = async () => { if ($('#su')) localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
+    { const key = t => [t.account, t.type, t.amount, t.date].join('|');
+      const G = {}; tx.filter(t => !t.ghost && t.date).forEach(t => (G[key(t)] = G[key(t)] || []).push(t));
+      const D = Object.values(G).filter(g => g.length > 1 && g.every(x => x.balance == null || g[0].balance == null || x.balance === g[0].balance));
+      el.insertAdjacentHTML('beforeend', `<div class="card" id="dpc"><b>🔁 تراکنش‌های تکراری</b>${D.length ? `<div class="mut">${D.length} گروه پیدا شد. با «ادغام» یکی نگه داشته می‌شود و اطلاعات (رسید، شخص، توضیح) با هم ترکیب می‌شود.</div>` + D.map((g, i) => `<div class="row" style="margin-top:8px"><span>${toman(g[0].amount)} تومان × ${g.length}<div class="mut">${esc(g[0].date)} · ${esc(accName(g[0].account))}</div></span><button class="dpm" data-i="${i}">ادغام</button></div>`).join('') + '<button id="dpa" style="margin-top:8px">ادغام همه</button>' : '<div class="mut">موردی پیدا نشد ✅</div>'}</div>`);
+      const merge = g => { const sc = t => (t.receipt ? 4 : 0) + (t.person ? 2 : 0) + (t.desc ? 1 : 0) + (t.cat ? 1 : 0); const k = g.slice().sort((a, b) => sc(b) - sc(a))[0]; g.forEach(o => { if (o === k) return; for (const f in o) if (k[f] === undefined || k[f] === '' || k[f] === null) k[f] = o[f]; tx.forEach(c => { if (c.parent === o.id) c.parent = k.id; }); }); const ids = new Set(g.filter(o => o !== k).map(o => o.id)); tx = tx.filter(t => !ids.has(t.id)); };
+      $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
+    }
     accordion(el, 'settings');
     el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
@@ -512,7 +538,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T13:05:00Z';
+const BUILD = '2026-11-06T14:00:00Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
