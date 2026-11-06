@@ -93,6 +93,8 @@ function receiptFlow(raw) {
   const cs = rcCands(rc);
   const head = `<div class="card" style="background:#eefaf6"><b>🧾 رسید خوانده شد</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div>`;
   if (!cs.length) {
+    const done = tx.find(t => t.type === 'debit' && t.receipt && t.amount <= rc.amount + 1000000 && t.amount >= rc.amount && toMin(t.date) && Math.abs(toMin(t.date) - toMin(rc.date)) <= 4320);
+    if (done) { box.innerHTML = head + '<div class="red">این رسید قبلاً به تراکنش ' + toman(done.amount) + ' تومان (' + esc(done.date) + ') چسبیده است ✅ دوباره لازم نیست.</div></div>'; return true; }
     const L = rcPending(); if (!L.includes(raw)) { L.push(String(raw).trim()); localStorage.setItem('prc', JSON.stringify(L)); }
     box.innerHTML = head + '<div class="red">پیامک کسر از حساب هنوز نیامده. رسید نگه داشته شد؛ به‌محض رسیدن پیامک خودکار به آن می‌چسبد ✅</div></div>'; return true;
   }
@@ -453,7 +455,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۷۹)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۰)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -753,7 +755,7 @@ document.addEventListener('click', async e => {
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
-  if (e.target.classList.contains('del')) { if (!confirm('این تراکنش حذف شود؟ مطمئنی؟')) return; tomb(tx.filter(t => t.id === id || t.parent === id).map(t => t.id)); tx = tx.filter(t => t.id !== id && t.parent !== id); save(); render(); }
+  if (e.target.classList.contains('del')) { if (!confirm('این تراکنش حذف شود؟ مطمئنی؟')) return; const dt = tx.find(t => t.id === id); tomb(tx.filter(t => t.id === id || t.parent === id).map(t => t.id)); tx = tx.filter(t => t.id !== id && t.parent !== id); if (dt && dt.raw) { const g = JSON.parse(localStorage.getItem('logDel') || '[]'); log = log.filter(l => { const m = String(l.raw).trim() === String(dt.raw).trim(); if (m) g.push(l.at); return !m; }); localStorage.setItem('logDel', JSON.stringify(g)); saveLog(); } save(); render(); }
 });
 
 // ---- همگام‌سازی با Google Sheets ----
