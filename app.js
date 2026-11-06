@@ -59,6 +59,27 @@ document.addEventListener('click', e => {
   else { const r = xrej(); r.push(b.dataset.d + '|' + b.dataset.c); localStorage.setItem('xrej', JSON.stringify(r)); }
   render();
 });
+const MON = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+function parseReceipt(raw) {
+  const x = String(raw).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c));
+  if (!/انتقال\s*وجه/.test(x) || !/به\s*نام/.test(x)) return null;
+  const a = x.match(/مبلغ\s*([\d,٬]+)/), d = x.match(/(\d{1,2})\s+(\S+)\s+(\d{4})\s*-?\s*(\d{1,2}):(\d{2})/), n = x.match(/به\s*نام\s*(.+?)\s*(با\s*کد|انجام|$)/);
+  if (!a || !d || !n) return null;
+  const m = MON.indexOf(d[2].replace(/ي/g, 'ی')) + 1; if (!m) return null;
+  const p2 = v => String(v).padStart(2, '0');
+  return { amount: Number(a[1].replace(/[,٬]/g, '')), date: `${d[3]}/${p2(m)}/${p2(d[1])} ${p2(d[4])}:${d[5]}`, name: n[1].trim() };
+}
+function receiptFlow(raw) {
+  const rc = parseReceipt(raw); if (!rc) return false;
+  const c = tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 500000 && Math.abs(toMin(t.date) - toMin(rc.date)) <= 20).sort((p, q) => Math.abs(toMin(p.date) - toMin(rc.date)) - Math.abs(toMin(q.date) - toMin(rc.date)))[0];
+  if (!c) { alert('رسید خوانده شد (' + toman(rc.amount) + ' تومان، ' + rc.date + ' ، ' + rc.name + ') ولی پیامک کسر از حساب نزدیک به آن پیدا نشد. اگر هنوز نرسیده، بعداً دوباره بچسبان.'); return true; }
+  if (!confirm('رسید: ' + toman(rc.amount) + ' تومان به ' + rc.name + ' ، ' + rc.date + '\nپیامک حساب: ' + toman(c.amount) + ' تومان ، ' + c.date + '\nآیا این پرداخت همین است؟')) return true;
+  const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
+  const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name, isCol = Object.keys(cols()).some(k => nrm(k) === nrm(nm));
+  if (!confirm('ثبت شود به‌عنوان ' + (isCol ? 'پرداخت دستمزد به همکار' : 'قرضِ داده‌شده به') + ' «' + nm + '»؟')) return true;
+  c.receipt = String(raw).trim().slice(0, 1000); c.person = nm; c.loan = isCol ? 'wage' : 'lent'; c.cat = 'قرض'; c.pending = false; c.xfer = false;
+  save(); render(); alert('ثبت شد ✅'); return true;
+}
 function matchTransfers() { return 0; }
 // ورود پیامک
 function addSms(raw) {
@@ -206,7 +227,20 @@ function balHint(card) {
   h.innerHTML = `بدهی تو به ${esc(p)}: <b>${toman(-b)}</b> · با این پرداخت (${toman(t.amount)}) ${left > 0 ? 'می‌ماند: <b class="red">' + toman(left) + '</b>' : left === 0 ? '<b class="grn">کاملاً تسویه می‌شود ✓</b>' : 'پیش‌پرداخت: <b class="grn">' + toman(-left) + '</b>'} تومان`;
 }
 document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('p')) balHint(e.target.closest('.card')); });
-function render() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); }); }
+function dkeys() {
+  const seen = {};
+  return [...document.querySelectorAll('#app details')].map(d => {
+    const c = d.closest('[data-id]'), sm = d.querySelector('summary');
+    let k = tab + '|' + (c ? c.dataset.id : '') + '|' + (sm ? sm.textContent.trim().replace(/[\d۰-۹,٬.]+/g, '#').slice(0, 40) : '');
+    seen[k] = (seen[k] || 0) + 1; return [d, k + '|' + seen[k]];
+  });
+}
+function render() {
+  const y = window.scrollY, was = new Set(dkeys().filter(([d]) => d.open).map(x => x[1])), t0 = tab;
+  _render2();
+  if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k)) d.open = true; }); window.scrollTo(0, y); }
+}
+function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); }); }
 function _render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const el = $('#app');
@@ -222,7 +256,7 @@ function _render() {
     el.innerHTML = `
       <div class="card"><b>چسباندن پیامک</b>
         <textarea id="sms" rows="5" placeholder="متن پیامک بانکی را اینجا Paste کنید"></textarea>
-        <button id="go">تشخیص و افزودن</button><div id="msg" class="mut"></div></div>
+        <div class="row"><button id="go">تشخیص و افزودن</button><button id="pst" class="sec">📋 چسباندن</button></div><div id="msg" class="mut"></div></div>
       <div class="card"><b>ثبت دستی (مثلاً بلو)</b>
         <input id="ma" type="number" inputmode="numeric" placeholder="مبلغ به تومان">
         <input id="md" placeholder="بابت چی؟">
@@ -233,7 +267,8 @@ function _render() {
         <input id="mac" placeholder="نام حساب" value="بلو">
         <button id="mg">ثبت</button></div>`;
     accordion(el, 'add');
-    $('#go').onclick = () => { const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
+    $('#pst').onclick = async () => { try { const t = await navigator.clipboard.readText(); if (!t) { $('#msg').textContent = 'کلیپ‌بورد خالی است'; return; } $('#sms').value = t; $('#msg').textContent = 'چسبانده شد'; } catch (e) { $('#sms').focus(); $('#msg').textContent = 'اجازهٔ دسترسی به کلیپ‌بورد داده نشد؛ داخل کادر نگه دار و «Paste» بزن.'; } };
+    $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
     $('#mg').onclick = () => {
       const a = +$('#ma').value; if (!a) return;
@@ -275,7 +310,7 @@ function _render() {
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">برای حذف روی برچسب بزن. در صفحهٔ پیامک جدید همین‌ها دیده می‌شوند. فقط روی همین دستگاه ذخیره می‌شود.</div><div id="lbx">${labHtml()}</div></div>`);
     $('#lbc').onclick = e => {
       const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k, L = k === 'cats' ? CATS : INC;
-      if (b.classList.contains('lbd')) { if (L.length < 2) return; L.splice(+b.dataset.i, 1); }
+      if (b.classList.contains('lbd')) { if (L.length < 2) return; if (!confirm('«' + L[+b.dataset.i] + '» حذف شود؟ مطمئنی؟')) return; L.splice(+b.dataset.i, 1); }
       else if (b.classList.contains('lba')) { const v = $('#lbc .lbn[data-k="' + k + '"]').value.trim(); if (!v || L.includes(v)) return; L.push(v); }
       else return;
       localStorage.setItem(k, JSON.stringify(L)); $('#lbx').innerHTML = labHtml();
@@ -583,7 +618,7 @@ document.addEventListener('pointerdown', e => {
 });
 document.addEventListener('click', async e => {
   if (e.target.id === 'wadd') { const a = Number($('#wa').value), d = $('#wd').value.trim(); if (!a || !lp) { alert('مبلغ را بنویس'); return; } const b = tx.find(x => x.account) || {}; let dt = ($('#wdt').value || '').trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/'); const nw = nowStr(), m = dt.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (dt && !m) { alert('تاریخ را مثل 1405/08/15 بنویس'); return; } const wdate = m ? `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nw.slice(11)}` : nw; tx.push({ id: Date.now(), ghost: true, bank: b.bank, account: b.account, type: 'credit', amount: a * 10, balance: null, date: wdate, cat: 'قرض', loan: 'share', person: lp, desc: d || 'کارکرد', pending: false }); save(); render(); return; }
-  if (e.target.classList.contains('wdel')) { if (confirm('این ردیف حذف شود؟')) { tomb([e.target.dataset.id]); tx = tx.filter(x => x.id !== Number(e.target.dataset.id)); save(); render(); } return; }
+  if (e.target.classList.contains('wdel')) { if (confirm('این ردیف حذف شود؟ مطمئنی؟')) { tomb([e.target.dataset.id]); tx = tx.filter(x => x.id !== Number(e.target.dataset.id)); save(); render(); } return; }
   if (e.target.id === 'pdel') { if (confirm('«' + lp + '» و همهٔ ردیف‌های حساب او حذف شود؟')) { const c = cols(), j = pjobs(); delete c[lp]; delete j[lp]; setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); tx.forEach(x => { if (x.colleague === lp) { x.colleague = ''; x.pct = 0; } }); tomb(tx.filter(x => x.person === lp).map(x => x.id)); tx = tx.filter(x => x.person !== lp); lp = null; save(); render(); } return; }
   const cpb = e.target.closest('.cp'); if (cpb) { const cd = cpb.closest('.card'), pi = cd.querySelector('.p'); pi.value = cpb.dataset.n; (drafts[cd.dataset.id] = drafts[cd.dataset.id] || {}).p = pi.value; balHint(cd); return; }
   if (e.target.id === 'nadd' || e.target.id === 'psv') {
@@ -626,7 +661,7 @@ document.addEventListener('click', async e => {
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
-  if (e.target.classList.contains('del')) { tomb(tx.filter(t => t.id === id || t.parent === id).map(t => t.id)); tx = tx.filter(t => t.id !== id && t.parent !== id); save(); render(); }
+  if (e.target.classList.contains('del')) { if (!confirm('این تراکنش حذف شود؟ مطمئنی؟')) return; tomb(tx.filter(t => t.id === id || t.parent === id).map(t => t.id)); tx = tx.filter(t => t.id !== id && t.parent !== id); save(); render(); }
 });
 
 // ---- همگام‌سازی با Google Sheets ----
@@ -742,7 +777,7 @@ function remBind() {
     saveRem(); render();
   };
   document.querySelectorAll('.rdn').forEach(b => b.onclick = () => { const r = rem.find(x => x.id == b.dataset.i); r.done = !r.done; saveRem(); render(); });
-  document.querySelectorAll('.rdl2').forEach(b => b.onclick = () => { if (confirm('حذف شود؟')) { const dl = JSON.parse(localStorage.getItem('remDel') || '[]'); dl.push(b.dataset.i); localStorage.setItem('remDel', JSON.stringify(dl)); rem = rem.filter(x => x.id != b.dataset.i); saveRem(); render(); } });
+  document.querySelectorAll('.rdl2').forEach(b => b.onclick = () => { if (confirm('حذف شود؟ مطمئنی؟')) { const dl = JSON.parse(localStorage.getItem('remDel') || '[]'); dl.push(b.dataset.i); localStorage.setItem('remDel', JSON.stringify(dl)); rem = rem.filter(x => x.id != b.dataset.i); saveRem(); render(); } });
   document.querySelectorAll('.rics').forEach(b => b.onclick = () => remIcs(rem.find(x => x.id == b.dataset.i)));
 }
 function remIcs(r) {
