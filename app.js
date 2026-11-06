@@ -4,7 +4,7 @@ const CATS = lsj('cats', ['خوراک', 'رستوران', 'حمل‌ونقل', '
 const INC = lsj('icats', ['فروش', 'مشتری', 'حقوق', 'سایر']);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 let tx = load('tx', []);
-let accounts = load('accounts', { '34000': 'ملی', '481670002776322001': 'قرض‌الحسنه مهر' });
+let accounts = load('accounts', {});
 const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
 let undo = [];
@@ -314,6 +314,17 @@ function render() {
     $('#sl').onclick = () => { try { const v = $('#sk').value.trim().replace(/^EXP1:/, ''); const d = JSON.parse(decodeURIComponent(escape(atob(v)))); accounts = { ...d.accounts, ...accounts }; save(); alert('راه‌اندازی شد'); pulled = false; pull().then(render); render(); } catch { alert('کد نامعتبر است'); } };
     if ($('#ul')) $('#ul').onclick = () => { if (confirm('قفل آدرس شیت باز شود؟ فقط اگر شیت جدید می‌خواهی.')) { localStorage.removeItem('syncLock'); localStorage.removeItem('sync_bak'); pulled = false; render(); } };
     $('#sy').onclick = async () => { if ($('#su')) localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
+    // همهٔ کارت‌های تنظیمات کشویی (فقط تیتر دیده می‌شود)
+    [...el.children].forEach(c => {
+      if (!c.classList.contains('card') || c.tagName === 'DETAILS') return;
+      const b = c.querySelector('b'); if (!b) return;
+      const d = document.createElement('details'); d.className = 'card';
+      if (c.style.cssText) d.style.cssText = c.style.cssText;
+      const s = document.createElement('summary'); s.appendChild(b);
+      d.appendChild(s); while (c.firstChild) d.appendChild(c.firstChild);
+      if (c.id) d.id = c.id;
+      c.replaceWith(d);
+    });
   }
 }
 
