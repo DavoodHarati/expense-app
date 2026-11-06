@@ -453,7 +453,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۷۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۷۹)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -988,6 +988,7 @@ function contactsHtml() {
     return sw + `<div class="card" id="pform"><b>${pe === 'new' ? 'مخاطب جدید' : 'پروندهٔ ' + esc(p.name)}</b>
       <input id="pn" placeholder="نام" value="${esc(p.name || '')}"><input id="pp" inputmode="tel" placeholder="تلفن" value="${esc(p.phone || '')}">
       <div class="mut">برچسب‌ها (چندتایی)</div><div class="row" style="flex-wrap:wrap;gap:6px">${ptags().map(t => `<button class="ptg ${(p.tags || []).includes(t) ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      <div id="pcars" style="${(p.tags || []).includes('راننده') ? '' : 'display:none'}"><div class="mut">🚚 ماشین‌ها</div><div id="cl">${(p.cars || []).map(carRow).join('')}</div><button class="sec cadd">＋ ماشین</button></div>
       <input id="pnt" placeholder="برچسب تازه (نوشتن و Enter)"><textarea id="pno" rows="3" placeholder="یادداشت">${esc(p.note || '')}</textarea>
       <div class="row"><button id="psv">ذخیره</button><button class="sec" id="pcn">بستن</button>${pe === 'new' ? '' : '<button class="sec" id="pdl">🗑 حذف</button>'}</div></div>`;
   }
@@ -995,9 +996,10 @@ function contactsHtml() {
   return sw + `<div class="card"><div class="row"><b>مخاطبین (${ppl.length.toLocaleString('fa-IR')})</b><button id="pnew">＋ جدید</button></div>
     <input id="pq" placeholder="جستجوی نام یا تلفن" value="${esc(pq)}">
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="pfl ${pf ? 'sec' : ''}" data-t="">همه</button>${ptags().map(t => `<button class="pfl ${pf === t ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
-    ${L.map(p => `<div class="card pc" data-pid="${p.id}"><b>${esc(p.name)}</b> <span class="mut" dir="ltr">${esc(p.phone || '')}</span><div class="mut">${(p.tags || []).map(esc).join(' · ')}</div>${p.note ? `<div class="mut">${esc(p.note)}</div>` : ''}</div>`).join('') || '<div class="mut" style="padding:12px">مخاطبی نیست.</div>'}`;
+    ${L.map(p => `<div class="card pc" data-pid="${p.id}"><b>${esc(p.name)}</b> <span class="mut" dir="ltr">${esc(p.phone || '')}</span><div class="mut">${(p.tags || []).map(esc).join(' · ')}</div>${(p.cars || []).map(c => `<div class="mut">🚚 ${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}${p.note ? `<div class="mut">${esc(p.note)}</div>` : ''}</div>`).join('') || '<div class="mut" style="padding:12px">مخاطبی نیست.</div>'}`;
 }
-const pRead = () => ({ name: $('#pn').value.trim(), phone: pfa($('#pp').value.trim()), note: $('#pno').value.trim(), tags: [...document.querySelectorAll('#pform .ptg:not(.sec)')].map(b => b.dataset.t) });
+const carRow = c => `<div class="crow row" style="flex-wrap:wrap;gap:4px;margin:6px 0;border-bottom:1px solid #eee;padding-bottom:6px"><input class="cp" placeholder="پلاک" value="${esc(c.plate || '')}"><input class="cm" placeholder="مدل" value="${esc(c.model || '')}"><input class="cc" placeholder="رنگ" value="${esc(c.color || '')}"><input class="ct" placeholder="نوع (کامیون، وانت…)" value="${esc(c.type || '')}"><button class="sec cdel">✕</button></div>`;
+const pRead = () => ({ cars: [...document.querySelectorAll('#cl .crow')].map(r => ({ plate: pfa(r.querySelector('.cp').value.trim()), model: r.querySelector('.cm').value.trim(), color: r.querySelector('.cc').value.trim(), type: r.querySelector('.ct').value.trim() })).filter(c => c.plate || c.model || c.color || c.type), name: $('#pn').value.trim(), phone: pfa($('#pp').value.trim()), note: $('#pno').value.trim(), tags: [...document.querySelectorAll('#pform .ptg:not(.sec)')].map(b => b.dataset.t) });
 document.addEventListener('click', e => {
   if (tab !== 'contacts') return;
   const g = s => e.target.closest(s);
@@ -1005,7 +1007,9 @@ document.addEventListener('click', e => {
   if (g('#pnew')) { pe = 'new'; render(); return; }
   if (g('#pcn')) { pe = null; render(); return; }
   if (g('.pfl')) { pf = g('.pfl').dataset.t; render(); return; }
-  if (g('.ptg')) { g('.ptg').classList.toggle('sec'); return; }
+  if (g('.cadd')) { $('#cl').insertAdjacentHTML('beforeend', carRow({})); return; }
+  if (g('.cdel')) { g('.crow').remove(); return; }
+  if (g('.ptg')) { g('.ptg').classList.toggle('sec'); const dr = [...document.querySelectorAll('#pform .ptg:not(.sec)')].some(b => b.dataset.t === 'راننده'); $('#pcars').style.display = dr ? '' : 'none'; return; }
   if (g('.pc')) { pe = +g('.pc').dataset.pid; render(); return; }
   if (g('#pdl')) { if (confirm('این مخاطب حذف شود؟')) { ppl = ppl.filter(x => x.id !== pe); savePpl(); pe = null; render(); } return; }
   if (g('#psv')) {
