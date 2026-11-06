@@ -431,6 +431,25 @@ function statusCard() {
    <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? fmt(lt.id) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
    <div class="mut">شیت: ${!SYNC() ? 'وصل نیست' : dirty ? '⏳ تغییر ارسال‌نشده دارد' : ls ? '✅ آخرین ذخیره ' + fmt(ls) : 'هنوز چیزی ارسال نشده'}</div>
    <div class="mut">${esc(syncMsg)}</div></div>`; }
+function workList(p, L) {
+  const mine = L.filter(t => t.person === p);
+  const jobs = mine.filter(t => t.loan === 'share').sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
+  let pool = mine.filter(t => t.loan !== 'share').reduce((s, t) => s + LOAN[t.loan][1] * t.amount, 0);
+  const rows = jobs.map(j => { const paid = Math.max(0, Math.min(j.amount, pool)); pool -= paid; return { j, paid, left: j.amount - paid }; });
+  const row = ({ j, paid, left }) => {
+    const par = j.parent ? tx.find(x => x.id === j.parent) : null;
+    const src = par ? `از واریزی ${toman(par.amount)} تومان${par.pct ? ' · ' + Number(par.pct).toLocaleString('fa-IR') + '٪' : ''}` : 'ثبت دستی';
+    const st = left === 0 ? '<span class="grn">✓ پرداخت‌شده</span>' : paid ? `<span class="red">مانده ${toman(left)}</span>` : '<span class="red">پرداخت‌نشده</span>';
+    return `<div class="card"><div class="row"><b>${esc((j.desc || '').replace(/^سهم \d+٪ همکار از /, '') || 'کار')}</b><b>${toman(j.amount)}</b></div><div class="mut">${esc(j.date)} · ${src}</div><div class="row" style="margin-top:4px"><span>${st}</span>${paid && left ? `<span class="mut">پرداخت‌شده ${toman(paid)}</span>` : ''}</div></div>`;
+  };
+  const un = rows.filter(r => r.left > 0), pd = rows.filter(r => r.left === 0);
+  const sum = un.reduce((s, r) => s + r.left, 0);
+  if (!rows.length) return '';
+  return `<details class="card" open><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
+  <div class="mut" style="margin:4px 0">پرداخت‌ها به‌ترتیب تاریخ روی قدیمی‌ترین کارها حساب می‌شوند.${pool > 0 ? ' پیش‌پرداخت مازاد: ' + toman(pool) + ' تومان.' : ''}</div>
+  ${un.length ? `<b class="red">پرداخت‌نشده · ${toman(sum)} تومان</b>${un.map(row).join('')}` : ''}
+  ${pd.length ? `<details><summary class="grn"><b>پرداخت‌شده (${pd.length.toLocaleString('fa-IR')})</b></summary>${pd.map(row).join('')}</details>` : ''}</details>`;
+}
 let lp = null;
 function loansHtml() {
   const L = tx.filter(t => t.loan), bal = {}, CO = cols(), PJ = pjobs();
@@ -444,7 +463,7 @@ function loansHtml() {
     return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div style="opacity:.8">${esc(lp)}</div><div class="big">${toman(Math.abs(bal[lp]))} <small>تومان</small></div><div>${isCo ? (bal[lp] > 0 ? 'پیش‌پرداخت دستمزد' : bal[lp] < 0 ? 'مانده دستمزد (بدهی من)' : '✓ تسویه کامل') : (bal[lp] > 0 ? 'او به من بدهکار است' : bal[lp] < 0 ? 'من به او بدهکارم' : '✓ تسویه کامل')}</div>${(() => { const sh = L.filter(t => t.person === lp && t.loan === 'share').reduce((x, t) => x + t.amount, 0), pd = L.filter(t => t.person === lp && t.loan === 'wage').reduce((x, t) => x + t.amount, 0); return sh || pd ? `<div style="margin-top:8px;font-size:14px">کل سهم: ${toman(sh)} · پرداخت‌شده: ${toman(pd)}</div>` : ''; })()}</div>
     <details class="card"><summary><b>مشخصات</b></summary><div class="mut" style="margin:4px 0">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً راننده"></div>
     <select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 همکار (سهم دارد، کارکرد ثبت می‌شود)</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select>
-    <div class="mut" style="margin:4px 0">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد</b></summary><div class="mut">هر کاری که سیامک انجام داده را بنویس؛ مبلغ سهمش به «مانده» اضافه می‌شود. بعداً که پول دادی با «پرداخت دستمزد» کم می‌شود.</div><input id="wd" placeholder="شرح کار (مثلاً نصب کولر خانم رضایی)"><input id="wa" type="number" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><div class="mut" style="margin-top:6px">تاریخ (خالی = امروز)</div><input id="wdt" value="${nowStr().slice(0, 10)}" placeholder="1405/08/15"><button id="wadd">ثبت کارکرد</button></details>` : ''}${ordBar()}${l.map(rowHtml).join('')}`;
+    <div class="mut" style="margin:4px 0">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد</b></summary><div class="mut">هر کاری که سیامک انجام داده را بنویس؛ مبلغ سهمش به «مانده» اضافه می‌شود. بعداً که پول دادی با «پرداخت دستمزد» کم می‌شود.</div><input id="wd" placeholder="شرح کار (مثلاً نصب کولر خانم رضایی)"><input id="wa" type="number" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><div class="mut" style="margin-top:6px">تاریخ (خالی = امروز)</div><input id="wdt" value="${nowStr().slice(0, 10)}" placeholder="1405/08/15"><button id="wadd">ثبت کارکرد</button></details>${workList(lp, L)}` : ''}${ordBar()}${l.map(rowHtml).join('')}`;
   }
   const addP = `<div class="card"><b>➕ شخص جدید</b><input id="nn" placeholder="نام"><input id="nj" placeholder="کار (مثلاً راننده)"><select id="ncb"><option value="1">👷 همکار (سهم دارد، کارکرد ثبت می‌شود)</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></div>`;
   return `<div class="hero"><div class="row"><span>طلب من: <b>${toman(cr)}</b></span><span>بدهی من: <b>${toman(db)}</b></span></div></div>
