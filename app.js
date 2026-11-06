@@ -152,17 +152,48 @@ function pendingCard(t) {
     <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="row">${(debit ? [['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
     ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">` : ''}
+    ${debit ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date" value="${esc(D.rdt || '')}">
     <div class="row"><button class="ok">ذخیره</button>${t.desc ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
 
-const LOAN = { lent: ['قرض دادم', 1], payback: ['قرض پس دادم', 1], repaid: ['پس گرفتم', -1], borrowed: ['قرض گرفتم', -1] };
+const LOAN = { wage: ['دستمزد / سهم همکار (پرداخت کردم)', 1], lent: ['قرض دادم', 1], payback: ['بازپرداخت قرضِ خودم', 1], repaid: ['قرضم را پس گرفتم', -1], share: ['سهم همکار (بدهی من)', -1], borrowed: ['قرض گرفتم', -1] };
+function cols() { try { return JSON.parse(localStorage.getItem('cols') || '{}'); } catch (e) { return {}; } }
+function setCols(o) { localStorage.setItem('cols', JSON.stringify(o)); }
+function shareOf(amount, pct) { return Math.round(amount * pct / 100); }
+function colBlock(t, D) {
+  const c = cols(), names = Object.keys(c), sel = D.co ?? (t.colleague || ''), pct = D.pc ?? (t.pct ?? (c[sel] ?? 0));
+  return `<div class="colbox"><b>🤝 همکار / شریک در این کار</b>
+    <select class="co"><option value="">بدون همکار</option>${names.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)} (${(c[n] || 0).toLocaleString('fa-IR')}٪)</option>`).join('')}<option value="__new">+ همکار جدید…</option></select>
+    <input class="cn hide" placeholder="نام همکار جدید">
+    <div class="pcrow${sel ? '' : ' hide'}"><span>درصد سهم از کل مبلغ واریزی</span>
+      <span class="pcb"><button type="button" class="sec pa" data-d="-1">▼</button><b class="pv" data-v="${pct}">${Number(pct).toLocaleString('fa-IR')}٪</b><button type="button" class="sec pa" data-d="1">▲</button></span></div>
+    <div class="mut cs"></div></div>`;
+}
+function colRefresh(card) {
+  const v = card.querySelector('.pv'); if (!v) return;
+  const t = tx.find(x => x.id === Number(card.dataset.id)); if (!t) return;
+  const p = Number(v.dataset.v), has = card.querySelector('.co').value;
+  v.textContent = p.toLocaleString('fa-IR') + '٪';
+  card.querySelector('.pcrow').classList.toggle('hide', !has);
+  const sh = shareOf(t.amount, p);
+  card.querySelector('.cs').innerHTML = has && p ? `سهم همکار: <b>${toman(sh)}</b> تومان · خالصِ من: <b>${toman(t.amount - sh)}</b> تومان` : '';
+}
+function applyShare(t, name, pct) {
+  tx = tx.filter(x => x.parent !== t.id);
+  t.colleague = ''; t.pct = 0;
+  if (!name || !pct) return;
+  const sh = shareOf(t.amount, pct);
+  t.colleague = name; t.pct = pct;
+  tx.push({ id: t.id + 1, parent: t.id, ghost: true, bank: t.bank, account: t.account, type: 'credit', amount: sh, balance: null, date: t.date, cat: 'قرض', loan: 'share', person: name, desc: `سهم ${pct}٪ همکار از ${t.customer || t.desc || 'واریزی'}`, pending: false });
+}
 function people() { return [...new Set(tx.filter(t => t.person).map(t => t.person))]; }
 function monthOf(t) { return t.date.slice(0, 7); }
 
-function render() {
+function render() { _render(); document.querySelectorAll('.card[data-id]').forEach(colRefresh); }
+function _render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const el = $('#app');
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
@@ -187,6 +218,7 @@ function render() {
         <div id="xs" class="hide"><div class="mut">از حساب:</div><select id="xf">${allAccs().map(a => `<option value="${esc(a)}">${esc(accName(a))}</option>`).join('')}</select><div class="mut">به حساب:</div><select id="xt">${allAccs().map(a => `<option value="${esc(a)}">${esc(accName(a))}</option>`).join('')}</select></div>
         <input id="mac" placeholder="نام حساب" value="بلو">
         <button id="mg">ثبت</button></div>`;
+    accordion(el, 'add');
     $('#go').onclick = () => { const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
     $('#mg').onclick = () => {
@@ -314,20 +346,42 @@ function render() {
     $('#sl').onclick = () => { try { const v = $('#sk').value.trim().replace(/^EXP1:/, ''); const d = JSON.parse(decodeURIComponent(escape(atob(v)))); accounts = { ...d.accounts, ...accounts }; save(); alert('راه‌اندازی شد'); pulled = false; pull().then(render); render(); } catch { alert('کد نامعتبر است'); } };
     if ($('#ul')) $('#ul').onclick = () => { if (confirm('قفل آدرس شیت باز شود؟ فقط اگر شیت جدید می‌خواهی.')) { localStorage.removeItem('syncLock'); localStorage.removeItem('sync_bak'); pulled = false; render(); } };
     $('#sy').onclick = async () => { if ($('#su')) localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
-    // همهٔ کارت‌های تنظیمات کشویی (فقط تیتر دیده می‌شود)
-    [...el.children].forEach(c => {
-      if (!c.classList.contains('card') || c.tagName === 'DETAILS') return;
-      const b = c.querySelector('b'); if (!b) return;
-      const d = document.createElement('details'); d.className = 'card';
-      if (c.style.cssText) d.style.cssText = c.style.cssText;
-      const s = document.createElement('summary'); s.appendChild(b);
-      d.appendChild(s); while (c.firstChild) d.appendChild(c.firstChild);
-      if (c.id) d.id = c.id;
-      c.replaceWith(d);
-    });
+    accordion(el, 'settings');
   }
 }
 
+// کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
+const DEF_ORD = { settings: ['آخرین تغییر', 'همگام', 'شغل', 'نام حساب', 'برچسب', 'کد راه', 'راهنما', 'پیامک', 'پشتیبان'], add: [] };
+function accordion(el, key) {
+  [...el.children].forEach(c => {
+    if (!c.classList.contains('card') || c.tagName === 'DETAILS') return;
+    const b = c.querySelector('b'); if (!b) return;
+    const d = document.createElement('details'); d.className = 'card acc';
+    if (c.style.cssText) d.style.cssText = c.style.cssText;
+    const s = document.createElement('summary'); s.appendChild(b);
+    d.appendChild(s); while (c.firstChild) d.appendChild(c.firstChild);
+    if (c.id) d.id = c.id;
+    c.replaceWith(d);
+  });
+  const items = [...el.children].filter(c => c.tagName === 'DETAILS');
+  const ttl = c => c.querySelector('summary').textContent.replace(/[▲▼]/g, '').trim();
+  const saved = load('ord_' + key, null), def = DEF_ORD[key] || [];
+  const rank = c => { const t = ttl(c); if (saved) { const i = saved.indexOf(t); return i < 0 ? 999 : i; } const i = def.findIndex(w => t.includes(w)); return i < 0 ? 50 : i; };
+  items.map((c, i) => [c, i]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).forEach(([c]) => el.appendChild(c));
+  const move = (c, dir) => {
+    const L = [...el.children].filter(x => x.tagName === 'DETAILS'), i = L.indexOf(c), j = i + dir;
+    if (j < 0 || j >= L.length) return;
+    const names = L.map(ttl); [names[i], names[j]] = [names[j], names[i]];
+    localStorage.setItem('ord_' + key, JSON.stringify(names));
+    if (dir < 0) el.insertBefore(c, L[j]); else el.insertBefore(L[j], c);
+  };
+  [...el.children].filter(c => c.tagName === 'DETAILS').forEach(c => {
+    const s = c.querySelector('summary'); if (s.querySelector('.mv')) return;
+    const w = document.createElement('span'); w.className = 'mv';
+    ['▲', '▼'].forEach((ch, k) => { const x = document.createElement('i'); x.textContent = ch; x.onclick = e => { e.preventDefault(); e.stopPropagation(); move(c, k ? 1 : -1); }; w.appendChild(x); });
+    s.appendChild(w);
+  });
+}
 
 // ---- فیلتر حساب و رنگ بانک ----
 let sel = load('sel', null); // null = همه
@@ -368,7 +422,7 @@ function loansHtml() {
 }
 function rowHtml(t) {
   if (editing.has(String(t.id))) return pendingCard(t);
-  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(LOAN[t.loan][0]) + ' · ' + esc(t.person) + ' — ' : ''}${esc(t.desc || '—')}</b><b class="${t.xfer ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
+  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(LOAN[t.loan][0]) + ' · ' + esc(t.person) + ' — ' : ''}${esc(t.desc || '—')}</b><b class="${t.xfer || t.ghost ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost ? '' : t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}</span></div>
   ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? 'مشتری: ' + esc(t.customer) : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><button class="sec ed">ویرایش</button>${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
@@ -395,7 +449,7 @@ function homeHtml0() {
     ${cur ? `<div class="row" style="margin-top:12px"><span>هزینهٔ ${esc(cur)}: <b>${toman(spent)}</b></span><span>واریز: <b>${toman(got)}</b></span></div>` : ''}</div>
   ${accs.length > 1 || sel ? accs.map(a => `<div class="card row"><span>${badge(a)}</span><b>${toman(bal[a])} تومان</b></div>`).join('') : accs.map(a => `<div class="card row"><span>${badge(a)}</span><b>${toman(bal[a])} تومان</b></div>`).join('')}
   ${!accs.length ? '<div class="card mut">هنوز تراکنشی نیست.</div>' : ''}
-  <h3>آخرین‌ها</h3>${ordBar()}${ordTx(tx.filter(t => !t.pending && isSel(t.account))).slice(0, 15).map(rowHtml).join('') || '<div class="mut">—</div>'}`;
+  <h3>آخرین‌ها</h3>${ordBar()}${ordTx(tx.filter(t => !t.pending && !t.ghost && isSel(t.account))).slice(0, 15).map(rowHtml).join('') || '<div class="mut">—</div>'}`;
 }
 function jd(d) {
   const p = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(d);
@@ -444,10 +498,11 @@ function reportHtml() {
     return { a, o: sum(l.filter(t => t.type === 'debit' && !t.xfer)), i: sum(l.filter(t => t.type === 'credit' && !t.xfer)), xo: sum(l.filter(t => t.type === 'debit' && t.xfer)), xi: sum(l.filter(t => t.type === 'credit' && t.xfer)) };
   }).filter(r => r.o || r.i || r.xo || r.xi);
   if (!months.length) return filterBar() + '<div class="card mut">داده‌ای نیست.</div>';
-  return `${filterBar()}${nameSugHtml()}${trendHtml()}
+  return `${filterBar()}${nameSugHtml()}
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
     <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b><div style="font-size:11px;opacity:.75">درآمد منهای خرج</div></span></div></div>
+  ${trendHtml()}
   <details class="card"><summary><b>میانگین خرج روزانه</b></summary><div>${toman(Math.round(sum(out) / days))} تومان <span class="mut">(${days.toLocaleString('fa-IR')} روز دارای خرج)</span></div></details>
   ${topD.length ? `<details class="card"><summary><b>بیشترین خرج‌ها</b></summary>${topD.map(([d, v]) => `<div class="row" style="margin-top:6px"><span>${esc(d)}</span><span>${toman(v)}</span></div>`).join('')}</details>` : ''}
   ${Object.keys(loans).length ? `<details class="card"><summary><b>🤝 قرض‌ها (کل زمان)</b></summary>${Object.entries(loans).map(([p, v]) => `<div class="row" style="margin-top:8px"><span>${esc(p)}</span><b class="${v > 0 ? 'grn' : v < 0 ? 'red' : 'mut'}">${v > 0 ? 'بدهکار به من: ' : v < 0 ? 'من بدهکارم: ' : 'تسویه '}${v ? toman(Math.abs(v)) : ''}</b></div>`).join('')}</details>` : ''}
@@ -460,6 +515,21 @@ function reportHtml() {
   <h3>تراکنش‌ها</h3>${ordBar()}${ordTx(list).map(rowHtml).join('')}`;
 }
 
+document.addEventListener('change', e => {
+  if (!e.target.classList.contains('co')) return;
+  const card = e.target.closest('.card'), v = e.target.value, c = cols();
+  card.querySelector('.cn').classList.toggle('hide', v !== '__new');
+  card.querySelector('.pv').dataset.v = v && c[v] !== undefined ? c[v] : card.querySelector('.pv').dataset.v;
+  colRefresh(card);
+});
+let _ht, _hi;
+function pstep(b, k) { const card = b.closest('.card'), v = card.querySelector('.pv'); v.dataset.v = Math.max(0, Math.min(100, Number(v.dataset.v) + b.dataset.d * k)); colRefresh(card); }
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest('.pa'); if (!b) return;
+  b._held = false; _ht = setTimeout(() => { b._held = true; pstep(b, 5); _hi = setInterval(() => pstep(b, 5), 250); }, 450);
+  b.addEventListener('pointerup', () => { clearTimeout(_ht); clearInterval(_hi); if (!b._held) pstep(b, 1); }, { once: true });
+  b.addEventListener('pointerleave', () => { clearTimeout(_ht); clearInterval(_hi); b._held = true; }, { once: true });
+});
 document.addEventListener('click', async e => {
   const lpc = e.target.closest('.lp'); if (lpc) { lp = lpc.dataset.p; render(); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
@@ -478,11 +548,23 @@ document.addEventListener('click', async e => {
   if (e.target.dataset.c) { (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
   if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); editing.add(String(id)); card.outerHTML = pendingCard(t); return; }
   if (e.target.classList.contains('ln')) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.dataset.k; t.loan = k; t.person = p; t.cat = 'قرض'; t.desc = card.querySelector('.d').value || LOAN[k][0]; t.xfer = false; t.pending = false; save(); render(); return; }
+  if (e.target.classList.contains('ok')) {
+    const co = card.querySelector('.co'); let nm = '';
+    if (co) {
+      nm = co.value === '__new' ? card.querySelector('.cn').value.trim() : co.value;
+      const pc = Number(card.querySelector('.pv').dataset.v) || 0;
+      if (co.value === '__new' && !nm) { alert('نام همکار را بنویس'); return; }
+      if (nm) { const c = cols(); if (c[nm] === undefined || co.value === '__new') c[nm] = pc; setCols(c); }
+      const tt = tx.find(x => x.id === id); applyShare(tt, nm, pc);
+      if (nm && !tt.customer) tt.customer = '';
+      if (nm) { tt.customer = card.querySelector('.cu')?.value.trim() || tt.customer; }
+    }
+  }
   if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), remDate: card.querySelector('.rdt').value });
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
-  if (e.target.classList.contains('del')) { tx = tx.filter(t => t.id !== id); save(); render(); }
+  if (e.target.classList.contains('del')) { tx = tx.filter(t => t.id !== id && t.parent !== id); save(); render(); }
 });
 
 // ---- همگام‌سازی با Google Sheets ----
@@ -494,7 +576,7 @@ function push() {
 }
 async function doPush() {
   try {
-    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work() }, log: log.slice(0, 100) }) })).json();
+    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}' }, log: log.slice(0, 100) }) })).json();
     if (!r.ok) throw new Error(r.error);
     localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد؛ بعداً دوباره تلاش می‌شود'; }
@@ -518,7 +600,7 @@ async function pull() {
       if (rem.some(r => !sr.has(String(r.id))) || merged.length !== d.rem.length) localStorage.setItem('dirty', '1');
       rem = merged; localStorage.setItem('rem', JSON.stringify(rem));
     }
-    if (d.profile && !dirty) { if (d.profile.job) localStorage.setItem('job', d.profile.job); if (d.profile.work) localStorage.setItem('work', d.profile.work); }
+    if (d.profile && !dirty) { if (d.profile.job) localStorage.setItem('job', d.profile.job); if (d.profile.work) localStorage.setItem('work', d.profile.work); if (d.profile.cols && d.profile.cols !== '{}') localStorage.setItem('cols', d.profile.cols); }
     const at = new Set(log.map(l => l.at)); log = [...log, ...d.log.filter(l => !at.has(l.at))].sort((a, b) => b.at - a.at).slice(0, 100);
     localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
     if (localOnly.length || (tx.length && !d.tx.length)) localStorage.setItem('dirty', '1');

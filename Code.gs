@@ -33,7 +33,7 @@ function doGet() {
   const rem = rows_(sh_('Reminders', ['id', 'json']), 2).map(r => { try { return JSON.parse(r[1]); } catch (e) { return null; } }).filter(Boolean);
   const pr = {}; rows_(sh_('Profile', ['key', 'value']), 2).forEach(r => pr[String(r[0])] = String(r[1]));
   const inbox = rows_(sh_('Inbox', ['id', 'raw']), 2).map(r => ({ id: String(r[0]), raw: String(r[1]) }));
-  return out_({ ok: true, inbox, rem, tx, accounts, log, profile: { job: pr.job || '', work: pr.work || '' }, sheetUrl: (SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'))).getUrl() });
+  return out_({ ok: true, inbox, rem, tx, accounts, log, profile: { job: pr.job || '', work: pr.work || '', cols: pr.cols || '{}' }, sheetUrl: (SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'))).getUrl() });
   } catch (err) { return out_({ ok: false, error: String(err) }); }
 }
 
@@ -47,7 +47,7 @@ function doPost(e) {
       put_(s, ['id', 'raw'], keep); return out_({ ok: true });
     }
     if (d.tx) put_(sh_('Transactions', TX_HEAD), TX_HEAD, d.tx.map(t => [String(t.id), t.date || '', t.account || '', t.type || '', String(t.amount), t.balance == null ? '' : String(t.balance), t.cat || '', t.desc || '', String(!!t.pending), String(!!t.xfer), t.person || '', t.loan || '', t.raw || '', JSON.stringify(t)]));
-    if (d.profile) put_(sh_('Profile', ['key', 'value']), ['key', 'value'], [['job', d.profile.job || ''], ['work', d.profile.work || '']]);
+    if (d.profile) put_(sh_('Profile', ['key', 'value']), ['key', 'value'], [['job', d.profile.job || ''], ['work', d.profile.work || ''], ['cols', d.profile.cols || '{}']]);
     if (Array.isArray(d.rem)) put_(sh_('Reminders', ['id', 'json']), ['id', 'json'], d.rem.map(r => [String(r.id), JSON.stringify(r)]));
     if (d.accounts) put_(sh_('Accounts', ['key', 'name']), ['key', 'name'], Object.entries(d.accounts).map(([k, v]) => [k, v]));
     if (d.log) {
