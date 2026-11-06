@@ -451,7 +451,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۷۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -543,7 +543,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T17:00:00Z';
+const BUILD = '2026-11-06T15:53:00Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
@@ -805,7 +805,7 @@ async function pull() {
 }
 let lastPull = 0;
 const busyTyping = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-async function refresh() { if (!SYNC()) return; await pull(); if (!busyTyping()) render(); }
+async function refresh() { if (!SYNC()) return; await pull(); if (!busyTyping() && tab !== 'add') render(); }
 document.addEventListener('visibilitychange', async () => { if (document.visibilityState !== 'visible') return; if (!pulled || Date.now() - lastPull > 15000) refresh(); else if (localStorage.getItem('dirty')) push(); });
 setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 60000);
 addEventListener('online', () => { if (!pulled) pull().then(render); else push(); });
