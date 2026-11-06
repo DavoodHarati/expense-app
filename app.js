@@ -291,7 +291,8 @@ function _render() {
       آدرس شیت را به کسی نده؛ هر کس شیت خودش را بسازد.</div></div>
     <div class="card"><b>پیامک‌های دریافتی (${log.length.toLocaleString('fa-IR')})</b>
       <div class="mut">هر پیامکی که به برنامه رسیده اینجاست، حتی ردشده‌ها.</div>
-      ${log.slice(0, 30).map((l, i) => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><div class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</div><div style="font-size:13px;white-space:pre-wrap">${esc(l.raw.slice(0, 200))}</div>${l.ok ? '' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : ''}</div>`).join('')}</div>`);
+      ${log.slice(0, 30).map((l, i) => `<details style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><summary><span class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</span></summary><div style="font-size:13px;white-space:pre-wrap;margin-top:6px">${esc(l.raw || '')}</div><div class="row" style="margin-top:6px">${l.ok ? '<span></span>' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : '<span></span>'}<button class="sec logdel" data-i="${i}" style="color:#c0392b;font-size:13px;padding:4px 10px">🗑 حذف</button></div></details>`).join('')}</div>`);
+    document.querySelectorAll('.logdel').forEach(b => b.onclick = () => { const l = log[+b.dataset.i]; if (!l || !confirm('این پیامک از فهرست حذف شود؟')) return; const g = JSON.parse(localStorage.getItem('logDel') || '[]'); g.push(l.at); localStorage.setItem('logDel', JSON.stringify(g.slice(-300))); log = log.filter(x => x.at !== l.at); saveLog(); render(); });
     document.querySelectorAll('.retry').forEach(b => b.onclick = () => { const r = addSms0(log[+b.dataset.i].raw); if (r.ok) { log[+b.dataset.i].ok = true; log[+b.dataset.i].msg = 'ثبت شد'; saveLog(); tab = 'home'; render(); } else alert(r.msg); });
     $('#nb').onchange = () => { const b = $('#nb').value; if (b === 'بلو') { $('#nk').value = 'بلو'; $('#nn').value = $('#nn').value || 'بلو'; } else if (b && b !== 'other') $('#nn').value = $('#nn').value || b; };
     $('#na').onclick = () => { const k = $('#nk').value.trim(), n = $('#nn').value.trim(); if (!k || !n) { alert('شماره/کلید و نام را پر کن'); return; } if (accounts[k] !== undefined) { alert('این حساب از قبل هست'); return; } accounts[k] = n; save(); render(); };
@@ -473,9 +474,9 @@ function rowHtml(t) {
   if (editing.has(String(t.id))) return pendingCard(t);
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}</b><b class="${t.xfer || t.ghost ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost ? '' : t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
-  <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}</span></div>
+  <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? 'مشتری: ' + esc(t.customer) : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
-  <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
+  <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${t.loan && !t.ghost ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
   return remBanner() + homeHtml0();
@@ -663,7 +664,7 @@ async function pull() {
       rem = merged; localStorage.setItem('rem', JSON.stringify(rem));
     }
     if (d.profile && !dirty) { if (d.profile.job) localStorage.setItem('job', d.profile.job); if (d.profile.work) localStorage.setItem('work', d.profile.work); if (d.profile.cols && d.profile.cols !== '{}') localStorage.setItem('cols', d.profile.cols); }
-    const at = new Set(log.map(l => l.at)); log = [...log, ...d.log.filter(l => !at.has(l.at))].sort((a, b) => b.at - a.at).slice(0, 100);
+    const at = new Set(log.map(l => l.at)), lgone = new Set(JSON.parse(localStorage.getItem('logDel') || '[]')); log = [...log, ...d.log.filter(l => !at.has(l.at) && !lgone.has(l.at))].sort((a, b) => b.at - a.at).slice(0, 100);
     localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
     if (localOnly.length || (tx.length && !d.tx.length)) localStorage.setItem('dirty', '1');
     pulled = true; lastPull = Date.now(); syncMsg = '✅ متصل به شیت';
@@ -803,3 +804,19 @@ const GC_CODE = ''; // مثلاً 'expense-app' برای expense-app.goatcounter
   try { const k = new Date().toDateString(); if (localStorage.getItem('gcDay') === k) return; localStorage.setItem('gcDay', k);
     new Image().src = `https://${GC_CODE}.goatcounter.com/count?p=/open&t=open&r=&rnd=${Date.now()}`; } catch (_) {}
 })();
+
+// ---- رسید بانکی پرداخت‌ها ----
+document.addEventListener('click', e => {
+  const add = e.target.closest('.rcpadd'), del = e.target.closest('.rcpdel');
+  if (!add && !del) return;
+  const id = Number((add || del).dataset.id), t = tx.find(x => x.id === id);
+  if (!t) return;
+  if (del) { if (!confirm('رسید این پرداخت حذف شود؟')) return; delete t.receipt; save(); render(); return; }
+  const txt = (add.closest('details').querySelector('.rcpin').value || '').trim();
+  if (!txt) { alert('متن پیامک رسید را بچسبان'); return; }
+  t.receipt = txt.slice(0, 1000);
+  // اگر نام یکی از اشخاص در رسید باشد، پرداخت به همان شخص وصل شود
+  const names = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs())])].filter(n => n && txt.includes(n));
+  if (names.length === 1 && names[0] !== t.person) { if (confirm('این رسید به نام «' + names[0] + '» است. پرداخت به همین شخص وصل شود؟')) t.person = names[0]; }
+  save(); render();
+});
