@@ -324,7 +324,8 @@ function _render() {
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
     const labHtml = () => [['cats', 'برچسب‌های هزینه', CATS], ['icats', 'برچسب‌های درآمد', INC], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)', lsj('ctypes', [])]].map(([k, n, L]) => `<div class="mut" style="margin-top:8px">${n}</div><div class="chips">${L.map((c, i) => `<button class="chip sec lbd" data-k="${k}" data-i="${i}">${esc(c)} ✕</button>`).join('')}</div><div class="row"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div>`).join('');
-    el.insertAdjacentHTML('beforeend', `<div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>
+    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">برای حذف روی برچسب بزن. در صفحهٔ پیامک جدید همین‌ها دیده می‌شوند. فقط روی همین دستگاه ذخیره می‌شود.</div><div id="lbx">${labHtml()}</div></div>`);
@@ -507,6 +508,21 @@ function workList(p, L) {
   ${pd.length ? `<details><summary class="grn"><b>پرداخت‌شده (${pd.length.toLocaleString('fa-IR')})</b></summary>${pd.map(row).join('')}</details>` : ''}</details>`;
 }
 let lp = null;
+
+const BUILD = '2026-11-06T12:40:00Z';
+function pdfPerson(p) {
+  const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
+  const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
+  const rows = L.map(t => { const v = LOAN[t.loan][1] * t.amount; bal += v; if (t.loan === 'share') sh += t.amount; if (t.loan === 'wage') pd += t.amount;
+    return `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(t.desc && !Object.values(LOAN).some(x => x[0] === t.desc) ? t.desc : '')}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(bal).toLocaleString('fa-IR')}</td></tr>`; }).join('');
+  const f = n => toman(Math.abs(n)).toLocaleString('fa-IR');
+  const st = bal > 0 ? 'پیش‌پرداخت: ' + f(bal) : bal < 0 ? (isCo ? 'مانده دستمزد: ' : 'بدهی: ') + f(bal) : 'تسویه کامل';
+  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>body{font-family:Tahoma,sans-serif;padding:20px;color:#222}h2{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}th{background:#eee}td,th{border:1px solid #ccc;padding:6px;text-align:right}.n{text-align:left}.a{color:#1a7f37}.b{color:#c0392b}.s{margin-top:14px;font-size:15px;line-height:2}</style></head><body><h2>صورت‌حساب ${esc(p)}</h2><div>تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR')}</div>
+  <table><tr><th>تاریخ</th><th>نوع</th><th>شرح</th><th>مبلغ (تومان)</th><th>مانده</th></tr>${rows}</table>
+  <div class="s">${isCo ? `مجموع کارکرد (سهم): <b>${f(sh)}</b><br>مجموع پرداختی‌ها: <b>${f(pd)}</b><br>` : ''}وضعیت: <b>${st} تومان</b></div></body></html>`;
+  const w = window.open('', '_blank'); if (!w) { alert('پنجره باز نشد؛ اجازهٔ popup بده'); return; }
+  w.document.write(h); w.document.close(); setTimeout(() => w.print(), 400);
+}
 function loansHtml() {
   const L = tx.filter(t => t.loan), bal = {}, CO = cols(), PJ = pjobs();
   [...Object.keys(CO), ...Object.keys(PJ)].forEach(p => bal[p] = bal[p] || 0);
@@ -517,7 +533,7 @@ function loansHtml() {
     const isCo = CO[lp] !== undefined;
     const l = ordTx(L.filter(t => t.person === lp));
     return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div style="opacity:.8">${esc(lp)}</div><div class="big">${toman(Math.abs(bal[lp]))} <small>تومان</small></div><div>${isCo ? (bal[lp] > 0 ? 'پیش‌پرداخت دستمزد' : bal[lp] < 0 ? 'مانده دستمزد (بدهی من)' : '✓ تسویه کامل') : (bal[lp] > 0 ? 'او به من بدهکار است' : bal[lp] < 0 ? 'من به او بدهکارم' : '✓ تسویه کامل')}</div>${(() => { const sh = L.filter(t => t.person === lp && t.loan === 'share').reduce((x, t) => x + t.amount, 0), pd = L.filter(t => t.person === lp && t.loan === 'wage').reduce((x, t) => x + t.amount, 0); return sh || pd ? `<div style="margin-top:8px;font-size:14px">کل سهم: ${toman(sh)} · پرداخت‌شده: ${toman(pd)}</div>` : ''; })()}</div>
-    <details class="card"><summary><b>مشخصات</b></summary><div class="mut" style="margin:4px 0">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً راننده"></div>
+    <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><details class="card"><summary><b>مشخصات</b></summary><div class="mut" style="margin:4px 0">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً راننده"></div>
     <select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 همکار (سهم دارد، کارکرد ثبت می‌شود)</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select>
     <div class="mut" style="margin:4px 0">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد</b></summary><div class="mut">هر کاری که سیامک انجام داده را بنویس؛ مبلغ سهمش به «مانده» اضافه می‌شود. بعداً که پول دادی با «پرداخت دستمزد» کم می‌شود.</div><input id="wd" placeholder="شرح کار (مثلاً نصب کولر خانم رضایی)"><input id="wa" type="number" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><div class="mut" style="margin-top:6px">تاریخ (خالی = امروز)</div><input id="wdt" value="${nowStr().slice(0, 10)}" placeholder="1405/08/15"><button id="wadd">ثبت کارکرد</button></details>${workList(lp, L)}` : ''}${ordBar()}${l.map(rowHtml).join('')}`;
   }
@@ -658,6 +674,7 @@ document.addEventListener('click', async e => {
   }
   const rb = e.target.closest('.rdn'); if (rb && tab !== 'rem') { const r = rem.find(x => x.id == rb.dataset.i); if (r) { r.done = !r.done; saveRem(); render(); } return; }
   const lpc = e.target.closest('.lp'); if (lpc) { lp = lpc.dataset.p; render(); return; }
+  if (e.target.id === 'pdfb') { pdfPerson(lp); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
