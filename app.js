@@ -149,8 +149,9 @@ function pendingCard(t) {
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     <div>${debit ? 'برای چی بود؟' : 'از طرف کی / بابت چی؟'}</div>
     <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
-    <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
-    <div class="row">${(debit ? [['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
+    <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <div class="mut bh"></div>
+    <div class="row">${(debit ? [['wage', '💼 دستمزد / سهم همکار'], ['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
     ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">` : ''}
     ${debit ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
@@ -192,7 +193,18 @@ function applyShare(t, name, pct) {
 function people() { return [...new Set(tx.filter(t => t.person).map(t => t.person))]; }
 function monthOf(t) { return t.date.slice(0, 7); }
 
-function render() { _render(); document.querySelectorAll('.card[data-id]').forEach(colRefresh); }
+function balOf(p) { return tx.filter(t => t.loan && t.person === p).reduce((s, t) => s + LOAN[t.loan][1] * t.amount, 0); }
+function balHint(card) {
+  const h = card.querySelector('.bh'), pi = card.querySelector('.p'); if (!h || !pi) return;
+  const p = pi.value.trim(), t = tx.find(x => x.id === Number(card.dataset.id)); h.innerHTML = '';
+  if (!p || !t || t.type !== 'debit') return;
+  const b = balOf(p) - (t.loan ? LOAN[t.loan][1] * t.amount : 0);
+  if (b >= 0) { h.innerHTML = b ? `${esc(p)} به تو بدهکار است ${toman(b)} تومان` : ''; return; }
+  const left = -b - t.amount;
+  h.innerHTML = `بدهی تو به ${esc(p)}: <b>${toman(-b)}</b> · با این پرداخت (${toman(t.amount)}) ${left > 0 ? 'می‌ماند: <b class="red">' + toman(left) + '</b>' : left === 0 ? '<b class="grn">کاملاً تسویه می‌شود ✓</b>' : 'پیش‌پرداخت: <b class="grn">' + toman(-left) + '</b>'} تومان`;
+}
+document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('p')) balHint(e.target.closest('.card')); });
+function render() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); }); }
 function _render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const el = $('#app');
@@ -352,6 +364,8 @@ function _render() {
 
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
 const DEF_ORD = { settings: ['آخرین تغییر', 'همگام', 'شغل', 'نام حساب', 'برچسب', 'کد راه', 'راهنما', 'پیامک', 'پشتیبان'], add: [] };
+const openSt = {};
+document.addEventListener('toggle', e => { const d = e.target; if (d.classList && d.classList.contains('acc')) { const t = d.querySelector('summary').textContent.replace(/[▲▼]/g, '').trim(); openSt[t] = d.open; } }, true);
 function accordion(el, key) {
   [...el.children].forEach(c => {
     if (!c.classList.contains('card') || c.tagName === 'DETAILS') return;
@@ -368,6 +382,7 @@ function accordion(el, key) {
   const saved = load('ord_' + key, null), def = DEF_ORD[key] || [];
   const rank = c => { const t = ttl(c); if (saved) { const i = saved.indexOf(t); return i < 0 ? 999 : i; } const i = def.findIndex(w => t.includes(w)); return i < 0 ? 50 : i; };
   items.map((c, i) => [c, i]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).forEach(([c]) => el.appendChild(c));
+  items.forEach(c => { const t = ttl(c); if (t in openSt) c.open = openSt[t]; });
   const move = (c, dir) => {
     const L = [...el.children].filter(x => x.tagName === 'DETAILS'), i = L.indexOf(c), j = i + dir;
     if (j < 0 || j >= L.length) return;
@@ -415,7 +430,7 @@ function loansHtml() {
   const cr = ppl.filter(p => bal[p] > 0).reduce((s, p) => s + bal[p], 0), db = ppl.filter(p => bal[p] < 0).reduce((s, p) => s - bal[p], 0);
   if (lp && bal[lp] !== undefined) {
     const l = ordTx(L.filter(t => t.person === lp));
-    return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div style="opacity:.8">${esc(lp)}</div><div class="big">${toman(Math.abs(bal[lp]))} <small>تومان</small></div><div>${bal[lp] > 0 ? 'او به من بدهکار است' : bal[lp] < 0 ? 'من به او بدهکارم' : 'تسویه'}</div></div>${ordBar()}${l.map(rowHtml).join('')}`;
+    return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div style="opacity:.8">${esc(lp)}</div><div class="big">${toman(Math.abs(bal[lp]))} <small>تومان</small></div><div>${bal[lp] > 0 ? 'او به من بدهکار است' : bal[lp] < 0 ? 'من به او بدهکارم' : 'تسویه'}</div>${(() => { const sh = L.filter(t => t.person === lp && t.loan === 'share').reduce((x, t) => x + t.amount, 0), pd = L.filter(t => t.person === lp && t.loan === 'wage').reduce((x, t) => x + t.amount, 0); return sh || pd ? `<div style="margin-top:8px;font-size:14px">کل سهم: ${toman(sh)} · پرداخت‌شده: ${toman(pd)}</div>` : ''; })()}</div>${ordBar()}${l.map(rowHtml).join('')}`;
   }
   return `<div class="hero"><div class="row"><span>طلب من: <b>${toman(cr)}</b></span><span>بدهی من: <b>${toman(db)}</b></span></div></div>
   ${ppl.map(p => `<div class="card row lp" data-p="${esc(p)}"><b>${esc(p)}</b><b class="${bal[p] > 0 ? 'grn' : bal[p] < 0 ? 'red' : 'mut'}">${bal[p] > 0 ? 'طلبکار ' : bal[p] < 0 ? 'بدهکار ' : 'تسویه '}${toman(Math.abs(bal[p]))}</b></div>`).join('') || '<div class="card mut">هنوز قرضی ثبت نشده. در «افزودن» یا روی پیامک، دکمهٔ قرض را بزن.</div>'}`;
