@@ -183,7 +183,7 @@ function pendingCard(t) {
     <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص">${Object.keys(cols()).length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${Object.keys(cols()).map(n => `<button type="button" class="sec cp" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}<datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
     <div class="row">${(debit ? [['wage', '💼 پرداخت دستمزد'], ['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
-    ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)">${recentCust()}<input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">` : ''}
+    ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
     ${showCu ? ctBlock(t, D, cat0) : ''}
     ${debit ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
@@ -192,6 +192,9 @@ function pendingCard(t) {
   </div>`;
 }
 
+function svChips() {
+  const L = lsj('svq', []); return L.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${L.map(n => `<button type="button" class="sec sqn" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
+}
 function recentCust() {
   const seen = [], c = {}; tx.forEach(t => { if (t.customer) c[t.customer] = (c[t.customer] || 0) + 1; });
   Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([n]) => seen.push(n));
@@ -208,7 +211,7 @@ function cols() { try { return JSON.parse(localStorage.getItem('cols') || '{}');
 function setCols(o) { localStorage.setItem('cols', JSON.stringify(o)); }
 function shareOf(amount, pct) { return Math.round(amount * pct / 100); }
 function colBlock(t, D) {
-  const c = cols(), names = Object.keys(c), sel = D.co ?? (t.colleague || ''), pct = D.pc ?? (t.pct ?? (c[sel] ?? 0));
+  const c = cols(), names = Object.keys(c), sel = D.co ?? (t.colleague || ''), pct = Number(D.pc ?? (t.pct || c[sel] || 0)) || 0;
   return `<div class="colbox"><b>🤝 همکار / شریک در این کار</b>
     <select class="co"><option value="">بدون همکار</option>${names.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)} (${(c[n] || 0).toLocaleString('fa-IR')}٪)</option>`).join('')}<option value="__new">+ همکار جدید…</option></select>
     <input class="cn hide" placeholder="نام همکار جدید">
@@ -323,14 +326,14 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
-    const labHtml = () => [['cats', 'برچسب‌های هزینه', CATS], ['icats', 'برچسب‌های درآمد', INC], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)', lsj('ctypes', [])]].map(([k, n, L]) => `<div class="mut" style="margin-top:8px">${n}</div><div class="chips">${L.map((c, i) => `<button class="chip sec lbd" data-k="${k}" data-i="${i}">${esc(c)} ✕</button>`).join('')}</div><div class="row"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div>`).join('');
+    const labHtml = () => [['cats', 'برچسب‌های هزینه', CATS], ['icats', 'برچسب‌های درآمد', INC], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)', lsj('ctypes', [])], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»', lsj('svq', [])]].map(([k, n, L]) => `<div class="mut" style="margin-top:8px">${n}</div><div class="chips">${L.map((c, i) => `<button class="chip sec lbd" data-k="${k}" data-i="${i}">${esc(c)} ✕</button>`).join('')}</div><div class="row"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div>`).join('');
     el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">برای حذف روی برچسب بزن. در صفحهٔ پیامک جدید همین‌ها دیده می‌شوند. فقط روی همین دستگاه ذخیره می‌شود.</div><div id="lbx">${labHtml()}</div></div>`);
     $('#lbc').onclick = e => {
-      const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k, L = k === 'cats' ? CATS : k === 'icats' ? INC : lsj('ctypes', []);
-      if (b.classList.contains('lbd')) { if (k !== 'ctypes' && L.length < 2) return; if (!confirm('«' + L[+b.dataset.i] + '» حذف شود؟ مطمئنی؟')) return; L.splice(+b.dataset.i, 1); }
+      const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k, L = k === 'cats' ? CATS : k === 'icats' ? INC : lsj(k, []);
+      if (b.classList.contains('lbd')) { if (k !== 'ctypes' && k !== 'svq' && L.length < 2) return; if (!confirm('«' + L[+b.dataset.i] + '» حذف شود؟ مطمئنی؟')) return; L.splice(+b.dataset.i, 1); }
       else if (b.classList.contains('lba')) { const v = $('#lbc .lbn[data-k="' + k + '"]').value.trim(); if (!v || L.includes(v)) return; L.push(v); }
       else return;
       localStorage.setItem(k, JSON.stringify(L)); $('#lbx').innerHTML = labHtml();
@@ -693,6 +696,7 @@ document.addEventListener('click', async e => {
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.matches('.ok,.cx,.xf,.del,.skip') || (e.target.classList.contains('ln') && card.querySelector('.p').value.trim())) { delete drafts[id]; editing.delete(String(id)); }
+  if (e.target.classList.contains('sqn')) { const i = card.querySelector('.sv'); i.value = e.target.dataset.n; (drafts[id] = drafts[id] || {}).sv = i.value; return; }
   if (e.target.classList.contains('cqn')) { const i = card.querySelector('.cu'); i.value = e.target.dataset.n; i.dispatchEvent(new Event('input', { bubbles: true })); (drafts[id] = drafts[id] || {}).cu = i.value; return; }
   if (e.target.classList.contains('ctb')) { const b = card.querySelector('.ctbox'), v = e.target.dataset.v; b.dataset.ct = b.dataset.ct === v ? '' : v; b.querySelectorAll('.ctb').forEach(x => x.classList.toggle('on', x.dataset.v === b.dataset.ct)); (drafts[id] = drafts[id] || {}).ct = b.dataset.ct; return; }
   if (e.target.dataset.c) { const cb = card.querySelector('.ctbox'); if (cb) cb.classList.toggle('hide', e.target.dataset.c === 'فروش'); (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
@@ -727,7 +731,7 @@ function push() {
 }
 async function doPush() {
   try {
-    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}' }, log: log.slice(0, 100) }) })).json();
+    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq') }) }, log: log.slice(0, 100) }) })).json();
     if (!r.ok) throw new Error(r.error);
     localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد؛ بعداً دوباره تلاش می‌شود'; }
@@ -752,7 +756,7 @@ async function pull() {
       if (rem.some(r => !sr.has(String(r.id))) || merged.length !== d.rem.length) localStorage.setItem('dirty', '1');
       rem = merged; localStorage.setItem('rem', JSON.stringify(rem));
     }
-    if (d.profile && !dirty) { if (d.profile.job) localStorage.setItem('job', d.profile.job); if (d.profile.work) localStorage.setItem('work', d.profile.work); if (d.profile.cols && d.profile.cols !== '{}') localStorage.setItem('cols', d.profile.cols); }
+    if (d.profile && !dirty) { if (d.profile.job) localStorage.setItem('job', d.profile.job); if (d.profile.work) localStorage.setItem('work', d.profile.work); if (d.profile.cols && d.profile.cols !== '{}') localStorage.setItem('cols', d.profile.cols); if (d.profile.lab && !dirty) { try { const L = JSON.parse(d.profile.lab); for (const k in L) if (L[k]) localStorage.setItem(k, L[k]); } catch (e) {} } }
     const at = new Set(log.map(l => l.at)), lgone = new Set(JSON.parse(localStorage.getItem('logDel') || '[]')); log = [...log, ...d.log.filter(l => !at.has(l.at) && !lgone.has(l.at))].sort((a, b) => b.at - a.at).slice(0, 100);
     localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('log', JSON.stringify(log));
     if (localOnly.length || (tx.length && !d.tx.length)) localStorage.setItem('dirty', '1');
