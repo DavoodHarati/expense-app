@@ -89,11 +89,12 @@ function rcTryPending() {
 function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
+  { const rw = String(raw).trim().slice(0, 1000); if (!log.some(l => l.rc && l.raw === rw)) { log.unshift({ at: Date.now(), raw: rw, ok: true, rc: 1, msg: '🧾 رسید بانکی' }); saveLog(); } }
   const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
   const cs = rcCands(rc);
   const head = `<div class="card" style="background:#eefaf6"><b>🧾 رسید خوانده شد</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div>`;
   if (!cs.length) {
-    const done = tx.find(t => t.type === 'debit' && t.receipt && t.amount <= rc.amount + 1000000 && t.amount >= rc.amount && toMin(t.date) && Math.abs(toMin(t.date) - toMin(rc.date)) <= 4320);
+    const done = tx.find(t => t.receipt && t.receipt === String(raw).trim().slice(0, 1000));
     if (done) { box.innerHTML = head + '<div class="red">این رسید قبلاً به تراکنش ' + toman(done.amount) + ' تومان (' + esc(done.date) + ') چسبیده است ✅ دوباره لازم نیست.</div></div>'; return true; }
     const L = rcPending(); if (!L.includes(raw)) { L.push(String(raw).trim()); localStorage.setItem('prc', JSON.stringify(L)); }
     box.innerHTML = head + '<div class="red">پیامک کسر از حساب هنوز نیامده. رسید نگه داشته شد؛ به‌محض رسیدن پیامک خودکار به آن می‌چسبد ✅</div></div>'; return true;
@@ -377,8 +378,8 @@ function _render() {
       آدرس شیت را به کسی نده؛ هر کس شیت خودش را بسازد.</div></div>
     <div class="card"><b>پیامک‌های دریافتی (${log.length.toLocaleString('fa-IR')})</b>
       <div class="mut">هر پیامکی که به برنامه رسیده اینجاست، حتی ردشده‌ها.</div>
-      ${log.slice(0, 30).map((l, i) => `<details style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><summary><span class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</span></summary><div style="font-size:13px;white-space:pre-wrap;margin-top:6px">${esc(l.raw || '')}</div><div class="row" style="margin-top:6px">${l.ok ? '<span></span>' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : '<span></span>'}<button class="sec logdel" data-i="${i}" style="color:#c0392b;font-size:13px;padding:4px 10px">🗑 حذف</button></div></details>`).join('')}</div>`);
-    document.querySelectorAll('.logdel').forEach(b => b.onclick = () => { const l = log[+b.dataset.i]; if (!l || !confirm('این پیامک از فهرست حذف شود؟')) return; const g = JSON.parse(localStorage.getItem('logDel') || '[]'); g.push(l.at); localStorage.setItem('logDel', JSON.stringify(g.slice(-300))); log = log.filter(x => x.at !== l.at); saveLog(); render(); });
+      ${log.slice(0, 30).map((l, i) => `<details style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><summary><span class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</span></summary><div style="font-size:13px;white-space:pre-wrap;margin-top:6px">${esc(l.raw || '')}</div><div class="row" style="margin-top:6px">${l.ok || l.rc ? '<span></span>' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : '<span></span>'}<button class="sec logdel" data-i="${i}" style="color:#c0392b;font-size:13px;padding:4px 10px">🗑 حذف</button></div></details>`).join('')}</div>`);
+    document.querySelectorAll('.logdel').forEach(b => b.onclick = () => { const l = log[+b.dataset.i]; if (!l || !confirm('این پیامک از فهرست حذف شود؟')) return; const g = JSON.parse(localStorage.getItem('logDel') || '[]'); g.push(l.at); localStorage.setItem('logDel', JSON.stringify(g.slice(-300))); if (l.rc) { tx.forEach(t => { if (t.receipt && t.receipt === l.raw) { delete t.receipt; } }); localStorage.setItem('prc', JSON.stringify(rcPending().filter(r => String(r).trim().slice(0, 1000) !== l.raw))); save(); } log = log.filter(x => x.at !== l.at); saveLog(); render(); });
     document.querySelectorAll('.retry').forEach(b => b.onclick = () => { const r = addSms0(log[+b.dataset.i].raw); if (r.ok) { log[+b.dataset.i].ok = true; log[+b.dataset.i].msg = 'ثبت شد'; saveLog(); tab = 'home'; render(); } else alert(r.msg); });
     $('#nb').onchange = () => { const b = $('#nb').value; if (b === 'بلو') { $('#nk').value = 'بلو'; $('#nn').value = $('#nn').value || 'بلو'; } else if (b && b !== 'other') $('#nn').value = $('#nn').value || b; };
     $('#na').onclick = () => { const k = $('#nk').value.trim(), n = $('#nn').value.trim(); if (!k || !n) { alert('شماره/کلید و نام را پر کن'); return; } if (accounts[k] !== undefined) { alert('این حساب از قبل هست'); return; } accounts[k] = n; save(); render(); };
@@ -455,7 +456,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۲)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۳)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
