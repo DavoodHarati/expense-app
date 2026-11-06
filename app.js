@@ -71,14 +71,20 @@ function parseReceipt(raw) {
 }
 function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
-  const c = tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 500000 && Math.abs(toMin(t.date) - toMin(rc.date)) <= 20).sort((p, q) => Math.abs(toMin(p.date) - toMin(rc.date)) - Math.abs(toMin(q.date) - toMin(rc.date)))[0];
-  if (!c) { alert('رسید خوانده شد (' + toman(rc.amount) + ' تومان، ' + rc.date + ' ، ' + rc.name + ') ولی پیامک کسر از حساب نزدیک به آن پیدا نشد. اگر هنوز نرسیده، بعداً دوباره بچسبان.'); return true; }
-  if (!confirm('رسید: ' + toman(rc.amount) + ' تومان به ' + rc.name + ' ، ' + rc.date + '\nپیامک حساب: ' + toman(c.amount) + ' تومان ، ' + c.date + '\nآیا این پرداخت همین است؟')) return true;
+  const box = $('#msg'); if (!box) return false;
+  const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
+  const cs = tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 500000 && dist(t) <= 1440).sort((p, q) => dist(p) - dist(q)).slice(0, 5);
   const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
   const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name, isCol = Object.keys(cols()).some(k => nrm(k) === nrm(nm));
-  if (!confirm('ثبت شود به‌عنوان ' + (isCol ? 'پرداخت دستمزد به همکار' : 'قرضِ داده‌شده به') + ' «' + nm + '»؟')) return true;
-  c.receipt = String(raw).trim().slice(0, 1000); c.person = nm; c.loan = isCol ? 'wage' : 'lent'; c.cat = 'قرض'; c.pending = false; c.xfer = false;
-  save(); render(); alert('ثبت شد ✅'); return true;
+  const head = `<div class="card" style="background:#eefaf6"><b>🧾 رسید خوانده شد</b><div>${toman(rc.amount)} تومان به «${esc(nm)}» · ${esc(rc.date)}</div><div class="mut">ثبت می‌شود به‌عنوان ${isCol ? 'پرداخت دستمزد به همکار' : 'قرضِ داده‌شده به این شخص'}</div>`;
+  if (!cs.length) { box.innerHTML = head + '<div class="red">پیامک کسر از حساب نزدیک به این رسید پیدا نشد. اگر هنوز نرسیده، بعداً دوباره بچسبان.</div></div>'; return true; }
+  box.innerHTML = head + '<div style="margin-top:8px">کدام پرداخت است؟ روی ✓ بزن:</div>' + cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}${t.desc ? ' · ' + esc(t.desc) : ''}</div></span><button class="rcok" data-id="${t.id}">✓ این است</button></div>`).join('') + '</div>';
+  box.querySelectorAll('.rcok').forEach(b => b.onclick = () => {
+    const c = tx.find(t => String(t.id) === b.dataset.id); if (!c) return;
+    c.receipt = String(raw).trim().slice(0, 1000); c.person = nm; c.loan = isCol ? 'wage' : 'lent'; c.cat = 'قرض'; c.pending = false; c.xfer = false;
+    save(); render(); const m = $('#msg'); if (m) m.textContent = 'رسید در تراکنش ثبت شد ✅';
+  });
+  return true;
 }
 function matchTransfers() { return 0; }
 // ورود پیامک
@@ -121,10 +127,12 @@ function handleUrl() {
 }
 
 function setDesc(id, desc, cat, ex) {
+  ex = ex || null;
   const t = tx.find(x => x.id === id);
   t.desc = desc; t.cat = cat || t.cat || 'سایر'; t.pending = false;
   if (ex) {
     t.customer = ex.customer || ''; t.service = ex.service || '';
+    if (ex.ctype !== undefined) { const sale = t.cat === 'فروش'; t.ctype = sale || !t.customer ? '' : ex.ctype; t.cphone = sale ? '' : (ex.cphone || ''); }
     if (ex.remDate) { rem.push({ id: Date.now(), type: 'custom', title: desc || t.customer || 'یادآوری', date: ex.remDate, amount: Math.round(t.amount / 10), alerts: [3, 1], before: 3, count: 0, rep: '' }); saveRem(); }
   }
   save(); render();
@@ -175,6 +183,7 @@ function pendingCard(t) {
     <div class="mut bh"></div>
     <div class="row">${(debit ? [['wage', '💼 پرداخت دستمزد'], ['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
     ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">` : ''}
+    ${showCu ? ctBlock(t, D, cat0) : ''}
     ${debit ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date" value="${esc(D.rdt || '')}">
@@ -182,6 +191,10 @@ function pendingCard(t) {
   </div>`;
 }
 
+function ctBlock(t, D, cat) {
+  const ct = D.ct ?? (t.ctype || '');
+  return `<div class="ctbox${cat === 'فروش' ? ' hide' : ''}" data-ct="${ct}"><div class="mut">نوع مشتری (برای فروش کالا لازم نیست)</div><div class="row" style="gap:6px;margin:6px 0"><button type="button" class="sec ctb${ct === 'driver' ? ' on' : ''}" data-v="driver">🚚 راننده</button><button type="button" class="sec ctb${ct === 'normal' ? ' on' : ''}" data-v="normal">🧑 مشتری عادی</button></div><input class="cph" inputmode="tel" value="${esc(D.ph ?? (t.cphone || ''))}" placeholder="شماره تماس (اختیاری)"></div>`;
+}
 const LOAN = { wage: ['پرداخت دستمزد', 1], lent: ['قرض دادم', 1], payback: ['بازپرداخت قرضِ خودم', 1], repaid: ['قرضم را پس گرفتم', -1], share: ['کارکرد / سهم همکار', -1], borrowed: ['قرض گرفتم', -1] };
 function pjobs() { try { return JSON.parse(localStorage.getItem('pjobs') || '{}'); } catch (e) { return {}; } }
 function cols() { try { return JSON.parse(localStorage.getItem('cols') || '{}'); } catch (e) { return {}; } }
@@ -481,7 +494,7 @@ function workList(p, L) {
   const un = rows.filter(r => r.left > 0), pd = rows.filter(r => r.left === 0);
   const sum = un.reduce((s, r) => s + r.left, 0);
   if (!rows.length) return '';
-  return `<details class="card" open><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
+  return `<details class="card"><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
   <div class="mut" style="margin:4px 0">پرداخت‌ها به‌ترتیب تاریخ روی قدیمی‌ترین کارها حساب می‌شوند.${pool > 0 ? ' پیش‌پرداخت مازاد: ' + toman(pool) + ' تومان.' : ''}</div>
   ${un.length ? `<b class="red">پرداخت‌نشده · ${toman(sum)} تومان</b>${un.map(row).join('')}` : ''}
   ${pd.length ? `<details><summary class="grn"><b>پرداخت‌شده (${pd.length.toLocaleString('fa-IR')})</b></summary>${pd.map(row).join('')}</details>` : ''}</details>`;
@@ -510,7 +523,7 @@ function rowHtml(t) {
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}</b><b class="${t.xfer || t.ghost ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost ? '' : t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
-  ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? 'مشتری: ' + esc(t.customer) : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
+  ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? (t.ctype === 'driver' ? '🚚 راننده: ' : 'مشتری: ') + esc(t.customer) : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${t.loan && !t.ghost && t.type === 'debit' ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
@@ -563,6 +576,14 @@ function trendHtml() {
     <div class="row" style="margin-top:8px"><span>هفته قبل</span><span><b class="red">${toman(prev.o)}</b> · <b class="grn">${toman(prev.i)}</b></span></div></details>
   <details class="card"><summary><b>ماهانه (یک سال اخیر)</b></summary>${mrows.map(r => line(r.m, r.o, r.i)).join('')}</details>`;
 }
+function driversHtml() {
+  const d = tx.filter(t => !t.pending && !t.ghost && t.type === 'credit' && t.customer && t.ctype === 'driver');
+  if (!d.length) return '';
+  const ym = month ? String(month).slice(0, 7) : '', yr = ym.slice(0, 4), m = {};
+  d.forEach(t => { const r = m[t.customer] || (m[t.customer] = { mo: 0, yr: 0, all: 0, n: 0, ph: '' }); const dt = t.date || ''; r.all += t.amount; r.n++; if (dt.startsWith(yr)) r.yr += t.amount; if (dt.startsWith(ym)) r.mo += t.amount; if (t.cphone) r.ph = t.cphone; });
+  const rows = Object.entries(m).sort((a, b) => b[1].yr - a[1].yr);
+  return `<details class="card"><summary><b>🚚 رانندگان (مشتری‌های خدماتی)</b></summary><div class="mut">مرتب بر اساس واریزی امسال؛ ماه و سال از ماه انتخاب‌شده</div>${rows.map(([n, r], i) => `<div style="margin-top:10px"><div class="row"><b>${i + 1}. ${esc(n)}</b>${r.ph ? `<a href="tel:${esc(r.ph)}">${esc(r.ph)}</a>` : ''}</div><div class="row mut"><span>این ماه: <b class="grn">${toman(r.mo)}</b></span><span>امسال: <b class="grn">${toman(r.yr)}</b></span></div><div class="mut">کل: ${toman(r.all)} · ${r.n.toLocaleString('fa-IR')} بار</div></div>`).join('')}</details>`;
+}
 function reportHtml() {
   const base = tx.filter(t => isSel(t.account));
   const months = [...new Set(tx.map(monthOf))].sort().reverse();
@@ -595,6 +616,7 @@ function reportHtml() {
   <details class="card"><summary><b>خرج به تفکیک دسته</b></summary>${cats.map(([c, v]) => `<div style="margin-top:10px"><div class="row"><span>${esc(c)}</span><span>${toman(v)} <span class="mut">(${Math.round(v / tot * 100).toLocaleString('fa-IR')}٪)</span></span></div><div class="bar" style="width:${v / mx * 100}%"></div></div>`).join('') || '<div class="mut">خرجی نیست</div>'}</details>
   <details class="card"><summary><b>به تفکیک حساب</b></summary>${accRows.map(r => `<div style="margin-top:10px"><div>${badge(r.a)}</div><div class="row mut"><span>خرج: <b class="red">${toman(r.o)}</b></span><span>واریز: <b class="grn">${toman(r.i)}</b></span></div>${r.xo || r.xi ? `<div class="row mut"><span>انتقال رفته: ${toman(r.xo)}</span><span>انتقال آمده: ${toman(r.xi)}</span></div>` : ''}</div>`).join('') || '<div class="mut">—</div>'}</details>
   ${Object.keys(flows).length ? `<details class="card"><summary><b>جابه‌جایی بین حساب‌هایم 🔁</b></summary><div class="mut">در مجموع خرج یا درآمد حساب نمی‌شود.</div>${Object.entries(flows).map(([k, v]) => { const [f, t] = k.split('>'); return `<div class="row" style="margin-top:8px"><span>${badge(f)} ← ${badge(t)}</span><b>${toman(v.v)} تومان</b></div><div class="mut">${v.n.toLocaleString('fa-IR')} بار${v.fee ? ' · کارمزد ' + toman(v.fee) : ''}</div>`; }).join('')}</details>` : ''}
+  ${driversHtml()}
   ${incBy.cu.length ? `<details class="card"><summary><b>💰 درآمد به تفکیک مشتری</b></summary>${incBy.cu.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
   ${incBy.sv.length ? `<details class="card"><summary><b>🔧 درآمد به تفکیک خدمت</b></summary>${incBy.sv.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
   <details class="card"><summary><b>🔍 جستجوی مشتری / خدمت</b></summary><input id="cq" placeholder="نام مشتری، خدمت یا شرح..."><div id="cqr"></div></details>
@@ -642,7 +664,8 @@ document.addEventListener('click', async e => {
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.matches('.ok,.cx,.xf,.del,.skip') || (e.target.classList.contains('ln') && card.querySelector('.p').value.trim())) { delete drafts[id]; editing.delete(String(id)); }
-  if (e.target.dataset.c) { (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
+  if (e.target.classList.contains('ctb')) { const b = card.querySelector('.ctbox'), v = e.target.dataset.v; b.dataset.ct = b.dataset.ct === v ? '' : v; b.querySelectorAll('.ctb').forEach(x => x.classList.toggle('on', x.dataset.v === b.dataset.ct)); (drafts[id] = drafts[id] || {}).ct = b.dataset.ct; return; }
+  if (e.target.dataset.c) { const cb = card.querySelector('.ctbox'); if (cb) cb.classList.toggle('hide', e.target.dataset.c === 'فروش'); (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
   if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); editing.add(String(id)); card.outerHTML = pendingCard(t); return; }
   if (e.target.classList.contains('ln')) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.dataset.k; t.loan = k; t.person = p; t.cat = 'قرض'; { const dv = card.querySelector('.d').value.trim(); t.desc = Object.values(LOAN).some(x => x[0] === dv) ? '' : dv; } t.xfer = false; t.pending = false; save(); render(); return; }
   if (e.target.classList.contains('ok')) {
@@ -657,7 +680,7 @@ document.addEventListener('click', async e => {
       if (nm) { tt.customer = card.querySelector('.cu')?.value.trim() || tt.customer; }
     }
   }
-  if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), remDate: card.querySelector('.rdt').value });
+  if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value });
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
@@ -854,4 +877,12 @@ document.addEventListener('click', e => {
   const names = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs())])].filter(n => n && txt.includes(n));
   if (names.length === 1 && names[0] !== t.person) { if (confirm('این رسید به نام «' + names[0] + '» است. پرداخت به همین شخص وصل شود؟')) t.person = names[0]; }
   save(); render();
+});
+
+document.addEventListener('input', e => {
+  if (!e.target.classList.contains('cu')) return;
+  const card = e.target.closest('.card[data-id]'), b = card && card.querySelector('.ctbox'); if (!b) return;
+  const n = e.target.value.trim(), p = tx.find(t => t.customer === n && t.ctype); if (!p || b.dataset.ct) return;
+  b.dataset.ct = p.ctype; b.querySelectorAll('.ctb').forEach(x => x.classList.toggle('on', x.dataset.v === p.ctype));
+  const ph = card.querySelector('.cph'); if (ph && !ph.value && p.cphone) ph.value = p.cphone;
 });
