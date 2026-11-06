@@ -214,7 +214,7 @@ function _render() {
     el.innerHTML = tab === 'home' ? homeHtml() : reportHtml();
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
   } else if (tab === 'rem') {
-    el.innerHTML = remHtml(); remBind();
+    el.innerHTML = remHtml(); accordion(el, 'rem'); remBind();
   } else if (tab === 'loans') {
     el.innerHTML = loansHtml();
   } else if (tab === 'add') {
@@ -369,7 +369,7 @@ const openSt = {};
 document.addEventListener('toggle', e => { const d = e.target; if (d.classList && d.classList.contains('acc')) { const t = d.querySelector('summary').textContent.replace(/[▲▼]/g, '').trim(); openSt[t] = d.open; } }, true);
 function accordion(el, key) {
   [...el.children].forEach(c => {
-    if (!c.classList.contains('card') || c.tagName === 'DETAILS') return;
+    if (!c.classList.contains('card') || c.tagName === 'DETAILS' || c.classList.contains('noacc')) return;
     const b = c.querySelector('b'); if (!b) return;
     const d = document.createElement('details'); d.className = 'card acc';
     if (c.style.cssText) d.style.cssText = c.style.cssText;
@@ -384,18 +384,25 @@ function accordion(el, key) {
   const rank = c => { const t = ttl(c); if (saved) { const i = saved.indexOf(t); return i < 0 ? 999 : i; } const i = def.findIndex(w => t.includes(w)); return i < 0 ? 50 : i; };
   items.map((c, i) => [c, i]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).forEach(([c]) => el.appendChild(c));
   items.forEach(c => { const t = ttl(c); if (t in openSt) c.open = openSt[t]; });
-  const move = (c, dir) => {
-    const L = [...el.children].filter(x => x.tagName === 'DETAILS'), i = L.indexOf(c), j = i + dir;
-    if (j < 0 || j >= L.length) return;
-    const names = L.map(ttl); [names[i], names[j]] = [names[j], names[i]];
-    localStorage.setItem('ord_' + key, JSON.stringify(names));
-    if (dir < 0) el.insertBefore(c, L[j]); else el.insertBefore(L[j], c);
-  };
+  const ord = () => localStorage.setItem('ord_' + key, JSON.stringify([...el.children].filter(x => x.tagName === 'DETAILS').map(ttl)));
   [...el.children].filter(c => c.tagName === 'DETAILS').forEach(c => {
-    const s = c.querySelector('summary'); if (s.querySelector('.mv')) return;
-    const w = document.createElement('span'); w.className = 'mv';
-    ['▲', '▼'].forEach((ch, k) => { const x = document.createElement('i'); x.textContent = ch; x.onclick = e => { e.preventDefault(); e.stopPropagation(); move(c, k ? 1 : -1); }; w.appendChild(x); });
-    s.appendChild(w);
+    const s = c.querySelector('summary'); if (s.dataset.dg) return; s.dataset.dg = 1;
+    let timer = null, drag = false, sy = 0, lastY = 0;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    const end = () => { cancel(); if (drag) { c.classList.remove('dragging'); c.style.transform = ''; ord(); setTimeout(() => drag = false, 50); } };
+    s.addEventListener('pointerdown', e => { sy = lastY = e.clientY; timer = setTimeout(() => { drag = true; c.classList.add('dragging'); if (navigator.vibrate) navigator.vibrate(30); }, 450); });
+    s.addEventListener('pointermove', e => { if (!drag) { if (Math.abs(e.clientY - sy) > 8) cancel(); return; } });
+    window.addEventListener('pointermove', e => {
+      if (!drag || !c.classList.contains('dragging')) return;
+      lastY = e.clientY;
+      const L = [...el.children].filter(x => x.tagName === 'DETAILS');
+      for (const o of L) { if (o === c) continue; const r = o.getBoundingClientRect(); if (lastY > r.top && lastY < r.bottom) { const after = L.indexOf(o) > L.indexOf(c); el.insertBefore(c, after ? o.nextSibling : o); break; } }
+      const me = c.getBoundingClientRect(); c.style.transform = 'translateY(' + (lastY - (me.top + me.height / 2)) + 'px)';
+    });
+    window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+    s.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
+    s.addEventListener('click', e => { if (drag) { e.preventDefault(); e.stopPropagation(); } }, true);
+    s.addEventListener('contextmenu', e => e.preventDefault());
   });
 }
 
@@ -560,6 +567,7 @@ document.addEventListener('click', async e => {
     const c = cols(), j = pjobs(); if (jb) j[nm] = jb; else delete j[nm]; if (on) c[nm] = pc; else delete c[nm];
     setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); localStorage.setItem('dirty', '1'); push(); if (nw) lp = nm; render(); return;
   }
+  const rb = e.target.closest('.rdn'); if (rb && tab !== 'rem') { const r = rem.find(x => x.id == rb.dataset.i); if (r) { r.done = !r.done; saveRem(); render(); } return; }
   const lpc = e.target.closest('.lp'); if (lpc) { lp = lpc.dataset.p; render(); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
@@ -677,7 +685,7 @@ function dueList() {
 }
 function remBanner() {
   const L = dueList().filter(x => x.days <= (x.r.before || 3) && x.days >= -30 && !x.r.done);
-  return L.length ? `<div class="card" style="border:2px solid #ef4444"><b>⏰ یادآوری</b>${L.map(x => `<div>${esc(x.r.title)} — ${x.days < 0 ? Math.abs(x.days).toLocaleString('fa-IR') + ' روز گذشته' : x.days === 0 ? 'امروز' : x.days.toLocaleString('fa-IR') + ' روز دیگر'}</div>`).join('')}</div>` : '';
+  return L.length ? `<div class="card noacc" style="border:2px solid #ef4444"><b>⏰ یادآوری</b>${L.map(x => `<div class="row" style="margin-top:6px"><span>${esc(x.r.title)} — ${x.days < 0 ? Math.abs(x.days).toLocaleString('fa-IR') + ' روز گذشته' : x.days === 0 ? 'امروز' : x.days.toLocaleString('fa-IR') + ' روز دیگر'}</span><button class="sec rdn" data-i="${x.r.id}" style="padding:4px 10px">✓ انجام شد</button></div>`).join('')}</div>` : '';
 }
 function remHtml() {
   const L = dueList();
@@ -691,10 +699,11 @@ function remHtml() {
     <select id="rr" class="hide"><option value="">تکرار ندارد</option><option value="m">هر ماه</option><option value="y">هر سال</option></select>
     <button id="rg">افزودن</button>
     <div class="mut" style="margin-top:8px">قسط یعنی بدهی که ماهانه و در مبلغ ثابت پرداخت می‌شود (وام، خرید اقساطی). برنامه هر ماه سررسید بعدی را نشان می‌دهد.</div></div>
-  <div class="card"><b>لیست</b>${L.length ? L.map(x => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><b>${RT[x.r.type]} · ${esc(x.r.title)}</b>${x.r.amount ? ' · ' + toman(x.r.amount * 10) + ' تومان' : ''}
+  <div class="card"><b>لیست</b>${L.filter(x => !x.r.done).length ? L.filter(x => !x.r.done).map(x => `<div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><b>${RT[x.r.type]} · ${esc(x.r.title)}</b>${x.r.amount ? ' · ' + toman(x.r.amount * 10) + ' تومان' : ''}
     <div class="mut">${fa(x.d)} · ${x.r.done ? '✅ انجام شد' : x.days < 0 ? Math.abs(x.days).toLocaleString('fa-IR') + ' روز گذشته' : x.days.toLocaleString('fa-IR') + ' روز مانده'}${x.left != null ? ' · ' + x.left.toLocaleString('fa-IR') + ' قسط باقی‌مانده' : ''}</div>
     <div class="row"><button class="sec rdn" data-i="${x.r.id}">${x.r.done ? 'برگشت' : 'انجام شد'}</button><button class="sec rics" data-i="${x.r.id}">تقویم (هشدار)</button><button class="sec rdl2" data-i="${x.r.id}">حذف</button></div></div>`).join('') : '<div class="mut">چیزی ثبت نشده</div>'}</div>
-  <div class="card"><div class="mut">اعلان خودکار در PWA آیفون بدون سرور مطمئن نیست؛ پس «تقویم (هشدار)» فایل تقویم با هشدارهای تعیین‌شده می‌سازد که آیفون خودش اعلان می‌دهد. همچنین موارد نزدیک بالای صفحهٔ خانه نشان داده می‌شوند. یادآوری‌ها فقط روی همین دستگاه ذخیره می‌شوند.</div></div>`;
+  <div class="card"><b>✅ انجام‌شده‌ها</b>${rem.filter(r => r.done).length ? rem.filter(r => r.done).map(r => `<div class="row" style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><span>${RT[r.type]} · ${esc(r.title)}${r.amount ? ' · ' + toman(r.amount * 10) + ' تومان' : ''}<div class="mut">${esc(r.date)}</div></span><span><button class="sec rdn" data-i="${r.id}">برگشت</button> <button class="sec rdl2" data-i="${r.id}">حذف</button></span></div>`).join('') : '<div class="mut">هنوز چیزی انجام نشده</div>'}</div>
+  <div class="card"><b>ℹ️ راهنما</b><div class="mut">اعلان خودکار در PWA آیفون بدون سرور مطمئن نیست؛ پس «تقویم (هشدار)» فایل تقویم با هشدارهای تعیین‌شده می‌سازد که آیفون خودش اعلان می‌دهد. همچنین موارد نزدیک بالای صفحهٔ خانه نشان داده می‌شوند. یادآوری‌ها فقط روی همین دستگاه ذخیره می‌شوند.</div></div>`;
 }
 function remBind() {
   const ty = () => { const t = $('#rt').value; $('#rc').classList.toggle('hide', t !== 'inst'); $('#rr').classList.toggle('hide', t !== 'custom'); $('#rdl').textContent = t === 'inst' ? 'تاریخ اولین قسط:' : 'تاریخ سررسید:'; };
