@@ -20,7 +20,7 @@ let banner = '';
 let tab = 'home', month = null;
 
 // انتقال بین حساب‌های خودم
-const toMin = d => { d = String(d).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).trim(); const [x, h = '0:0'] = d.split(/\s+/); const [y, m, dd] = x.split('/').map(Number); const [hh, mm] = h.split(':').map(Number); return ((y * 372 + m * 31 + dd) * 24 + hh) * 60 + mm; };
+const toMin = d => { d = String(d).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)); const m = d.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/); if (!m) return 1e12; return ((+m[1] * 372 + +m[2] * 31 + +m[3]) * 24 + (+m[4] || 0)) * 60 + (+m[5] || 0); };
 function nowStr() {
   const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
   const g = t => n.find(x => x.type === t).value;
@@ -539,7 +539,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T16:00:00Z';
+const BUILD = '2026-11-06T16:30:00Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
@@ -821,9 +821,9 @@ function autoDedupe() {
   });
   if (n) save(); return n;
 }
-autoDedupe();
+autoDedupe(); rcTryPending();
 render();
-pull().then(() => { autoDedupe(); render(); });
+pull().then(() => { autoDedupe(); rcTryPending(); render(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 /* ===== یادآوری‌ها (فقط روی همین دستگاه) ===== */
