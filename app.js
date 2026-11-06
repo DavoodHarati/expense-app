@@ -324,8 +324,7 @@ function _render() {
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
     const labHtml = () => [['cats', 'برچسب‌های هزینه', CATS], ['icats', 'برچسب‌های درآمد', INC], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)', lsj('ctypes', [])]].map(([k, n, L]) => `<div class="mut" style="margin-top:8px">${n}</div><div class="chips">${L.map((c, i) => `<button class="chip sec lbd" data-k="${k}" data-i="${i}">${esc(c)} ✕</button>`).join('')}</div><div class="row"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div>`).join('');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>
-    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
+    el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">برای حذف روی برچسب بزن. در صفحهٔ پیامک جدید همین‌ها دیده می‌شوند. فقط روی همین دستگاه ذخیره می‌شود.</div><div id="lbx">${labHtml()}</div></div>`);
@@ -418,6 +417,7 @@ function _render() {
     if ($('#ul')) $('#ul').onclick = () => { if (confirm('قفل آدرس شیت باز شود؟ فقط اگر شیت جدید می‌خواهی.')) { localStorage.removeItem('syncLock'); localStorage.removeItem('sync_bak'); pulled = false; render(); } };
     $('#sy').onclick = async () => { if ($('#su')) localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
     accordion(el, 'settings');
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -509,19 +509,24 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T12:40:00Z';
+const BUILD = '2026-11-06T13:05:00Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
   const rows = L.map(t => { const v = LOAN[t.loan][1] * t.amount; bal += v; if (t.loan === 'share') sh += t.amount; if (t.loan === 'wage') pd += t.amount;
-    return `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(t.desc && !Object.values(LOAN).some(x => x[0] === t.desc) ? t.desc : '')}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(bal).toLocaleString('fa-IR')}</td></tr>`; }).join('');
+    const pr = t.parent ? tx.find(x => x.id === t.parent) : null; let d = t.desc && !Object.values(LOAN).some(x => x[0] === t.desc) ? t.desc : '';
+    if (pr) { if (pr.service) d += ' · خدمات: ' + pr.service; if (pr.customer && !d.includes(pr.customer)) d += ' · مشتری: ' + pr.customer; }
+    if (t.loan === 'wage') d = (d ? d + ' · ' : '') + 'طبق رسید' + ((t.receipt || '').match(/\d{1,2}:\d{2}/) ? ' (ساعت ' + t.receipt.match(/\d{1,2}:\d{2}/)[0] + ')' : '');
+    return `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(bal).toLocaleString('fa-IR')}</td></tr>`; }).join('');
   const f = n => toman(Math.abs(n)).toLocaleString('fa-IR');
   const st = bal > 0 ? 'پیش‌پرداخت: ' + f(bal) : bal < 0 ? (isCo ? 'مانده دستمزد: ' : 'بدهی: ') + f(bal) : 'تسویه کامل';
   const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>body{font-family:Tahoma,sans-serif;padding:20px;color:#222}h2{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}th{background:#eee}td,th{border:1px solid #ccc;padding:6px;text-align:right}.n{text-align:left}.a{color:#1a7f37}.b{color:#c0392b}.s{margin-top:14px;font-size:15px;line-height:2}</style></head><body><h2>صورت‌حساب ${esc(p)}</h2><div>تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR')}</div>
   <table><tr><th>تاریخ</th><th>نوع</th><th>شرح</th><th>مبلغ (تومان)</th><th>مانده</th></tr>${rows}</table>
   <div class="s">${isCo ? `مجموع کارکرد (سهم): <b>${f(sh)}</b><br>مجموع پرداختی‌ها: <b>${f(pd)}</b><br>` : ''}وضعیت: <b>${st} تومان</b></div></body></html>`;
-  const w = window.open('', '_blank'); if (!w) { alert('پنجره باز نشد؛ اجازهٔ popup بده'); return; }
-  w.document.write(h); w.document.close(); setTimeout(() => w.print(), 400);
+  const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column';
+  ov.innerHTML = '<div style="display:flex;gap:8px;padding:10px;border-bottom:1px solid #ddd"><button id="pdx" style="flex:1">✕ بستن</button><button id="pdp" style="flex:1">🖨 چاپ / ذخیره PDF</button></div><iframe style="flex:1;border:0;width:100%"></iframe>';
+  document.body.appendChild(ov); const fr = ov.querySelector('iframe'); fr.srcdoc = h;
+  ov.querySelector('#pdx').onclick = () => ov.remove(); ov.querySelector('#pdp').onclick = () => { fr.contentWindow.focus(); fr.contentWindow.print(); };
 }
 function loansHtml() {
   const L = tx.filter(t => t.loan), bal = {}, CO = cols(), PJ = pjobs();
