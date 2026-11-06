@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s);
 const lsj = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) && v.length ? v : d; } catch { return d; } };
-const CATS = lsj('cats', ['خوراک', 'رستوران', 'حمل‌ونقل', 'خرید', 'قبض', 'سلامت', 'تفریح', 'اقساط', 'هدیه', 'سایر']);
+const CATS = lsj('cats', ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر']);
 const INC = lsj('icats', ['فروش', 'مشتری', 'حقوق', 'سایر']);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 let tx = load('tx', []);
@@ -119,7 +119,7 @@ function addSms0(raw) {
   if (!p) return { ok: false, msg: 'قالب پیامک شناخته نشد' };
   if (p.ignored) return { ok: false, msg: 'پیامک رمز بود؛ نادیده گرفته شد' };
   if (p.account && accounts[p.account] === undefined) { accounts[p.account] = /^\d{6,}$/.test(p.account) ? p.bank + ' …' + p.account.slice(-4) : p.bank; }
-  const dup = tx.find(t => t.account === p.account && t.amount === p.amount && t.balance === p.balance && t.date === p.date);
+  const dup = tx.find(t => !t.ghost && t.type === p.type && t.amount === p.amount && t.date === p.date && (!t.account || !p.account || t.account === p.account));
   if (dup) return { ok: false, msg: 'تکراری بود' };
   const t = { id: Date.now() + Math.random(), bank: p.bank, account: p.account, type: p.type, amount: p.amount, balance: p.balance, date: p.date, desc: '', cat: '', pending: true, raw: String(raw).slice(0, 2000) };
   tx.unshift(t); save(); rcTryPending();
@@ -197,16 +197,16 @@ function pendingCard(t) {
   return `<div class="card" data-id="${t.id}" data-cat="${esc(cat0)}">
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
-    <div>${debit ? 'برای چی بود؟' : 'از طرف کی / بابت چی؟'}</div>
-    <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="مثلاً: نان و ماست"><datalist id="dl"></datalist>
-    <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص">${Object.keys(cols()).length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${Object.keys(cols()).map(n => `<button type="button" class="sec cp" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}<datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
+    <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><datalist id="dl"></datalist>
+    <input class="p" list="pl" value="${esc(D.p ?? (t.person || ''))}" placeholder="اگر قرض است: نام شخص"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
     ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage">دستمزد / حقوق همکار</option><option value="lent">قرض دادم</option><option value="payback">قرض پس دادم</option></select>` : ''}
-    <div class="row">${(debit ? [['wage', '💼 پرداخت دستمزد'], ['lent', 'قرض دادم'], ['payback', 'قرض پس دادم']] : [['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']]).map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>
+    ${debit ? '' : `<div class="row">${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
     ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
     ${showCu ? ctBlock(t, D, cat0) : ''}
     ${debit ? '' : colBlock(t, D)}
-    <div class="chips">${(debit ? CATS : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+    <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date" value="${esc(D.rdt || '')}">
     <div class="row"><button class="ok">ذخیره</button>${t.desc ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
@@ -539,7 +539,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T15:00:00Z';
+const BUILD = '2026-11-06T16:00:00Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
@@ -743,7 +743,7 @@ document.addEventListener('click', async e => {
     }
   }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.loan = ''; t0.person = ''; } }
-  if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value });
+  if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value });
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
@@ -811,8 +811,19 @@ const RT = { check: 'چک', inst: 'قسط', custom: 'سفارشی' };
 let rem = JSON.parse(localStorage.getItem('rem') || '[]');
 matchTransfers();
 handleUrl();
+function autoDedupe() {
+  const G = {}; tx.filter(t => !t.ghost && t.date).forEach(t => { const k = [t.type, t.amount, t.date].join('|'); (G[k] = G[k] || []).push(t); });
+  const sc = t => (t.receipt ? 4 : 0) + (t.person ? 2 : 0) + (t.desc ? 1 : 0) + (t.cat ? 1 : 0); let n = 0;
+  Object.values(G).filter(g => g.length > 1).forEach(g => {
+    const k = g.slice().sort((a, b) => sc(b) - sc(a))[0];
+    g.forEach(o => { if (o === k) return; for (const f in o) if (k[f] === undefined || k[f] === '' || k[f] === null) k[f] = o[f]; tx.forEach(c => { if (c.parent === o.id) c.parent = k.id; }); });
+    const ids = new Set(g.filter(o => o !== k).map(o => o.id)); tx = tx.filter(t => !ids.has(t.id)); n += ids.size;
+  });
+  if (n) save(); return n;
+}
+autoDedupe();
 render();
-pull().then(render);
+pull().then(() => { autoDedupe(); render(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 /* ===== یادآوری‌ها (فقط روی همین دستگاه) ===== */
@@ -952,3 +963,5 @@ document.addEventListener('input', e => {
 
 document.addEventListener('change', e => { if (!e.target.classList.contains('cs')) return; const c = e.target.closest('.card'); c.querySelector('.p').value = e.target.value; const l = c.querySelector('.lk'); if (l && e.target.value && !l.value) l.value = 'wage'; });
 document.addEventListener('click', e => { if (!e.target.classList.contains('cp')) return; const l = e.target.closest('.card').querySelector('.lk'); if (l && !l.value) l.value = 'wage'; });
+
+document.addEventListener('change', e => { if (!e.target.classList.contains('catsel')) return; const c = e.target.closest('.card'); c.dataset.cat = e.target.value; (drafts[c.dataset.id] = drafts[c.dataset.id] || {}).cat = e.target.value; });
