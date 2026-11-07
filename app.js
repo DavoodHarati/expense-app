@@ -103,6 +103,13 @@ function rcReviewHtml() {
     return `<div class="card" style="background:#eefaf6"><b>🧾 انتخاب تراکنش برای رسید</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div><div class="mut">گزینه درست را انتخاب کن؛ اختلاف مبلغ هم نمایش داده شده است.</div>${cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان · اختلاف ${toman(t.amount - rc.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}</div></span><button class="rcchoose" data-ri="${i}" data-tid="${t.id}">این است</button></div>`).join('')}</div>`;
   }).join('');
 }
+function rcMessage(t, rc, already) {
+  return (already ? 'این رسید قبلاً وصل شده است.' : 'رسید وصل شد ✅') +
+    ' گیرنده رسید: ' + rc.name + ' · مبلغ رسید: ' + toman(rc.amount) +
+    ' تومان · تراکنش: ' + toman(t.amount) + ' تومان · حساب: ' + accName(t.account) +
+    ' · تاریخ: ' + (t.date || 'نامشخص') + (t.desc ? ' · شرح: ' + t.desc : '') +
+    ' · برای دیدن متن، «رسید بانکی» را روی تراکنش باز کن.';
+}
 document.addEventListener('click', e => {
   const b = e.target.closest('.rcchoose'); if (!b) return;
   const L = rcPending(), raw = L[+b.dataset.ri], rc = raw && parseReceipt(raw);
@@ -116,10 +123,11 @@ function receiptFlow(raw) {
   raw = String(raw).trim(); const rw = raw.slice(0, 1000);
   if (!log.some(l => l.rc && l.raw === rw)) { log.unshift({ at: Date.now(), raw: rw, ok: true, rc: 1, msg: '🧾 رسید بانکی' }); saveLog(); }
   const done = tx.find(t => t.receipt === rw);
-  if (done) { box.textContent = 'این رسید قبلاً به تراکنش ' + toman(done.amount) + ' تومان وصل شده است.'; return true; }
+  if (done) { box.textContent = rcMessage(done, rc, true); return true; }
   const L = rcPending(); if (!L.some(x => String(x).trim() === raw)) { L.push(raw); localStorage.setItem('prc', JSON.stringify(L)); }
-  const n = rcTryPending();
-  if (n) { box.textContent = 'رسید وصل شد ✅ برای تکمیل اطلاعات به خانه برو.'; return true; }
+  rcTryPending();
+  const attached = tx.find(t => t.receipt === rw);
+  if (attached) { box.textContent = rcMessage(attached, rc, false); return true; }
   const cs = rcCands(rc);
   box.textContent = cs.length ? 'رسید ذخیره شد. برای انتخاب و تأیید تراکنش به خانه برو.' : 'رسید ذخیره شد و منتظر پیامک برداشت می‌ماند.';
   return true;
@@ -166,6 +174,7 @@ function handleUrl() {
 
 function setDesc(id, desc, cat, ex) {
   ex = ex || null;
+  if (ex && ex.service) { const L = lsj('svq', []); if (!L.some(x => nrm(x) === nrm(ex.service))) { L.push(ex.service); localStorage.setItem('svq', JSON.stringify(L)); } }
   const t = tx.find(x => x.id === id);
   t.desc = desc; t.cat = cat || t.cat || 'سایر'; t.pending = false;
   if (ex) {
@@ -179,6 +188,7 @@ function setDesc(id, desc, cat, ex) {
 const drafts = {}, editing = new Set();
 const JOBS = ['', 'راننده', 'فروشنده', 'تعمیرکار / خدماتی', 'معلم', 'کارمند', 'بازنشسته', 'سایر'];
 const job = () => localStorage.getItem('job') || '', work = () => localStorage.getItem('work') || '';
+const defaultCustomerType = () => localStorage.getItem('defaultCustomerType') || '';
 const salaryJob = () => ['معلم', 'کارمند', 'بازنشسته'].includes(job());
 const defIncCat = () => salaryJob() ? 'حقوق' : job() === 'فروشنده' ? 'فروش' : job() ? 'مشتری' : '';
 const nrm = s => String(s).replace(/\u064a/g, 'ی').replace(/\u0643/g, 'ک').replace(/[آأإ]/g, 'ا').replace(/[\s\u200c]/g, '').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toLowerCase();
@@ -215,13 +225,14 @@ function pendingCard(t) {
   return `<div class="card" data-id="${t.id}" data-cat="${esc(cat0)}">
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
+    ${t.receipt ? `<details><summary class="mut">🧾 رسید بانکی</summary><div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button type="button" class="sec rcpdel" data-id="${t.id}">🗑 حذف رسید</button></details>` : ''}
     ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
     <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><datalist id="dl"></datalist>
     <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص / فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
     ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage">دستمزد / حقوق همکار</option><option value="lent">قرض دادم</option><option value="payback">قرض پس دادم</option></select>` : ''}
     ${debit ? '' : `<div class="row">${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
-    ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
+    ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
     ${showCu ? ctBlock(t, D, cat0) : ''}
     ${debit ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
@@ -239,7 +250,7 @@ function recentCust() {
   return seen.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${seen.map(n => `<button type="button" class="sec cqn" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
 }
 function ctBlock(t, D, cat) {
-  const ct = D.ct ?? (t.ctype || '');
+  const ct = D.ct ?? (t.ctype || (!t.pending ? '' : defaultCustomerType()));
   return `<div class="ctbox${cat === 'فروش' ? ' hide' : ''}" data-ct="${ct}"><div class="mut">نوع مشتری (برای فروش کالا لازم نیست)</div><div class="row" style="gap:6px;margin:6px 0"><button type="button" class="sec ctb${ct === 'driver' ? ' on' : ''}" data-v="driver">🚚 راننده</button><button type="button" class="sec ctb${ct === 'normal' ? ' on' : ''}" data-v="normal">🧑 مشتری عادی</button>${lsj('ctypes', []).map(x => `<button type="button" class="sec ctb${ct === x ? ' on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div><input class="cph" inputmode="tel" value="${esc(D.ph ?? (t.cphone || ''))}" placeholder="شماره تماس (اختیاری)"></div>`;
 }
 const lcat = k => k === 'wage' || k === 'share' ? 'کارکرد همکار' : 'قرض';
@@ -249,30 +260,39 @@ function cols() { try { return JSON.parse(localStorage.getItem('cols') || '{}');
 function setCols(o) { localStorage.setItem('cols', JSON.stringify(o)); }
 function shareOf(amount, pct) { return Math.round(amount * pct / 100); }
 function colBlock(t, D) {
-  const c = cols(), names = Object.keys(c), sel = D.co ?? (t.colleague || ''), pct = Number(D.pc ?? (t.pct || c[sel] || 0)) || 0;
-  return `<div class="colbox"><b>🤝 همکار / شریک در این کار</b>
-    <select class="co"><option value="">بدون همکار</option>${names.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)} (${(c[n] || 0).toLocaleString('fa-IR')}٪)</option>`).join('')}<option value="__new">+ همکار جدید…</option></select>
-    <input class="cn hide" placeholder="نام همکار جدید">
-    <div class="pcrow${sel ? '' : ' hide'}"><span>درصد سهم از کل مبلغ واریزی</span>
+  const c = cols(), names = Object.keys(c), sel = D.co ?? (t.colleague || ''), pct = Number(D.pc ?? (t.pct ?? c[sel] ?? 0)) || 0;
+  const mode = D.shareMode ?? (t.shareMode || 'percent');
+  const fixed = D.shareAmount ?? (t.shareMode === 'fixed' ? Math.round((t.shareAmount || 0) / 10) : '');
+  return `<div class="colbox"><b>🤝 دستیار / همکار در این کار</b>
+    <select class="co"><option value="">بدون دستیار / همکار</option>${names.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)} (${(c[n] || 0).toLocaleString('fa-IR')}٪)</option>`).join('')}<option value="__new">+ دستیار / همکار جدید…</option></select>
+    <input class="cn hide" placeholder="نام دستیار / همکار جدید">
+    <select class="sharemode${sel ? '' : ' hide'}"><option value="percent"${mode === 'percent' ? ' selected' : ''}>سهم درصدی</option><option value="fixed"${mode === 'fixed' ? ' selected' : ''}>مبلغ ثابت (تومان)</option></select>
+    <div class="pcrow${sel && mode === 'percent' ? '' : ' hide'}"><span>درصد سهم از کل مبلغ واریزی</span>
       <span class="pcb"><button type="button" class="sec pa" data-d="-1">▼</button><b class="pv" data-v="${pct}">${Number(pct).toLocaleString('fa-IR')}٪</b><button type="button" class="sec pa" data-d="1">▲</button></span></div>
+    <input class="sharefixed${sel && mode === 'fixed' ? '' : ' hide'}" type="number" min="0" step="1" inputmode="numeric" value="${esc(fixed)}" placeholder="مبلغ سهم دستیار (تومان)">
     <div class="mut cs"></div></div>`;
 }
 function colRefresh(card) {
   const v = card.querySelector('.pv'); if (!v) return;
   const t = tx.find(x => x.id === Number(card.dataset.id)); if (!t) return;
-  const p = Number(v.dataset.v), has = card.querySelector('.co').value;
+  const p = Number(v.dataset.v), has = card.querySelector('.co').value, mode = card.querySelector('.sharemode').value;
   v.textContent = p.toLocaleString('fa-IR') + '٪';
-  card.querySelector('.pcrow').classList.toggle('hide', !has);
-  const sh = shareOf(t.amount, p);
-  card.querySelector('.cs').innerHTML = has && p ? `سهم همکار: <b>${toman(sh)}</b> تومان · خالصِ من: <b>${toman(t.amount - sh)}</b> تومان` : '';
+  card.querySelector('.sharemode').classList.toggle('hide', !has);
+  card.querySelector('.pcrow').classList.toggle('hide', !has || mode !== 'percent');
+  card.querySelector('.sharefixed').classList.toggle('hide', !has || mode !== 'fixed');
+  const sh = mode === 'fixed' ? (Number(card.querySelector('.sharefixed').value) || 0) * 10 : shareOf(t.amount, p);
+  card.querySelector('.cs').innerHTML = has && sh ? `سهم دستیار / همکار: <b>${toman(sh)}</b> تومان · خالصِ من: <b>${toman(t.amount - sh)}</b> تومان` : '';
 }
-function applyShare(t, name, pct) {
-  tx = tx.filter(x => x.parent !== t.id);
-  t.colleague = ''; t.pct = 0;
-  if (!name || !pct) return;
-  const sh = shareOf(t.amount, pct);
-  t.colleague = name; t.pct = pct;
-  tx.push({ id: t.id + 1, parent: t.id, ghost: true, bank: t.bank, account: t.account, type: 'credit', amount: sh, balance: null, date: t.date, cat: 'کارکرد همکار', loan: 'share', person: name, desc: `سهم ${pct}٪ همکار از ${t.customer || t.desc || 'واریزی'}`, pending: false });
+function applyShare(t, name, pct, mode, fixed) {
+  const old = tx.find(x => x.parent === t.id && x.loan === 'share');
+  tx = tx.filter(x => x.parent !== t.id || x.loan !== 'share');
+  t.colleague = ''; t.pct = 0; delete t.shareMode; delete t.shareAmount;
+  const sh = mode === 'fixed' ? fixed : shareOf(t.amount, pct);
+  if (!name || !sh) return;
+  t.colleague = name; t.pct = mode === 'percent' ? pct : 0; t.shareMode = mode; t.shareAmount = sh;
+  const details = [t.customer && ((t.ctype === 'driver' ? 'راننده: ' : 'مشتری: ') + t.customer), t.service && ('خدمت: ' + t.service), t.desc && ('توضیح: ' + t.desc)].filter(Boolean).join(' · ');
+  const basis = mode === 'fixed' ? 'مبلغ ثابت' : 'سهم ' + pct + '٪';
+  tx.push({ id: old ? old.id : Date.now() + Math.random(), parent: t.id, ghost: true, bank: t.bank, account: t.account, type: 'credit', amount: sh, balance: null, date: t.date, cat: 'کارکرد همکار', loan: 'share', person: name, desc: basis + (details ? ' · ' + details : ''), pending: false });
 }
 function people() { return [...new Set(tx.filter(t => t.person).map(t => t.person))]; }
 function monthOf(t) { return t.date.slice(0, 7); }
@@ -366,18 +386,20 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
-    el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"></div>`);
+    el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"><div class="mut">مشتری‌های اصلی من چه کسانی هستند؟</div><select id="defaultct"><option value="">انتخاب در هر تراکنش</option><option value="driver"${defaultCustomerType() === 'driver' ? ' selected' : ''}>راننده</option><option value="normal"${defaultCustomerType() === 'normal' ? ' selected' : ''}>مشتری عادی</option>${lsj('ctypes', []).map(x => `<option value="${esc(x)}"${defaultCustomerType() === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
+    $('#defaultct').onchange = e => { localStorage.setItem('defaultCustomerType', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
     const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [] };
     const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : lsj(k, []);
-    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
+    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${k === 'svq' ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">با زدن × برچسب حذف می‌شود، با نوشتن نام و «افزودن» (یا Enter) اضافه می‌شود. همه‌جا همین‌ها دیده می‌شوند و بین دستگاه‌ها همگام می‌شوند.</div><div class="mut" id="lbm" style="color:#0f766e;min-height:18px"></div><div id="lbx">${labHtml()}</div></div>`);
     const lbSet = (k, L, m) => { if (k === 'cats') { CATS.length = 0; CATS.push(...L); } else if (k === 'icats') { INC.length = 0; INC.push(...L); } localStorage.setItem(k, JSON.stringify(L)); localStorage.setItem('dirty', '1'); $('#lbx').innerHTML = labHtml(); $('#lbm').textContent = m; push(); };
     const lbAdd = k => { const inp = $('#lbc .lbn[data-k="' + k + '"]'), v = inp.value.trim(), L = labList(k).slice(); if (!v) return; if (L.includes(v)) { $('#lbm').textContent = '«' + v + '» از قبل هست'; return; } L.push(v); lbSet(k, L, '✅ «' + v + '» اضافه شد'); };
     $('#lbc').onclick = e => {
-      const b = e.target.closest('.lbd,.lba,.lbr'); if (!b) return; const k = b.dataset.k, L = labList(k).slice();
-      if (b.classList.contains('lbd')) { if ((k === 'cats' || k === 'icats') && L.length < 2) { $('#lbm').textContent = 'حداقل یک برچسب باید بماند'; return; } const v = L.splice(+b.dataset.i, 1)[0]; lbSet(k, L, '🗑 «' + v + '» حذف شد'); }
+      const b = e.target.closest('.lbd,.lba,.lbr,.lbedit'); if (!b) return; const k = b.dataset.k, L = labList(k).slice();
+      if (b.classList.contains('lbedit')) { const old = L[+b.dataset.i], v = prompt('نام جدید خدمت:', old); if (v === null || !v.trim()) return; if (L.some((x, i) => i !== +b.dataset.i && nrm(x) === nrm(v.trim()))) { $('#lbm').textContent = 'این نام از قبل وجود دارد'; return; } L[+b.dataset.i] = v.trim(); lbSet(k, L, '✅ نام خدمت تغییر کرد'); }
+      else if (b.classList.contains('lbd')) { if ((k === 'cats' || k === 'icats') && L.length < 2) { $('#lbm').textContent = 'حداقل یک برچسب باید بماند'; return; } const v = L.splice(+b.dataset.i, 1)[0]; lbSet(k, L, '🗑 «' + v + '» حذف شد'); }
       else if (b.classList.contains('lba')) lbAdd(k);
       else if (confirm('این فهرست به حالت اولیه برگردد؟')) lbSet(k, LDEF[k].slice(), '↩️ به حالت اولیه برگشت');
     };
@@ -471,7 +493,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -549,7 +571,7 @@ function workList(p, L) {
   const rows = jobs.map(j => { const paid = Math.max(0, Math.min(j.amount, pool)); pool -= paid; return { j, paid, left: j.amount - paid }; });
   const row = ({ j, paid, left }) => {
     const par = j.parent ? tx.find(x => x.id === j.parent) : null;
-    const src = par ? `از واریزی ${toman(par.amount)} تومان${par.pct ? ' · ' + Number(par.pct).toLocaleString('fa-IR') + '٪' : ''}` : 'ثبت دستی';
+    const src = par ? `از واریزی ${toman(par.amount)} تومان${par.shareMode === 'fixed' ? ' · مبلغ ثابت' : par.pct ? ' · ' + Number(par.pct).toLocaleString('fa-IR') + '٪' : ''}${par.customer ? ' · ' + esc(par.customer) + (par.ctype === 'driver' ? ' (راننده)' : '') : ''}${par.service ? ' · خدمت: ' + esc(par.service) : ''}` : 'ثبت دستی';
     const st = left === 0 ? '<span class="grn">✓ پرداخت‌شده</span>' : paid ? `<span class="red">مانده ${toman(left)}</span>` : '<span class="red">پرداخت‌نشده</span>';
     return `<div class="card"><div class="row"><b>${esc((j.desc || '').replace(/^سهم \d+٪ همکار از /, '') || 'کار')}</b><b>${toman(j.amount)}</b></div><div class="mut">${esc(j.date)} · ${src}</div><div class="row" style="margin-top:4px"><span>${st}</span>${paid && left ? `<span class="mut">پرداخت‌شده ${toman(paid)}</span>` : ''}</div></div>`;
   };
@@ -563,7 +585,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-07T11:01:45Z';
+const BUILD = '2026-11-07T11:41:17Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
@@ -607,8 +629,9 @@ function rowHtml(t) {
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${t.xfer || t.ghost ? 'mut' : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost ? '' : t.type === 'debit' ? '−' : '+'}${toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
-  ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? (t.ctype === 'driver' ? '🚚 راننده: ' : 'مشتری: ') + esc(t.customer) : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
-  <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${t.loan && !t.ghost && t.type === 'debit' ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
+  ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
+  ${t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
+  <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
   return remBanner() + homeHtml0();
@@ -709,12 +732,14 @@ function reportHtml() {
 }
 
 document.addEventListener('change', e => {
+  if (e.target.classList.contains('sharemode')) { colRefresh(e.target.closest('.card')); return; }
   if (!e.target.classList.contains('co')) return;
   const card = e.target.closest('.card'), v = e.target.value, c = cols();
   card.querySelector('.cn').classList.toggle('hide', v !== '__new');
   card.querySelector('.pv').dataset.v = v && c[v] !== undefined ? c[v] : card.querySelector('.pv').dataset.v;
   colRefresh(card);
 });
+document.addEventListener('input', e => { if (e.target.classList.contains('sharefixed')) colRefresh(e.target.closest('.card')); });
 let _ht, _hi;
 function pstep(b, k) { const card = b.closest('.card'), v = card.querySelector('.pv'); v.dataset.v = Math.max(0, Math.min(100, Number(v.dataset.v) + b.dataset.d * k)); colRefresh(card); }
 document.addEventListener('pointerdown', e => {
@@ -761,12 +786,17 @@ document.addEventListener('click', async e => {
     const co = card.querySelector('.co'); let nm = '';
     if (co) {
       nm = co.value === '__new' ? card.querySelector('.cn').value.trim() : co.value;
-      const pc = Number(card.querySelector('.pv').dataset.v) || 0;
-      if (co.value === '__new' && !nm) { alert('نام همکار را بنویس'); return; }
-      if (nm) { const c = cols(); if (c[nm] === undefined || co.value === '__new') c[nm] = pc; setCols(c); }
-      const tt = tx.find(x => x.id === id); applyShare(tt, nm, pc);
-      if (nm && !tt.customer) tt.customer = '';
-      if (nm) { tt.customer = card.querySelector('.cu')?.value.trim() || tt.customer; }
+      const pc = Number(card.querySelector('.pv').dataset.v) || 0, mode = card.querySelector('.sharemode').value;
+      const fixedInput = card.querySelector('.sharefixed').value, fixed = Number(fixedInput) * 10;
+      if (co.value === '__new' && !nm) { alert('نام دستیار / همکار را بنویس'); return; }
+      if (nm && mode === 'fixed' && (!fixedInput || !Number.isSafeInteger(fixed) || fixed <= 0)) { alert('مبلغ سهم را به تومان وارد کن'); return; }
+      if (nm && mode === 'percent' && (!Number.isFinite(pc) || pc <= 0 || pc > 100)) { alert('درصد سهم را بین ۱ و ۱۰۰ انتخاب کن'); return; }
+      const tt = tx.find(x => x.id === id);
+      if (nm && (mode === 'fixed' ? fixed : shareOf(tt.amount, pc)) > tt.amount) { alert('سهم نمی‌تواند بیشتر از مبلغ واریزی باشد'); return; }
+      if (nm) { const c = cols(); if (c[nm] === undefined || (co.value === '__new' && mode === 'percent')) c[nm] = mode === 'percent' ? pc : 0; setCols(c); }
+      tt.customer = card.querySelector('.cu')?.value.trim() || ''; tt.service = card.querySelector('.sv')?.value.trim() || '';
+      tt.ctype = card.querySelector('.ctbox')?.dataset.ct || ''; tt.desc = card.querySelector('.d').value.trim();
+      applyShare(tt, nm, pc, mode, fixed);
     }
   }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.seller = card.querySelector('.p').value.trim() || t0.seller || ''; t0.loan = ''; t0.person = ''; } }
@@ -787,7 +817,7 @@ function push() {
 }
 async function doPush() {
   try {
-    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), ppl: localStorage.getItem('ppl') }) }, log: log.slice(0, 100) }) })).json();
+    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl') }) }, log: log.slice(0, 100) }) })).json();
     if (!r.ok) throw new Error(r.error);
     localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + ' — بعداً دوباره تلاش می‌شود'; }
