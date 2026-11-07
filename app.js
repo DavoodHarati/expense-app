@@ -501,7 +501,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۲)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۳)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -597,7 +597,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-07T15:07:24Z';
+const BUILD = '2026-11-07T16:40:41Z';
 function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
@@ -1080,7 +1080,7 @@ document.addEventListener('change', e => { if (!e.target.classList.contains('cat
 
 
 // ===== مخاطبین =====
-let ppl = load('ppl', []), cv = 'work', pe = null, pq = '', pf = '';
+let ppl = load('ppl', []), cv = 'work', pe = null, pq = '', pf = '', pEditing = false;
 const savePpl = () => { localStorage.setItem('ppl', JSON.stringify(ppl)); localStorage.setItem('dirty', '1'); push(); };
 const PT0 = ['مشتری', 'راننده', 'همکار', 'تأمین‌کننده', 'خانواده'];
 const ptags = () => [...new Set([...PT0, ...ppl.flatMap(p => p.tags || [])])];
@@ -1145,6 +1145,16 @@ function contactsHtml() {
   if (cv === 'work') return sw + loansHtml();
   if (pe !== null) {
     const p = pe === 'new' ? { tags: [] } : ppl.find(x => x.id === pe) || { tags: [] };
+    if (pe !== 'new' && !pEditing) {
+      const cars = Array.isArray(p.cars) ? p.cars : [], cards = contactCardList(p), phones = [p.phone, ...(Array.isArray(p.phones) ? p.phones : [])].filter(Boolean);
+      return sw + `<div class="card"><div class="row"><b>پروندهٔ ${esc(p.name || '')}</b><button id="pedit">ویرایش</button></div>
+        <div class="mut" style="margin-top:8px">${(p.tags || []).map(esc).join(' · ') || 'بدون برچسب'}</div>
+        ${phones.length ? `<div style="margin-top:8px">تلفن: <span dir="ltr">${phones.map(esc).join('، ')}</span></div>` : ''}
+        ${cards.length ? `<div style="margin-top:8px">شماره کارت: ${cards.map(c => `<div dir="ltr" style="text-align:right">${esc(c)}</div>`).join('')}</div>` : ''}
+        ${cars.length ? `<div style="margin-top:8px"><b>🚚 ماشین‌ها</b>${cars.map(c => `<div class="mut">${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}</div>` : ''}
+        ${p.note ? `<div style="margin-top:8px;white-space:pre-wrap">یادداشت: ${esc(p.note)}</div>` : ''}
+        <button class="sec" id="pback" style="margin-top:10px">بازگشت به مخاطبین</button></div>${contactHistory(p)}`;
+    }
     return sw + `<div class="card" id="pform"><b>${pe === 'new' ? 'مخاطب جدید' : 'پروندهٔ ' + esc(p.name)}</b>
       <input id="pn" placeholder="نام" value="${esc(p.name || '')}"><input id="pp" inputmode="tel" placeholder="تلفن" value="${esc(p.phone || '')}"><div class="mut">شماره کارت‌ها (هر شماره در یک خط)</div><textarea id="pcards" rows="2" inputmode="numeric" placeholder="شماره کارت">${esc((p.cards || []).join('\n'))}</textarea>
       <div class="mut">برچسب‌ها (چندتایی)</div><div class="row" style="flex-wrap:wrap;gap:6px">${ptags().map(t => `<button class="ptg ${(p.tags || []).includes(t) ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
@@ -1174,20 +1184,22 @@ document.addEventListener('click', e => {
     attachFact(person, f, true); savePpl(); render(); return;
   }
   if (g('[data-cv]')) { cv = g('[data-cv]').dataset.cv; pe = null; render(); return; }
-  if (g('#pnew')) { pe = 'new'; render(); return; }
-  if (g('#pcn')) { pe = null; render(); return; }
+  if (g('#pnew')) { pe = 'new'; pEditing = true; render(); return; }
+  if (g('#pedit')) { pEditing = true; render(); return; }
+  if (g('#pback')) { pe = null; pEditing = false; render(); return; }
+  if (g('#pcn')) { if (pe === 'new') { if (Object.values(pRead()).some(v => Array.isArray(v) ? v.length : !!v) && !confirm('اطلاعات ذخیره نشده است. فرم بسته شود؟')) return; pe = null; } else { const old = ppl.find(x => x.id === pe), d = pRead(); if (old && JSON.stringify({name:old.name || '',phone:old.phone || '',cards:old.cards || [],tags:old.tags || [],cars:old.cars || [],note:old.note || ''}) !== JSON.stringify({name:d.name,phone:d.phone,cards:d.cards,tags:d.tags,cars:d.cars,note:d.note}) && !confirm('تغییرات ذخیره نشده است. ویرایش بسته شود؟')) return; } pEditing = false; render(); return; }
   if (g('.pfl')) { pf = g('.pfl').dataset.t; render(); return; }
   if (g('.cadd')) { $('#cl').insertAdjacentHTML('beforeend', carRow({ model: carModels().includes('اسکانیا') ? 'اسکانیا' : (carModels()[0] || '') })); return; }
   if (g('.cdel')) { g('.crow').remove(); return; }
   if (g('.ptg')) { g('.ptg').classList.toggle('sec'); const dr = [...document.querySelectorAll('#pform .ptg:not(.sec)')].some(b => b.dataset.t === 'راننده'); $('#pcars').style.display = dr ? '' : 'none'; return; }
-  if (g('.pc')) { pe = +g('.pc').dataset.pid; render(); return; }
+  if (g('.pc')) { pe = +g('.pc').dataset.pid; pEditing = false; render(); return; }
   if (g('#pdl')) { if (confirm('این مخاطب حذف شود؟')) { const old = ppl.find(x => x.id === pe); const ignored = new Set(load('pplIgnored', [])); (old?.links || []).forEach(k => ignored.add(k)); localStorage.setItem('pplIgnored', JSON.stringify([...ignored])); ppl = ppl.filter(x => x.id !== pe); savePpl(); pe = null; render(); } return; }
   if (g('#psv')) {
     const d = pRead(); if (!d.name) { alert('نام را بنویس'); return; } if (d.cards.some(x => x.length !== 16)) { alert('هر شماره کارت باید ۱۶ رقم باشد'); return; } if (pe !== 'new') { const old = ppl.find(x => x.id === pe); if (old && JSON.stringify({name:old.name || '',phone:old.phone || '',cards:old.cards || [],tags:old.tags || [],cars:old.cars || [],note:old.note || ''}) !== JSON.stringify({name:d.name,phone:d.phone,cards:d.cards,tags:d.tags,cars:d.cars,note:d.note}) && !confirm('مشخصات مخاطب تغییر کرده است. ذخیره شود؟')) return; }
     if (pe === 'new') { if (d.phone && ppl.some(x => x.phone === d.phone)) { alert('این تلفن قبلاً ثبت شده'); return; } ppl.push({ id: Date.now(), ...d }); }
     else Object.assign(ppl.find(x => x.id === pe), d);
-    savePpl(); pe = null; render();
+    if (pe === 'new') pe = ppl[ppl.length - 1].id; savePpl(); pEditing = false; render();
   }
 });
 document.addEventListener('input', e => { if (e.target.id === 'pq') { pq = e.target.value; const p = e.target.selectionStart; render(); const i = $('#pq'); if (i) { i.focus(); i.setSelectionRange(p, p); } } });
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pnt') { e.preventDefault(); const v = e.target.value.trim(); if (!v) return; const d = pRead(); d.tags.push(v); const o = pe === 'new' ? null : ppl.find(x => x.id === pe); if (o) { Object.assign(o, d); savePpl(); } else { ppl.push({ id: Date.now(), ...d, name: d.name || 'بی‌نام' }); pe = ppl[ppl.length - 1].id; savePpl(); } render(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pnt') { e.preventDefault(); const v = e.target.value.trim(); if (!v) return; const buttons = [...document.querySelectorAll('#pform .ptg')]; let b = buttons.find(x => x.dataset.t === v); if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'ptg'; b.dataset.t = v; b.textContent = v; buttons[0].parentElement.appendChild(b); } else b.classList.remove('sec'); if (v === 'راننده') $('#pcars').style.display = ''; e.target.value = ''; } });
