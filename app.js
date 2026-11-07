@@ -392,18 +392,19 @@ function _render() {
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
     const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [] };
     const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : lsj(k, []);
-    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${k === 'svq' ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
+    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${k === 'svq' ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div class="mut lbstatus" data-k="${k}" aria-live="polite"></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">با زدن × برچسب حذف می‌شود، با نوشتن نام و «افزودن» (یا Enter) اضافه می‌شود. همه‌جا همین‌ها دیده می‌شوند و بین دستگاه‌ها همگام می‌شوند.</div><div class="mut" id="lbm" style="color:#0f766e;min-height:18px"></div><div id="lbx">${labHtml()}</div></div>`);
-    const lbSet = (k, L, m) => { if (k === 'cats') { CATS.length = 0; CATS.push(...L); } else if (k === 'icats') { INC.length = 0; INC.push(...L); } localStorage.setItem(k, JSON.stringify(L)); localStorage.setItem('dirty', '1'); $('#lbx').innerHTML = labHtml(); $('#lbm').textContent = m; push(); };
-    const lbAdd = k => { const inp = $('#lbc .lbn[data-k="' + k + '"]'), v = inp.value.trim(), L = labList(k).slice(); if (!v) return; if (L.includes(v)) { $('#lbm').textContent = '«' + v + '» از قبل هست'; return; } L.push(v); lbSet(k, L, '✅ «' + v + '» اضافه شد'); };
-    $('#lbc').onclick = e => {
+    const lbMsg = (k, m) => { const el = $('#lbx .lbstatus[data-k="' + k + '"]'); if (el) el.textContent = m; };
+    const lbSet = (k, L, m) => { if (k === 'cats') { CATS.length = 0; CATS.push(...L); } else if (k === 'icats') { INC.length = 0; INC.push(...L); } localStorage.setItem(k, JSON.stringify(L)); localStorage.setItem('dirty', '1'); $('#lbx').innerHTML = labHtml(); lbMsg(k, m); push(); };
+    const lbAdd = k => { const inp = $('#lbc .lbn[data-k="' + k + '"]'), v = inp.value.trim(), L = labList(k).slice(); if (!v) { lbMsg(k, 'ابتدا نام را بنویس'); return; } if (L.some(x => nrm(x) === nrm(v))) { lbMsg(k, '«' + v + '» از قبل هست'); return; } L.push(v); lbSet(k, L, '✅ «' + v + '» اضافه شد'); };
+    $('#lbx').onclick = e => {
       const b = e.target.closest('.lbd,.lba,.lbr,.lbedit'); if (!b) return; const k = b.dataset.k, L = labList(k).slice();
-      if (b.classList.contains('lbedit')) { const old = L[+b.dataset.i], v = prompt('نام جدید خدمت:', old); if (v === null || !v.trim()) return; if (L.some((x, i) => i !== +b.dataset.i && nrm(x) === nrm(v.trim()))) { $('#lbm').textContent = 'این نام از قبل وجود دارد'; return; } L[+b.dataset.i] = v.trim(); lbSet(k, L, '✅ نام خدمت تغییر کرد'); }
-      else if (b.classList.contains('lbd')) { if ((k === 'cats' || k === 'icats') && L.length < 2) { $('#lbm').textContent = 'حداقل یک برچسب باید بماند'; return; } const v = L.splice(+b.dataset.i, 1)[0]; lbSet(k, L, '🗑 «' + v + '» حذف شد'); }
+      if (b.classList.contains('lbedit')) { const old = L[+b.dataset.i], v = prompt('نام جدید خدمت:', old); if (v === null || !v.trim()) return; if (L.some((x, i) => i !== +b.dataset.i && nrm(x) === nrm(v.trim()))) { lbMsg(k, 'این نام از قبل وجود دارد'); return; } L[+b.dataset.i] = v.trim(); lbSet(k, L, '✅ نام خدمت تغییر کرد'); }
+      else if (b.classList.contains('lbd')) { if ((k === 'cats' || k === 'icats') && L.length < 2) { lbMsg(k, 'حداقل یک برچسب باید بماند'); return; } const v = L.splice(+b.dataset.i, 1)[0]; lbSet(k, L, '🗑 «' + v + '» حذف شد'); }
       else if (b.classList.contains('lba')) lbAdd(k);
       else if (confirm('این فهرست به حالت اولیه برگردد؟')) lbSet(k, LDEF[k].slice(), '↩️ به حالت اولیه برگشت');
     };
-    $('#lbc').onkeydown = e => { if (e.key === 'Enter' && e.target.classList.contains('lbn')) { e.preventDefault(); lbAdd(e.target.dataset.k); } };
+    $('#lbx').onkeydown = e => { if (e.key === 'Enter' && e.target.classList.contains('lbn')) { e.preventDefault(); lbAdd(e.target.dataset.k); } };
     el.insertAdjacentHTML('beforeend', `<div class="card"><b>کد راه‌اندازی</b><div class="mut">فقط نام حساب‌ها و بانک‌ها (آدرس شیت داخلش نیست، پس امن است). کد را به گوشی جدید یا دوستت بده تا بچسباند.</div>
       <textarea id="sk" rows="2" placeholder="EXP1:…"></textarea><div class="row"><button id="sc">ساخت و کپی کد</button><button class="sec" id="sl">اعمال کد</button></div></div>
     <div class="card"><b>راهنمای راه‌اندازی</b><div style="font-size:14px;line-height:1.9">
@@ -493,7 +494,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -585,7 +586,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-07T11:41:17Z';
+const BUILD = '2026-11-07T12:24:57Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
