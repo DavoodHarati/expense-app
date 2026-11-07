@@ -393,7 +393,7 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
-    el.insertAdjacentHTML('beforeend', `<div class="card" id="google-test"><b>آزمایش ورود به گوگل</b><div class="mut">ورود به گوگل را آزمایش کن یا یک شیت آزمایشی خالی بساز. اطلاعات مالی به آن منتقل نمی‌شود و همگام‌سازی فعلی تغییر نمی‌کند.</div><button id="google-test-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-test-msg" aria-live="polite">${esc(googleTestMessage)}</div><button class="sec" id="google-sheet-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-sheet-test-msg" aria-live="polite">${esc(googleSheetMessage)}</div><div class="google-sheet-link">${googleSheetLink()}</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="google-test"><b>آزمایش ورود به گوگل</b><div class="mut">ورود به گوگل را آزمایش کن یا یک شیت آزمایشی خالی بساز. اطلاعات مالی به آن منتقل نمی‌شود و همگام‌سازی فعلی تغییر نمی‌کند.</div><button id="google-test-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-test-msg" aria-live="polite">${esc(googleTestMessage)}</div><button class="sec" id="google-sheet-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-sheet-test-msg" aria-live="polite">${esc(googleSheetMessage)}</div><button class="sec" id="google-write-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-write-test-msg" aria-live="polite">${esc(googleWriteMessage)}</div><div class="google-sheet-link">${googleSheetLink()}</div></div>`);
     prepareGoogleTest();
     el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"><div class="mut">مشتری‌های اصلی من چه کسانی هستند؟</div><select id="defaultct"><option value="">انتخاب در هر تراکنش</option><option value="driver"${defaultCustomerType() === 'driver' ? ' selected' : ''}>راننده</option><option value="normal"${defaultCustomerType() === 'normal' ? ' selected' : ''}>مشتری عادی</option>${lsj('ctypes', []).map(x => `<option value="${esc(x)}"${defaultCustomerType() === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
@@ -503,7 +503,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۶)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -599,7 +599,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-07T17:56:18Z';
+const BUILD = '2026-11-07T18:13:43Z';
 function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
@@ -863,8 +863,9 @@ document.addEventListener('click', async e => {
 
 // آزمایش مستقل ورود به گوگل؛ هیچ توکنی ذخیره نمی‌شود و به شیت دسترسی ندارد.
 const GOOGLE_TEST_CLIENT = '81248873609-pn4ggfnhpa7l69brm9lci9n1jldf7lhg.apps.googleusercontent.com';
-let googleTestMessage = '', googleIdentityLoad = null, googleTestBusy = false, googleSheetMessage = '';
+let googleTestMessage = '', googleIdentityLoad = null, googleTestBusy = false, googleSheetMessage = '', googleWriteMessage = '';
 function googleSheetLink() { const v = load('googleTestSheet', null); return v && /^[a-zA-Z0-9_-]+$/.test(v.id || '') ? `<div style="margin-top:8px"><a href="https://docs.google.com/spreadsheets/d/${esc(v.id)}/edit" target="_blank" rel="noopener noreferrer">باز کردن شیت آزمایشی</a>${v.email ? ' <span class="mut">(' + esc(v.email) + ')</span>' : ''}</div>` : ''; }
+function googleWriteStatus(message) { googleWriteMessage = message; const el = document.getElementById('google-write-test-msg'); if (el) el.textContent = message; }
 function googleSheetStatus(message) { googleSheetMessage = message; const el = document.getElementById('google-sheet-test-msg'); if (el) el.textContent = message; }
 function googleTestStatus(message) {
   googleTestMessage = message;
@@ -878,6 +879,7 @@ function googleTestButton() {
   b.disabled = !ready || googleTestBusy;
   b.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'آزمایش ورود به گوگل' : 'در حال آماده‌سازی…';
   const sb = document.getElementById('google-sheet-test-btn'); if (sb) { sb.disabled = !ready || googleTestBusy; sb.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'ساخت شیت آزمایشی خالی' : 'در حال آماده‌سازی…'; }
+  const wb = document.getElementById('google-write-test-btn'); if (wb) { wb.disabled = !ready || googleTestBusy; wb.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'آزمایش نوشتن و خواندن شیت' : 'در حال آماده‌سازی…'; }
 }
 function prepareGoogleTest() {
   if (!googleIdentityLoad) {
@@ -893,6 +895,7 @@ function prepareGoogleTest() {
     const b = document.getElementById('google-test-btn');
     if (!b) return;
     googleTestButton();
+    const wb = document.getElementById('google-write-test-btn'); if (wb) wb.onclick = googleWriteTest;
     const sb = document.getElementById('google-sheet-test-btn');
     if (sb) sb.onclick = () => {
       if (googleTestBusy) return;
@@ -950,6 +953,54 @@ function prepareGoogleTest() {
       } catch (err) { googleTestBusy = false; googleTestStatus('⚠️ ورود آماده نشد: ' + (err.message || err)); googleTestButton(); }
     };
   }).catch(() => { googleIdentityLoad = null; googleTestStatus('⚠️ سرویس ورود گوگل بارگذاری نشد؛ اینترنت را بررسی کن و دوباره تنظیمات را باز کن.'); const b = document.getElementById('google-test-btn'); if (b) { b.disabled = true; b.textContent = 'سرویس در دسترس نیست'; } });
+}
+
+// فقط یک ردیف ساختگی به شیت آزمایشی افزوده می‌شود.
+function googleWriteTest() {
+  if (googleTestBusy) return;
+  const sheet = load('googleTestSheet', null);
+  if (!sheet || !/^[a-zA-Z0-9_-]+$/.test(sheet.id || '') || !sheet.email) { googleWriteStatus('⚠️ ابتدا در همین گوشی شیت آزمایشی را بساز.'); return; }
+  try {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_TEST_CLIENT, scope: 'openid email https://www.googleapis.com/auth/drive.file',
+      callback: async response => {
+        let sent = false, written = false;
+        try {
+          if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
+          const auth = { Authorization: 'Bearer ' + response.access_token };
+          const meRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          if (!meRes.ok) throw new Error('حساب گوگل مشخص نشد');
+          const me = await meRes.json();
+          if (!me.email || me.email.toLowerCase() !== sheet.email.toLowerCase()) throw new Error('حساب انتخاب‌شده با حساب سازنده شیت آزمایشی یکسان نیست');
+          googleWriteStatus('در حال نوشتن و خواندن متن آزمایشی…');
+          const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.id);
+          const meta = await fetch(base + '?fields=sheets.properties.title', { headers: auth });
+          if (!meta.ok) throw new Error('شیت آزمایشی در دسترس نیست (کد ' + meta.status + ')');
+          const info = await meta.json(), title = info.sheets?.[0]?.properties?.title;
+          if (!title) throw new Error('برگه‌ای در شیت آزمایشی پیدا نشد');
+          const range = "'" + title.replace(/'/g, "''") + "'!A:B";
+          const text = 'این یک آزمایش است؛ اطلاعات مالی نیست', id = 'آزمایش ' + Date.now();
+          sent = true;
+          const appended = await fetch(base + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: [[id, text]] }) });
+          if (!appended.ok) { if (appended.status < 500) sent = false; throw new Error('نوشتن در شیت انجام نشد (کد ' + appended.status + ')'); }
+          written = true;
+          const result = await appended.json(), updatedRange = result.updates?.updatedRange;
+          if (!updatedRange) throw new Error('محدوده ردیف ثبت‌شده دریافت نشد');
+          const read = await fetch(base + '/values/' + encodeURIComponent(updatedRange), { headers: auth });
+          if (!read.ok) throw new Error('ردیف ثبت شد اما خواندن آن ناموفق بود (کد ' + read.status + ')');
+          const values = (await read.json()).values;
+          if (!values || !values[0] || values[0][0] !== id || values[0][1] !== text) throw new Error('متن خوانده‌شده با متن آزمایشی یکسان نبود');
+          googleWriteStatus('✅ متن ساختگی نوشته و دوباره با موفقیت خوانده شد. اطلاعات مالی منتقل نشده است.');
+        } catch (err) {
+          const suffix = written ? ' ردیف ممکن است ثبت شده باشد؛ شیت آزمایشی را بررسی کن.' : sent ? ' ممکن است ردیف ثبت شده باشد؛ قبل از تکرار، شیت آزمایشی را بررسی کن.' : '';
+          googleWriteStatus('⚠️ ' + (err.message || 'آزمایش ناموفق بود') + suffix);
+        } finally { googleTestBusy = false; googleTestButton(); }
+      },
+      error_callback: () => { googleTestBusy = false; googleWriteStatus('⚠️ پنجره اجازه گوگل بسته شد یا باز نشد.'); googleTestButton(); }
+    });
+    googleTestBusy = true; googleWriteStatus('در حال باز کردن پنجره اجازه گوگل…'); googleTestButton();
+    client.requestAccessToken({ prompt: 'select_account' });
+  } catch (err) { googleTestBusy = false; googleWriteStatus('⚠️ آماده‌سازی ناموفق بود: ' + (err.message || err)); googleTestButton(); }
 }
 
 // ---- همگام‌سازی با Google Sheets ----
