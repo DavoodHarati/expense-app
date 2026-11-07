@@ -185,7 +185,10 @@ function setDesc(id, desc, cat, ex) {
   save(); render();
 }
 
-const drafts = {}, editing = new Set();
+const drafts = {}, editing = new Set(), editSnapshots = {};
+function editSignature(card) {
+  return JSON.stringify({ fields: [...card.querySelectorAll('input,select,textarea')].map(x => [x.className, x.value, x.checked]), category: card.dataset.cat || '', customerType: card.querySelector('.ctbox')?.dataset.ct || '', percent: card.querySelector('.pv')?.dataset.v || '' });
+}
 const JOBS = ['', 'راننده', 'فروشنده', 'تعمیرکار / خدماتی', 'معلم', 'کارمند', 'بازنشسته', 'سایر'];
 const job = () => localStorage.getItem('job') || '', work = () => localStorage.getItem('work') || '';
 const defaultCustomerType = () => localStorage.getItem('defaultCustomerType') || '';
@@ -230,14 +233,14 @@ function pendingCard(t) {
     <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><datalist id="dl"></datalist>
     <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص / فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
-    ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage">دستمزد / حقوق همکار</option><option value="lent">قرض دادم</option><option value="payback">قرض پس دادم</option></select>` : ''}
+    ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage"${t.loan === 'wage' ? ' selected' : ''}>دستمزد / حقوق دستیار</option><option value="lent"${t.loan === 'lent' ? ' selected' : ''}>قرض دادم</option><option value="payback"${t.loan === 'payback' ? ' selected' : ''}>قرض پس دادم</option></select>` : ''}
     ${debit ? '' : `<div class="row">${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
     ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
     ${showCu ? ctBlock(t, D, cat0) : ''}
     ${debit ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date" value="${esc(D.rdt || '')}">
-    <div class="row"><button class="ok">ذخیره</button>${t.desc ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
+    <div class="row"><button class="ok">ذخیره</button>${editing.has(String(t.id)) ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
 
@@ -404,7 +407,7 @@ function _render() {
     $('#lbx').onclick = e => {
       const b = e.target.closest('.lbd,.lba,.lbr,.lbedit'); if (!b) return; const k = b.dataset.k, L = labList(k).slice();
       if (b.classList.contains('lbedit')) { const old = L[+b.dataset.i], v = prompt('نام جدید خدمت:', old); if (v === null || !v.trim()) return; if (L.some((x, i) => i !== +b.dataset.i && nrm(x) === nrm(v.trim()))) { lbMsg(k, 'این نام از قبل وجود دارد'); return; } L[+b.dataset.i] = v.trim(); lbSet(k, L, '✅ نام خدمت تغییر کرد'); }
-      else if (b.classList.contains('lbd')) { if ((k === 'cats' || k === 'icats') && L.length < 2) { lbMsg(k, 'حداقل یک برچسب باید بماند'); return; } const v = L.splice(+b.dataset.i, 1)[0]; lbSet(k, L, '🗑 «' + v + '» حذف شد'); }
+      else if (b.classList.contains('lbd')) { if ((k === 'cats' || k === 'icats') && L.length < 2) { lbMsg(k, 'حداقل یک برچسب باید بماند'); return; } const name = L[+b.dataset.i]; if (!confirm('«' + name + '» حذف شود؟')) return; const v = L.splice(+b.dataset.i, 1)[0]; lbSet(k, L, '🗑 «' + v + '» حذف شد'); }
       else if (b.classList.contains('lba')) lbAdd(k);
       else if (confirm('این فهرست به حالت اولیه برگردد؟')) lbSet(k, LDEF[k].slice(), '↩️ به حالت اولیه برگشت');
     };
@@ -498,7 +501,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۹)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۰)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -578,7 +581,7 @@ function workList(p, L) {
     const par = j.parent ? tx.find(x => x.id === j.parent) : null;
     const src = par ? `از واریزی ${toman(par.amount)} تومان${par.shareMode === 'fixed' ? ' · مبلغ ثابت' : par.pct ? ' · ' + Number(par.pct).toLocaleString('fa-IR') + '٪' : ''}${par.customer ? ' · ' + esc(par.customer) + (par.ctype === 'driver' ? ' (راننده)' : '') : ''}${par.service ? ' · خدمت: ' + esc(par.service) : ''}` : 'ثبت دستی';
     const st = left === 0 ? '<span class="grn">✓ پرداخت‌شده</span>' : paid ? `<span class="red">مانده ${toman(left)}</span>` : '<span class="red">پرداخت‌نشده</span>';
-    return `<div class="card"><div class="row"><b>${esc((j.desc || '').replace(/^سهم \d+٪ همکار از /, '') || 'کار')}</b><b>${toman(j.amount)}</b></div><div class="mut">${esc(j.date)} · ${src}</div><div class="row" style="margin-top:4px"><span>${st}</span>${paid && left ? `<span class="mut">پرداخت‌شده ${toman(paid)}</span>` : ''}</div></div>`;
+    return `<div class="card"><div class="row mut"><b>${esc((j.desc || '').replace(/^سهم \d+٪ همکار از /, '') || 'کار')}</b><b>${toman(j.amount)} تومان</b></div><div class="mut">${esc(j.date)} · ${src}</div><div class="row" style="margin-top:4px"><span>${st}</span>${paid && left ? `<span class="mut">پرداخت‌شده ${toman(paid)}</span>` : ''}<button type="button" class="sec workreview" data-id="${j.id}">مرور</button></div></div>`;
   };
   const un = rows.filter(r => r.left > 0), pd = rows.filter(r => r.left === 0);
   const sum = un.reduce((s, r) => s + r.left, 0);
@@ -586,11 +589,11 @@ function workList(p, L) {
   return `<details class="card"><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
   <div class="mut" style="margin:4px 0">پرداخت‌ها به‌ترتیب تاریخ روی قدیمی‌ترین کارها حساب می‌شوند.${pool > 0 ? ' پیش‌پرداخت مازاد: ' + toman(pool) + ' تومان.' : ''}</div>
   ${un.length ? `<b class="red">پرداخت‌نشده · ${toman(sum)} تومان</b>${un.map(row).join('')}` : ''}
-  ${pd.length ? `<details><summary class="grn"><b>پرداخت‌شده (${pd.length.toLocaleString('fa-IR')})</b></summary>${pd.map(row).join('')}</details>` : ''}</details>`;
+  ${pd.length ? `<b class="grn">✓ پرداخت‌شده (${pd.length.toLocaleString('fa-IR')})</b>${pd.map(row).join('')}` : ''}</details>`;
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-07T14:19:18Z';
+const BUILD = '2026-11-07T14:50:57Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
@@ -601,7 +604,7 @@ function pdfPerson(p) {
     return `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(wageBal)}</td><td class="n">${toman(loanBal)}</td></tr>`; }).join('');
   const f = n => toman(Math.abs(n)).toLocaleString('fa-IR');
   const st = bal > 0 ? 'پیش‌پرداخت: ' + f(bal) : bal < 0 ? (isCo ? 'مانده دستمزد: ' : 'بدهی: ') + f(bal) : 'تسویه کامل';
-  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>body{font-family:Tahoma,sans-serif;padding:20px;color:#222}h2{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}th{background:#eee}td,th{border:1px solid #ccc;padding:6px;text-align:right}.n{text-align:left}.a{color:#1a7f37}.b{color:#c0392b}.s{margin-top:14px;font-size:15px;line-height:2}</style></head><body><h2>صورت‌حساب ${esc(p)}</h2><div>تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR')}</div>
+  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>@page{margin:16mm}body{font-family:Tahoma,sans-serif;padding:20px;color:#24332f;line-height:1.7}h2{margin:0;color:#0f766e;font-size:23px}.intro{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.intro div{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th{background:#e7f4f1;color:#115e59}td,th{border-bottom:1px solid #dce9e5;padding:9px 6px;text-align:right;vertical-align:top}tr{page-break-inside:avoid}tr:nth-child(even){background:#f7faf9}.n{text-align:left;white-space:nowrap}.a{color:#16803d}.b{color:#bd3636}.s{margin-top:18px;font-size:13px;line-height:2;background:#f0f8f5;border-right:4px solid #0f766e;padding:12px 16px}</style></head><body><div class="intro"><h2>صورت‌حساب ${esc(p)}</h2><div>گزارش کارکرد، پرداخت و قرض · تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })}</div></div>
   <table><tr><th>تاریخ</th><th>نوع</th><th>شرح</th><th>مبلغ (تومان)</th><th>مانده دستمزد</th><th>مانده قرض</th></tr>${rows}</table>
   <div class="s">${isCo ? `مجموع کارکرد: <b>${f(sh)}</b><br>پرداخت دستمزد: <b>${f(pd)}</b><br>مانده دستمزد: <b>${wageBal > 0 ? 'پیش‌پرداخت' : wageBal < 0 ? 'بدهی من' : 'تسویه'} ${f(wageBal)}</b><br>مانده قرض: <b>${loanBal > 0 ? 'طلب من' : loanBal < 0 ? 'بدهی من' : 'تسویه'} ${f(loanBal)}</b>${showAssistantTotal ? `<br>جمع دو حساب: <b>${bal > 0 ? 'طلب من' : bal < 0 ? 'بدهی من' : 'تسویه'} ${f(bal)} تومان</b>` : ''}` : `وضعیت: <b>${st} تومان</b>`}</div></body></html>`;
   const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column';
@@ -624,11 +627,11 @@ function loansHtml() {
     const isCo = CO[lp] !== undefined, w = wage(lp), l = loan(lp), all = combined(lp);
     const rows = ordTx(L.filter(t => t.person === lp));
     const result = all > 0 ? 'او به من بدهکار است: ' + toman(all) : all < 0 ? 'من به او بدهکارم: ' + toman(-all) : 'حساب صاف است';
-    return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div>${esc(lp)}</div><div style="margin-top:8px"><b>دستمزد:</b> ${isCo ? balanceText(w, 'wage') : '—'}</div><div style="margin-top:6px"><b>قرض:</b> ${balanceText(l, 'loan')}</div>${isCo ? `<label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="combinebalances" type="checkbox" style="width:auto;margin:0" ${showAssistantTotal ? 'checked' : ''}> نمایش جمع دو حساب</label><div class="combinedbalance" ${showAssistantTotal ? '' : 'hidden'} style="margin-top:6px">جمع دو حساب: <b>${result}${all ? ' تومان' : ''}</b><div style="font-size:12px">فقط نمایش جمع است؛ قرض و دستمزد جدا می‌مانند.</div></div>` : ''}</div>
+    return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div>${esc(lp)}</div><div style="margin-top:12px;font-size:13px;opacity:.85">${isCo ? (w > 0 ? 'پیش‌پرداخت دستمزد' : w < 0 ? 'دستمزد پرداخت‌نشده' : 'حساب دستمزد') : 'دستمزد'}</div><div class="big">${isCo && w ? toman(Math.abs(w)) + ' <small>تومان</small>' : 'تسویه'}</div><div style="margin-top:12px;font-size:13px;opacity:.85">قرض</div><div style="font-size:20px;font-weight:700">${balanceText(l, 'loan')}</div>${isCo ? `<label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="combinebalances" type="checkbox" style="width:auto;margin:0" ${showAssistantTotal ? 'checked' : ''}> نمایش جمع دو حساب</label><div class="combinedbalance" ${showAssistantTotal ? '' : 'hidden'} style="margin-top:6px">جمع دو حساب: <b>${result}${all ? ' تومان' : ''}</b><div style="font-size:12px">فقط نمایش جمع است؛ قرض و دستمزد جدا می‌مانند.</div></div>` : ''}</div>
     <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
     ${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="number" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><div class="mut">تاریخ</div><input id="wdt" value="${nowStr().slice(0, 10)}" placeholder="1405/08/15"><button id="wadd">ثبت کارکرد</button></details>` : ''}
     <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent">قرض: او به من بدهکار است</option><option value="borrowed">قرض: من به او بدهکارم</option></select><input id="manualamount" type="number" inputmode="numeric" min="1" placeholder="مبلغ به تومان"><input id="manualdate" value="${nowStr().slice(0, 10)}" placeholder="تاریخ، مثلاً 1405/08/15"><input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
-    ${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(rowHtml).join('')}`;
+    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(rowHtml).join('')}`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
   return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined, w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${co ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
@@ -640,7 +643,7 @@ function rowHtml(t) {
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
   ${t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
-  <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
+  <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
   return remBanner() + homeHtml0();
@@ -765,6 +768,15 @@ document.addEventListener('change', e => {
   const row = document.querySelector('.combinedbalance'); if (row) row.hidden = !showAssistantTotal;
 });
 document.addEventListener('click', async e => {
+  const review = e.target.closest('.workreview');
+  if (review) {
+    const t = tx.find(x => String(x.id) === review.dataset.id), box = $('#workreviewbox'); if (!t || !box) return;
+    const parent = t.parent ? tx.find(x => x.id === t.parent) : null, source = parent || t;
+    const fields = [ ['نوع', LOAN[t.loan]?.[0]], ['شخص', t.person], ['مبلغ این ردیف', toman(t.amount) + ' تومان'], ['تاریخ', t.date], ['شرح', t.desc], ['حساب', source.account ? accName(source.account) : ''], ['مبلغ واریزی اصلی', parent ? toman(parent.amount) + ' تومان' : ''], ['مشتری', source.customer], ['خدمت', source.service], ['سهم', parent ? (parent.shareMode === 'fixed' ? 'مبلغ ثابت' : parent.pct ? parent.pct + '٪' : '') : ''] ].filter(([,v]) => v);
+    box.innerHTML = `<div class="card"><div class="row"><b>🔎 مرور جزئیات</b><button type="button" class="sec reviewclose">بستن</button></div>${fields.map(([k,v]) => `<div style="margin-top:6px"><span class="mut">${esc(k)}: </span><b>${esc(v)}</b></div>`).join('')}${source.raw ? `<details style="margin-top:8px"><summary class="mut">متن پیامک</summary><div style="white-space:pre-wrap">${esc(source.raw)}</div></details>` : ''}${source.receipt ? `<details style="margin-top:8px"><summary class="mut">رسید بانکی</summary><div style="white-space:pre-wrap">${esc(source.receipt)}</div></details>` : ''}</div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' }); return;
+  }
+  if (e.target.closest('.reviewclose')) { const box = $('#workreviewbox'); if (box) box.innerHTML = ''; return; }
   if (e.target.id === 'manualsave') {
     if (!lp) return;
     const kind = $('#manualkind').value, amount = Number($('#manualamount').value) * 10;
@@ -785,7 +797,7 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'nadd' || (e.target.id === 'psv' && $('#pcb'))) {
     const nw = e.target.id === 'nadd', nm = nw ? $('#nn').value.trim() : lp; if (!nm) return;
     const jb = $(nw ? '#nj' : '#pj').value.trim(), on = !!$(nw ? '#ncb' : '#pcb').value, pc = Math.max(0, Math.min(100, Number($(nw ? '#npc' : '#ppc').value) || 0));
-    const c = cols(), j = pjobs(); if (jb) j[nm] = jb; else delete j[nm]; if (on) c[nm] = pc; else delete c[nm];
+    const c = cols(), j = pjobs(); if (!nw && (jb !== (j[nm] || '') || on !== (c[nm] !== undefined) || (on && pc !== Number(c[nm] || 0))) && !confirm('مشخصات دستیار تغییر کرده است. تغییرات ذخیره شود؟')) return; if (jb) j[nm] = jb; else delete j[nm]; if (on) c[nm] = pc; else delete c[nm];
     setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); localStorage.setItem('dirty', '1'); push(); if (nw) lp = nm; render(); return;
   }
   const rb = e.target.closest('.rdn'); if (rb && tab !== 'rem') { const r = rem.find(x => x.id == rb.dataset.i); if (r) { r.done = !r.done; saveRem(); render(); } return; }
@@ -803,14 +815,16 @@ document.addEventListener('click', async e => {
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
-  if (e.target.matches('.ok,.cx,.xf,.del,.skip') || ((e.target.classList.contains('ln') || (e.target.classList.contains('ok') && card.querySelector('.lk')?.value)) && card.querySelector('.p').value.trim())) { delete drafts[id]; editing.delete(String(id)); }
+  if (e.target.classList.contains('ok') && editing.has(String(id))) { const old = editSnapshots[id]; if (old === editSignature(card)) { editing.delete(String(id)); delete editSnapshots[id]; delete drafts[id]; render(); return; } if (!confirm('اطلاعات تراکنش تغییر کرده است. تغییرات ذخیره شود؟')) return; }
+  if (e.target.classList.contains('ln') && editing.has(String(id)) && !confirm('نوع تراکنش تغییر می‌کند. تغییرات ذخیره شود؟')) return;
+  if (e.target.matches('.cx,.xf,.skip')) { delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; }
   if (e.target.classList.contains('sqn')) { const i = card.querySelector('.sv'); i.value = e.target.dataset.n; (drafts[id] = drafts[id] || {}).sv = i.value; return; }
   if (e.target.classList.contains('cqn')) { const i = card.querySelector('.cu'); i.value = e.target.dataset.n; i.dispatchEvent(new Event('input', { bubbles: true })); (drafts[id] = drafts[id] || {}).cu = i.value; return; }
   if (e.target.classList.contains('ctb')) { const b = card.querySelector('.ctbox'), v = e.target.dataset.v; b.dataset.ct = b.dataset.ct === v ? '' : v; b.querySelectorAll('.ctb').forEach(x => x.classList.toggle('on', x.dataset.v === b.dataset.ct)); (drafts[id] = drafts[id] || {}).ct = b.dataset.ct; return; }
   if (e.target.dataset.c) { const cb = card.querySelector('.ctbox'); if (cb) cb.classList.toggle('hide', e.target.dataset.c === 'فروش'); (drafts[id] = drafts[id] || {}).cat = e.target.dataset.c; card.dataset.cat = e.target.dataset.c; card.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target)); const seen = new Set(); card.querySelector('datalist').innerHTML = [...tx].reverse().filter(x => x.cat === e.target.dataset.c && x.desc && !seen.has(x.desc) && seen.add(x.desc)).slice(0, 15).map(x => `<option value="${esc(x.desc)}">`).join(''); }
-  if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); editing.add(String(id)); card.outerHTML = pendingCard(t); return; }
+  if (e.target.classList.contains('ed')) { const t = tx.find(x => x.id === id); editing.add(String(id)); card.outerHTML = pendingCard(t); const fresh = document.querySelector('.card[data-id="' + id + '"]'); if (fresh) { colRefresh(fresh); balHint(fresh); editSnapshots[id] = editSignature(fresh); } return; }
   const lkS = card.querySelector('.lk'); if (e.target.classList.contains('ok') && lkS && lkS.value && !card.querySelector('.p').value.trim()) { alert('اول نام شخص/همکار را انتخاب کن'); return; }
-  if (e.target.classList.contains('ln') || (e.target.classList.contains('ok') && lkS && lkS.value)) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.classList.contains('ln') ? e.target.dataset.k : lkS.value; t.loan = k; t.person = p; t.seller = ''; t.cat = lcat(k); { const dv = card.querySelector('.d').value.trim(); t.desc = Object.values(LOAN).some(x => x[0] === dv) ? '' : dv; } t.xfer = false; t.pending = false; save(); render(); return; }
+  if (e.target.classList.contains('ln') || (e.target.classList.contains('ok') && lkS && lkS.value)) { const p = card.querySelector('.p').value.trim(); if (!p) { alert('نام شخص را بنویس'); return; } const t = tx.find(x => x.id === id), k = e.target.classList.contains('ln') ? e.target.dataset.k : lkS.value; t.loan = k; t.person = p; t.seller = ''; t.cat = lcat(k); { const dv = card.querySelector('.d').value.trim(); t.desc = Object.values(LOAN).some(x => x[0] === dv) ? '' : dv; } t.xfer = false; t.pending = false; delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; save(); render(); return; }
   if (e.target.classList.contains('ok')) {
     const co = card.querySelector('.co'); let nm = '';
     if (co) {
@@ -830,10 +844,10 @@ document.addEventListener('click', async e => {
   }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.seller = card.querySelector('.p').value.trim() || t0.seller || ''; t0.loan = ''; t0.person = ''; } }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.type === 'debit' && !t0.loan) t0.seller = card.querySelector('.p').value.trim(); }
-  if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value });
+  if (e.target.classList.contains('ok')) { delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value }); }
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
-  if (e.target.classList.contains('cx')) { const t = tx.find(x => x.id === id); t.pending = false; save(); render(); return; }
+  if (e.target.classList.contains('cx')) { delete editSnapshots[id]; delete drafts[id]; editing.delete(String(id)); render(); return; }
   if (e.target.classList.contains('del')) { if (!confirm('این تراکنش حذف شود؟ مطمئنی؟')) return; const dt = tx.find(t => t.id === id); tomb(tx.filter(t => t.id === id || t.parent === id).map(t => t.id)); tx = tx.filter(t => t.id !== id && t.parent !== id); if (dt && dt.raw) { const g = JSON.parse(localStorage.getItem('logDel') || '[]'); log = log.filter(l => { const m = String(l.raw).trim() === String(dt.raw).trim(); if (m) g.push(l.at); return !m; }); localStorage.setItem('logDel', JSON.stringify(g)); saveLog(); } save(); render(); }
 });
 
