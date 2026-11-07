@@ -72,41 +72,56 @@ function parseReceipt(raw) {
 }
 function rcCands(rc) {
   const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
-  return tx.filter(t => t.type === 'debit' && !t.ghost && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 1000000 && dist(t) <= 4320).sort((p, q) => (dist(p) || 0) - (dist(q) || 0)).slice(0, 5);
+  return tx.filter(t => t.type === 'debit' && !t.ghost && !t.xfer && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 1000000 && dist(t) <= 4320).sort((p, q) => dist(p) - dist(q));
 }
 function rcAttach(c, rc, raw) {
   const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
-  const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name, isCol = Object.keys(cols()).some(k => nrm(k) === nrm(nm));
-  c.receipt = String(raw).trim().slice(0, 1000); c.seller = nm;
+  const nm = known.find(k => nrm(k) === nrm(rc.name)) || rc.name;
+  c.receipt = String(raw).trim().slice(0, 1000);
+  if (c.loan) { if (!c.person) c.person = nm; } else if (!c.seller) c.seller = nm;
 }
-function rcPending() { try { return JSON.parse(localStorage.getItem('prc')) || []; } catch { return []; } }
+function rcPending() { try { const v = JSON.parse(localStorage.getItem('prc')); return Array.isArray(v) ? v : []; } catch { return []; } }
 function rcTryPending() {
   const L = rcPending(); if (!L.length) return 0; let n = 0;
-  const rest = L.filter(raw => { const rc = parseReceipt(raw); if (!rc) return false; const cs = rcCands(rc); const dist = t => Math.abs(toMin(t.date) - toMin(rc.date)); if (cs.length && dist(cs[0]) <= 30) { rcAttach(cs[0], rc, raw); n++; return false; } return true; });
-  if (n) { localStorage.setItem('prc', JSON.stringify(rest)); save(); }
+  const rest = L.filter(raw => {
+    const rc = parseReceipt(raw); if (!rc) return true;
+    if (tx.some(t => t.receipt === String(raw).trim().slice(0, 1000))) return false;
+    const cs = rcCands(rc);
+    if (cs.length === 1 && cs[0].amount - rc.amount <= 150000 && Math.abs(toMin(cs[0].date) - toMin(rc.date)) <= 30) {
+      rcAttach(cs[0], rc, raw); n++; return false;
+    }
+    return true;
+  });
+  if (rest.length !== L.length) localStorage.setItem('prc', JSON.stringify(rest));
+  if (n) save();
   return n;
 }
+function rcReviewHtml() {
+  return rcPending().map((raw, i) => {
+    const rc = parseReceipt(raw); if (!rc) return '';
+    const cs = rcCands(rc); if (!cs.length) return '';
+    return `<div class="card" style="background:#eefaf6"><b>🧾 انتخاب تراکنش برای رسید</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div><div class="mut">گزینه درست را انتخاب کن؛ اختلاف مبلغ هم نمایش داده شده است.</div>${cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان · اختلاف ${toman(t.amount - rc.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}</div></span><button class="rcchoose" data-ri="${i}" data-tid="${t.id}">این است</button></div>`).join('')}</div>`;
+  }).join('');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.rcchoose'); if (!b) return;
+  const L = rcPending(), raw = L[+b.dataset.ri], rc = raw && parseReceipt(raw);
+  const t = rc && rcCands(rc).find(x => String(x.id) === b.dataset.tid);
+  if (!t) { render(); return; }
+  rcAttach(t, rc, raw); L.splice(+b.dataset.ri, 1); localStorage.setItem('prc', JSON.stringify(L)); save(); render();
+});
 function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
-  { const rw = String(raw).trim().slice(0, 1000); if (!log.some(l => l.rc && l.raw === rw)) { log.unshift({ at: Date.now(), raw: rw, ok: true, rc: 1, msg: '🧾 رسید بانکی' }); saveLog(); } }
-  const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
+  raw = String(raw).trim(); const rw = raw.slice(0, 1000);
+  if (!log.some(l => l.rc && l.raw === rw)) { log.unshift({ at: Date.now(), raw: rw, ok: true, rc: 1, msg: '🧾 رسید بانکی' }); saveLog(); }
+  const done = tx.find(t => t.receipt === rw);
+  if (done) { box.textContent = 'این رسید قبلاً به تراکنش ' + toman(done.amount) + ' تومان وصل شده است.'; return true; }
+  const L = rcPending(); if (!L.some(x => String(x).trim() === raw)) { L.push(raw); localStorage.setItem('prc', JSON.stringify(L)); }
+  const n = rcTryPending();
+  if (n) { box.textContent = 'رسید وصل شد ✅ برای تکمیل اطلاعات به خانه برو.'; return true; }
   const cs = rcCands(rc);
-  const head = `<div class="card" style="background:#eefaf6"><b>🧾 رسید خوانده شد</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div>`;
-  if (!cs.length) {
-    const done = tx.find(t => t.receipt && t.receipt === String(raw).trim().slice(0, 1000));
-    if (done) { box.innerHTML = head + '<div class="red">این رسید قبلاً به تراکنش ' + toman(done.amount) + ' تومان (' + esc(done.date) + ') چسبیده است ✅ دوباره لازم نیست.</div></div>'; return true; }
-    const L = rcPending(); if (!L.includes(raw)) { L.push(String(raw).trim()); localStorage.setItem('prc', JSON.stringify(L)); }
-    box.innerHTML = head + '<div class="red">پیامک کسر از حساب هنوز نیامده. رسید نگه داشته شد؛ به‌محض رسیدن پیامک خودکار به آن می‌چسبد ✅</div></div>'; return true;
-  }
-  if (cs.length === 1 || dist(cs[0]) <= 30 && (cs.length < 2 || dist(cs[1]) > 30)) {
-    rcAttach(cs[0], rc, raw); save(); render(); const m = $('#msg'); if (m) m.textContent = 'رسید خودکار به تراکنش ' + toman(cs[0].amount) + ' تومان (' + cs[0].date + ') چسبید ✅'; return true;
-  }
-  box.innerHTML = head + '<div style="margin-top:8px">چند مورد نزدیک پیدا شد؛ کدام است؟</div>' + cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}${t.desc ? ' · ' + esc(t.desc) : ''}</div></span><button class="rcok" data-id="${t.id}">✓ این است</button></div>`).join('') + '</div>';
-  box.querySelectorAll('.rcok').forEach(b => b.onclick = () => {
-    const c = tx.find(t => String(t.id) === b.dataset.id); if (!c) return;
-    rcAttach(c, rc, raw); save(); render(); const m = $('#msg'); if (m) m.textContent = 'رسید در تراکنش ثبت شد ✅';
-  });
+  box.textContent = cs.length ? 'رسید ذخیره شد. برای انتخاب و تأیید تراکنش به خانه برو.' : 'رسید ذخیره شد و منتظر پیامک برداشت می‌ماند.';
   return true;
 }
 function matchTransfers() { return 0; }
@@ -456,7 +471,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۴)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۸۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -548,7 +563,7 @@ function workList(p, L) {
 }
 let lp = null;
 
-const BUILD = '2026-11-06T20:05:00Z';
+const BUILD = '2026-11-07T11:01:45Z';
 function pdfPerson(p) {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, sh = 0, pd = 0;
@@ -610,6 +625,7 @@ function homeHtml0() {
   const pend = tx.filter(t => t.pending);
   return `${banner ? `<div class="card">${banner}</div>` : ''}
   ${xsugHtml()}
+  ${rcReviewHtml()}
   ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
   ${filterBar()}
   ${statusCard()}
@@ -754,6 +770,7 @@ document.addEventListener('click', async e => {
     }
   }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.seller = card.querySelector('.p').value.trim() || t0.seller || ''; t0.loan = ''; t0.person = ''; } }
+  if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.type === 'debit' && !t0.loan) t0.seller = card.querySelector('.p').value.trim(); }
   if (e.target.classList.contains('ok')) setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value });
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
