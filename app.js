@@ -3,6 +3,24 @@ const lsj = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); ret
 const CATS = lsj('cats', ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر']);
 const INC = lsj('icats', ['فروش', 'مشتری', 'حقوق', 'سایر']);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet'];
+function makeFullBackup() {
+  const data = {};
+  BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
+  if (!('tx' in data)) data.tx = JSON.stringify(tx);
+  if (!('accounts' in data)) data.accounts = JSON.stringify(accounts);
+  return { format: 'expense-app-backup', version: 1, createdAt: new Date().toISOString(), data };
+}
+function validateFullBackup(backup) {
+  if (!backup || backup.format !== 'expense-app-backup' || backup.version !== 1 || !backup.data || typeof backup.data !== 'object' || Array.isArray(backup.data)) throw new Error('فایل پشتیبان کامل معتبر نیست');
+  for (const [key, value] of Object.entries(backup.data)) if (!BACKUP_KEYS.includes(key) || typeof value !== 'string') throw new Error('فایل پشتیبان شامل اطلاعات نامعتبر است');
+  const parse = key => { try { return JSON.parse(backup.data[key]); } catch { throw new Error('اطلاعات «' + key + '» در پشتیبان معتبر نیست'); } };
+  if (!Array.isArray(parse('tx'))) throw new Error('فهرست تراکنش‌ها معتبر نیست');
+  const acc = parse('accounts'); if (!acc || typeof acc !== 'object' || Array.isArray(acc)) throw new Error('اطلاعات حساب‌ها معتبر نیست');
+  for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
+  for (const key of ['cols', 'pjobs']) if (key in backup.data) { const value = parse(key); if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('اطلاعات «' + key + '» معتبر نیست'); }
+  return backup.data;
+}
 let tx = load('tx', []);
 tx.forEach(t => { if ((t.loan === 'wage' || t.loan === 'share') && t.cat === 'قرض') t.cat = 'کارکرد همکار'; });
 let accounts = load('accounts', {});
@@ -387,7 +405,8 @@ function _render() {
         <select id="nb"><option value="">بانک را انتخاب کن</option><option value="مهر ایران">مهر ایران (شماره در پیامک)</option><option value="ملی">ملی (شماره حساب کوتاه)</option><option value="بلو">بلو (بدون شماره)</option><option value="سامان">سامان</option><option value="other">دیگر</option></select>
         <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><div class="mut">حساب‌های جدید از اولین پیامک خودکار ساخته می‌شوند؛ این فرم فقط برای نام‌گذاری زودتر است.</div><button class="sec" id="na">افزودن حساب</button></div>
       <div class="card"><b>پشتیبان‌گیری</b>
-        <div class="mut">اگر مرورگر داده را پاک کند، اطلاعات از بین می‌رود؛ پشتیبان بگیرید.</div>
+        <div class="mut">فایل پشتیبان کامل شامل اطلاعات شخصی و نشانی اتصال است؛ آن را در جای امن نگه دار.</div>
+        <div class="row" style="margin-top:8px"><button id="full-backup">دانلود پشتیبان کامل</button><button class="sec" id="full-restore">بازیابی پشتیبان کامل</button><input type="file" id="full-restore-file" accept=".json,application/json" class="hide"></div><div class="mut" id="full-backup-msg" aria-live="polite"></div>
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button id="bf">وارد کردن فایل بانک</button> <input type="file" id="bfi" accept=".xlsx" class="hide"> <button id="mgx" class="sec">ادغام (بدون حذف)</button> <button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
@@ -459,6 +478,37 @@ function _render() {
     });
     if ($('#undo')) $('#undo').onclick = () => { const u = undo.pop(); tx = u.tx; accounts = u.accounts; localStorage.setItem('delAcc', u.del); save(); render(); alert('برگردانده شد'); };
     $('#sa').onclick = () => { snap('تغییر نام‌ها'); document.querySelectorAll('.an').forEach(i => accounts[i.dataset.k] = i.value); save(); alert('ذخیره شد'); };
+    $('#full-backup').onclick = () => {
+      try {
+        const backup = makeFullBackup(), blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url; link.download = 'expense-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+        document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+        $('#full-backup-msg').textContent = 'فایل آماده شد؛ در دانلودها یا فایل‌های گوشی ذخیره شدن آن را بررسی کن.';
+      } catch (err) { $('#full-backup-msg').textContent = 'ساخت فایل ناموفق بود: ' + (err.message || err); }
+    };
+    $('#full-restore').onclick = () => $('#full-restore-file').click();
+    $('#full-restore-file').onchange = async e => {
+      const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+      try {
+        const data = validateFullBackup(JSON.parse(await file.text())), count = JSON.parse(data.tx).length;
+        if (!confirm('این فایل شامل ' + count.toLocaleString('fa-IR') + ' تراکنش است. بازیابی، اطلاعات فعلی این دستگاه را جایگزین می‌کند. ابتدا از اطلاعات فعلی پشتیبان گرفته‌ای؟')) return;
+        if (!confirm('پس از بازیابی، اتصال شیت روی این دستگاه قطع می‌شود تا اطلاعات ناخواسته همگام نشوند. بازیابی انجام شود؟')) return;
+        const keys = [...new Set([...BACKUP_KEYS, 'dirty', 'lastSync', 'googleTestSheetPending'])], old = {};
+        keys.forEach(key => { old[key] = localStorage.getItem(key); });
+        clearTimeout(pt); pulled = false;
+        try {
+          keys.forEach(key => localStorage.removeItem(key));
+          Object.entries(data).forEach(([key, value]) => { if (!['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync'].includes(key)) localStorage.setItem(key, value); });
+          localStorage.setItem('noSync', '1'); localStorage.setItem('dirty', '1');
+        } catch (err) {
+          keys.forEach(key => { if (old[key] === null) localStorage.removeItem(key); else localStorage.setItem(key, old[key]); });
+          throw err;
+        }
+        alert('بازیابی انجام شد. اتصال شیت غیرفعال است؛ پیش از وصل کردن دوباره، اطلاعات را بررسی کن.');
+        location.reload();
+      } catch (err) { $('#full-backup-msg').textContent = 'بازیابی انجام نشد: ' + (err.message || err); }
+    };
     $('#ex').onclick = async () => { const s = JSON.stringify({ tx, accounts }); $('#bk').value = s; try { await navigator.clipboard.writeText(s); alert('کپی شد'); } catch { $('#bk').select(); } };
     $('#bf').onclick = () => $('#bfi').click();
     $('#bfi').onchange = async e => {
@@ -503,7 +553,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -599,7 +649,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-07T18:21:05Z';
+const BUILD = '2026-11-07T20:11:43Z';
 function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
