@@ -393,7 +393,7 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
-    el.insertAdjacentHTML('beforeend', `<div class="card" id="google-test"><b>آزمایش ورود به گوگل</b><div class="mut">این مرحله فقط ورود و ایمیل حساب را بررسی می‌کند. هنوز به شیت وصل نمی‌شود و اطلاعات برنامه را منتقل نمی‌کند.</div><button id="google-test-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-test-msg" aria-live="polite">${esc(googleTestMessage)}</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="google-test"><b>آزمایش ورود به گوگل</b><div class="mut">ورود به گوگل را آزمایش کن یا یک شیت آزمایشی خالی بساز. اطلاعات مالی به آن منتقل نمی‌شود و همگام‌سازی فعلی تغییر نمی‌کند.</div><button id="google-test-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-test-msg" aria-live="polite">${esc(googleTestMessage)}</div><button class="sec" id="google-sheet-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-sheet-test-msg" aria-live="polite">${esc(googleSheetMessage)}</div><div class="google-sheet-link">${googleSheetLink()}</div></div>`);
     prepareGoogleTest();
     el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"><div class="mut">مشتری‌های اصلی من چه کسانی هستند؟</div><select id="defaultct"><option value="">انتخاب در هر تراکنش</option><option value="driver"${defaultCustomerType() === 'driver' ? ' selected' : ''}>راننده</option><option value="normal"${defaultCustomerType() === 'normal' ? ' selected' : ''}>مشتری عادی</option>${lsj('ctypes', []).map(x => `<option value="${esc(x)}"${defaultCustomerType() === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
@@ -503,7 +503,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۴)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -599,7 +599,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-07T17:43:48Z';
+const BUILD = '2026-11-07T17:56:18Z';
 function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
@@ -863,7 +863,9 @@ document.addEventListener('click', async e => {
 
 // آزمایش مستقل ورود به گوگل؛ هیچ توکنی ذخیره نمی‌شود و به شیت دسترسی ندارد.
 const GOOGLE_TEST_CLIENT = '81248873609-pn4ggfnhpa7l69brm9lci9n1jldf7lhg.apps.googleusercontent.com';
-let googleTestMessage = '', googleIdentityLoad = null, googleTestBusy = false;
+let googleTestMessage = '', googleIdentityLoad = null, googleTestBusy = false, googleSheetMessage = '';
+function googleSheetLink() { const v = load('googleTestSheet', null); return v && /^[a-zA-Z0-9_-]+$/.test(v.id || '') ? `<div style="margin-top:8px"><a href="https://docs.google.com/spreadsheets/d/${esc(v.id)}/edit" target="_blank" rel="noopener noreferrer">باز کردن شیت آزمایشی</a>${v.email ? ' <span class="mut">(' + esc(v.email) + ')</span>' : ''}</div>` : ''; }
+function googleSheetStatus(message) { googleSheetMessage = message; const el = document.getElementById('google-sheet-test-msg'); if (el) el.textContent = message; }
 function googleTestStatus(message) {
   googleTestMessage = message;
   const el = document.getElementById('google-test-msg');
@@ -875,6 +877,7 @@ function googleTestButton() {
   const ready = !!(window.google && window.google.accounts && window.google.accounts.oauth2);
   b.disabled = !ready || googleTestBusy;
   b.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'آزمایش ورود به گوگل' : 'در حال آماده‌سازی…';
+  const sb = document.getElementById('google-sheet-test-btn'); if (sb) { sb.disabled = !ready || googleTestBusy; sb.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'ساخت شیت آزمایشی خالی' : 'در حال آماده‌سازی…'; }
 }
 function prepareGoogleTest() {
   if (!googleIdentityLoad) {
@@ -890,6 +893,40 @@ function prepareGoogleTest() {
     const b = document.getElementById('google-test-btn');
     if (!b) return;
     googleTestButton();
+    const sb = document.getElementById('google-sheet-test-btn');
+    if (sb) sb.onclick = () => {
+      if (googleTestBusy) return;
+      if (localStorage.getItem('googleTestSheetPending') && !confirm('ساخت قبلی ممکن است انجام شده باشد. ابتدا Google Drive را بررسی کن. باز هم شیت جدید ساخته شود؟')) return;
+      if (load('googleTestSheet', null) && !confirm('یک شیت آزمایشی از قبل ساخته شده است. شیت خالی دیگری ساخته شود؟')) return;
+      try {
+        const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_TEST_CLIENT, scope: 'openid email https://www.googleapis.com/auth/drive.file',
+          callback: async response => {
+            let attempted = false;
+            try {
+              if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
+              const auth = { Authorization: 'Bearer ' + response.access_token };
+              const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+              if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
+              const user = await userResponse.json(); if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
+              googleSheetStatus('در حال ساخت شیت خالی برای ' + user.email + '…');
+              localStorage.setItem('googleTestSheetPending', '1'); attempted = true;
+              const created = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - شیت آزمایشی' } }) });
+              if (!created.ok) { if (created.status < 500) { localStorage.removeItem('googleTestSheetPending'); attempted = false; } throw new Error('گوگل درخواست ساخت را نپذیرفت (کد ' + created.status + ')'); }
+              const sheet = await created.json(); if (!sheet.spreadsheetId || !/^[a-zA-Z0-9_-]+$/.test(sheet.spreadsheetId)) throw new Error('شناسه شیت در پاسخ گوگل نبود');
+              localStorage.setItem('googleTestSheet', JSON.stringify({ id: sheet.spreadsheetId, email: user.email }));
+              localStorage.removeItem('googleTestSheetPending'); attempted = false;
+              const check = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.spreadsheetId) + '?fields=spreadsheetId,properties.title', { headers: auth }).catch(() => null);
+              googleSheetStatus(check && check.ok ? '✅ شیت خالی ساخته شد و دسترسی به آن بررسی شد. هیچ اطلاعاتی منتقل نشده است.' : '✅ شیت خالی ساخته شد؛ بررسی خودکار دسترسی کامل نشد. لینک زیر را بررسی کن.');
+              const card = document.getElementById('google-test'); if (card) { const old = card.querySelector('.google-sheet-link'); if (old) old.remove(); const holder = document.createElement('div'); holder.className = 'google-sheet-link'; holder.innerHTML = googleSheetLink(); card.appendChild(holder); }
+            } catch (err) { googleSheetStatus('⚠️ ' + (err.message || 'ساخت شیت بررسی نشد') + (attempted ? '؛ ممکن است شیت ساخته شده باشد. پیش از تلاش دوباره Google Drive را بررسی کن.' : '')); }
+            finally { googleTestBusy = false; googleTestButton(); }
+          },
+          error_callback: () => { googleTestBusy = false; googleSheetStatus('⚠️ پنجره اجازه گوگل بسته شد یا باز نشد.'); googleTestButton(); }
+        });
+        googleTestBusy = true; googleSheetStatus('در حال باز کردن پنجره اجازه گوگل…'); googleTestButton();
+        client.requestAccessToken({ prompt: 'select_account' });
+      } catch (err) { googleTestBusy = false; googleSheetStatus('⚠️ آماده‌سازی ناموفق بود: ' + (err.message || err)); googleTestButton(); }
+    };
     b.onclick = () => {
       if (googleTestBusy) return;
       try {
