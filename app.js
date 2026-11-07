@@ -397,9 +397,9 @@ function _render() {
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#defaultct').onchange = e => { localStorage.setItem('defaultCustomerType', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
-    const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [] };
-    const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : lsj(k, []);
-    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${k === 'svq' ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div class="mut lbstatus" data-k="${k}" aria-live="polite"></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
+    const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [], carModels: ['اسکانیا', 'ولوو'] };
+    const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : k === 'carModels' ? carModels() : lsj(k, []);
+    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»'], ['carModels', 'مدل خودروهای رانندگان']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${k === 'svq' || k === 'carModels' ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div class="mut lbstatus" data-k="${k}" aria-live="polite"></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">با زدن × برچسب حذف می‌شود، با نوشتن نام و «افزودن» (یا Enter) اضافه می‌شود. همه‌جا همین‌ها دیده می‌شوند و بین دستگاه‌ها همگام می‌شوند.</div><div class="mut" id="lbm" style="color:#0f766e;min-height:18px"></div><div id="lbx">${labHtml()}</div></div>`);
     const lbMsg = (k, m) => { const el = $('#lbx .lbstatus[data-k="' + k + '"]'); if (el) el.textContent = m; };
     const lbSet = (k, L, m) => { if (k === 'cats') { CATS.length = 0; CATS.push(...L); } else if (k === 'icats') { INC.length = 0; INC.push(...L); } localStorage.setItem(k, JSON.stringify(L)); localStorage.setItem('dirty', '1'); $('#lbx').innerHTML = labHtml(); lbMsg(k, m); push(); };
@@ -501,7 +501,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۰)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۲)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -572,11 +572,15 @@ function statusCard() {
    <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? fmt(lt.id) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
    <div class="mut">شیت: ${!SYNC() ? 'وصل نیست' : dirty ? '⏳ تغییر ارسال‌نشده دارد' : ls ? '✅ آخرین ذخیره ' + fmt(ls) : 'هنوز چیزی ارسال نشده'}</div>
    <div class="mut">${esc(syncMsg)}</div></div>`; }
-function workList(p, L) {
+function workPayments(p, L) {
   const mine = L.filter(t => t.person === p);
   const jobs = mine.filter(t => t.loan === 'share').sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   let pool = mine.filter(t => t.loan === 'wage').reduce((s, t) => s + t.amount, 0);
   const rows = jobs.map(j => { const paid = Math.max(0, Math.min(j.amount, pool)); pool -= paid; return { j, paid, left: j.amount - paid }; });
+  return { rows, pool };
+}
+function workList(p, L) {
+  const { rows, pool } = workPayments(p, L);
   const row = ({ j, paid, left }) => {
     const par = j.parent ? tx.find(x => x.id === j.parent) : null;
     const src = par ? `از واریزی ${toman(par.amount)} تومان${par.shareMode === 'fixed' ? ' · مبلغ ثابت' : par.pct ? ' · ' + Number(par.pct).toLocaleString('fa-IR') + '٪' : ''}${par.customer ? ' · ' + esc(par.customer) + (par.ctype === 'driver' ? ' (راننده)' : '') : ''}${par.service ? ' · خدمت: ' + esc(par.service) : ''}` : 'ثبت دستی';
@@ -593,20 +597,20 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-07T14:50:57Z';
-function pdfPerson(p) {
+const BUILD = '2026-11-07T15:07:24Z';
+function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
   const rows = L.map(t => { const v = LOAN[t.loan][1] * t.amount; bal += v; if (isWage(t)) wageBal += v; else loanBal += v; if (t.loan === 'share') sh += t.amount; if (t.loan === 'wage') pd += t.amount;
     const pr = t.parent ? tx.find(x => x.id === t.parent) : null; let d = t.desc && !Object.values(LOAN).some(x => x[0] === t.desc) ? t.desc : '';
     if (pr) { if (pr.service) d += ' · خدمات: ' + pr.service; if (pr.customer && !d.includes(pr.customer)) d += ' · مشتری: ' + pr.customer; }
-    if (t.loan === 'wage') d = (d ? d + ' · ' : '') + 'طبق رسید' + ((t.receipt || '').match(/\d{1,2}:\d{2}/) ? ' (ساعت ' + t.receipt.match(/\d{1,2}:\d{2}/)[0] + ')' : '');
-    return `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(wageBal)}</td><td class="n">${toman(loanBal)}</td></tr>`; }).join('');
+    if (t.loan === 'wage' && t.receipt) d = (d ? d + ' · ' : '') + 'طبق رسید' + ((t.receipt || '').match(/\d{1,2}:\d{2}/) ? ' (ساعت ' + t.receipt.match(/\d{1,2}:\d{2}/)[0] + ')' : '');
+    return layout === 'linear' ? `<div class="lineitem"><div class="linetop"><b>${esc(LOAN[t.loan][0])}</b><strong>${toman(t.amount)} تومان</strong></div><div class="muted">${esc(t.date || '')}</div>${d ? `<div>${esc(d)}</div>` : ''}<div class="muted">مانده دستمزد: ${toman(wageBal)} تومان · مانده قرض: ${toman(loanBal)} تومان</div></div>` : `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(wageBal)}</td><td class="n">${toman(loanBal)}</td></tr>`; }).join('');
   const f = n => toman(Math.abs(n)).toLocaleString('fa-IR');
   const st = bal > 0 ? 'پیش‌پرداخت: ' + f(bal) : bal < 0 ? (isCo ? 'مانده دستمزد: ' : 'بدهی: ') + f(bal) : 'تسویه کامل';
-  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>@page{margin:16mm}body{font-family:Tahoma,sans-serif;padding:20px;color:#24332f;line-height:1.7}h2{margin:0;color:#0f766e;font-size:23px}.intro{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.intro div{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th{background:#e7f4f1;color:#115e59}td,th{border-bottom:1px solid #dce9e5;padding:9px 6px;text-align:right;vertical-align:top}tr{page-break-inside:avoid}tr:nth-child(even){background:#f7faf9}.n{text-align:left;white-space:nowrap}.a{color:#16803d}.b{color:#bd3636}.s{margin-top:18px;font-size:13px;line-height:2;background:#f0f8f5;border-right:4px solid #0f766e;padding:12px 16px}</style></head><body><div class="intro"><h2>صورت‌حساب ${esc(p)}</h2><div>گزارش کارکرد، پرداخت و قرض · تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })}</div></div>
-  <table><tr><th>تاریخ</th><th>نوع</th><th>شرح</th><th>مبلغ (تومان)</th><th>مانده دستمزد</th><th>مانده قرض</th></tr>${rows}</table>
-  <div class="s">${isCo ? `مجموع کارکرد: <b>${f(sh)}</b><br>پرداخت دستمزد: <b>${f(pd)}</b><br>مانده دستمزد: <b>${wageBal > 0 ? 'پیش‌پرداخت' : wageBal < 0 ? 'بدهی من' : 'تسویه'} ${f(wageBal)}</b><br>مانده قرض: <b>${loanBal > 0 ? 'طلب من' : loanBal < 0 ? 'بدهی من' : 'تسویه'} ${f(loanBal)}</b>${showAssistantTotal ? `<br>جمع دو حساب: <b>${bal > 0 ? 'طلب من' : bal < 0 ? 'بدهی من' : 'تسویه'} ${f(bal)} تومان</b>` : ''}` : `وضعیت: <b>${st} تومان</b>`}</div></body></html>`;
+  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>@page{margin:16mm}body{font-family:Tahoma,sans-serif;padding:20px;color:#24332f;line-height:1.7}h2{margin:0;color:#0f766e;font-size:23px}.intro{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.intro div{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th{background:#e7f4f1;color:#115e59}td,th{border-bottom:1px solid #dce9e5;padding:9px 6px;text-align:right;vertical-align:top}tr{page-break-inside:avoid}tr:nth-child(even){background:#f7faf9}.n{text-align:left;white-space:nowrap}.a{color:#16803d}.b{color:#bd3636}.lineitem{padding:12px 0;border-bottom:1px solid #dce9e5;page-break-inside:avoid}.linetop{display:flex;justify-content:space-between;gap:12px}.linetop strong{color:#0f766e;white-space:nowrap}.muted{font-size:11px;color:#64748b}.s{margin-top:18px;font-size:13px;line-height:2;background:#f0f8f5;border-right:4px solid #0f766e;padding:12px 16px}</style></head><body><div class="intro"><h2>صورت‌حساب ${esc(p)}</h2><div>گزارش کارکرد، پرداخت و قرض · تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })}</div></div>
+  ${layout === 'linear' ? (rows || '<div class="muted">ردیفی ثبت نشده است.</div>') : `<table><tr><th>تاریخ</th><th>نوع</th><th>شرح</th><th>مبلغ (تومان)</th><th>مانده دستمزد</th><th>مانده قرض</th></tr>${rows}</table>`}
+  <div class="s"><b>جمع و مانده حساب</b><br>${isCo ? `مجموع کارکرد: <b>${f(sh)}</b><br>پرداخت دستمزد: <b>${f(pd)}</b><br>مانده دستمزد: <b>${wageBal > 0 ? 'پیش‌پرداخت' : wageBal < 0 ? 'بدهی من' : 'تسویه'} ${f(wageBal)}</b><br>مانده قرض: <b>${loanBal > 0 ? 'طلب من' : loanBal < 0 ? 'بدهی من' : 'تسویه'} ${f(loanBal)}</b>${showAssistantTotal ? `<br>جمع دو حساب: <b>${bal > 0 ? 'طلب من' : bal < 0 ? 'بدهی من' : 'تسویه'} ${f(bal)} تومان</b>` : ''}` : `وضعیت: <b>${st} تومان</b>`}</div></body></html>`;
   const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column';
   ov.innerHTML = '<div style="display:flex;gap:8px;padding:10px;border-bottom:1px solid #ddd"><button id="pdx" style="flex:1">✕ بستن</button><button id="pdp" style="flex:1">🖨 چاپ / ذخیره PDF</button></div><iframe style="flex:1;border:0;width:100%"></iframe>';
   document.body.appendChild(ov); const fr = ov.querySelector('iframe'); fr.srcdoc = h;
@@ -626,19 +630,21 @@ function loansHtml() {
   if (lp && names.includes(lp)) {
     const isCo = CO[lp] !== undefined, w = wage(lp), l = loan(lp), all = combined(lp);
     const rows = ordTx(L.filter(t => t.person === lp));
+    const workStatus = new Map(workPayments(lp, L).rows.map(x => [String(x.j.id), x]));
     const result = all > 0 ? 'او به من بدهکار است: ' + toman(all) : all < 0 ? 'من به او بدهکارم: ' + toman(-all) : 'حساب صاف است';
     return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div>${esc(lp)}</div><div style="margin-top:12px;font-size:13px;opacity:.85">${isCo ? (w > 0 ? 'پیش‌پرداخت دستمزد' : w < 0 ? 'دستمزد پرداخت‌نشده' : 'حساب دستمزد') : 'دستمزد'}</div><div class="big">${isCo && w ? toman(Math.abs(w)) + ' <small>تومان</small>' : 'تسویه'}</div><div style="margin-top:12px;font-size:13px;opacity:.85">قرض</div><div style="font-size:20px;font-weight:700">${balanceText(l, 'loan')}</div>${isCo ? `<label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="combinebalances" type="checkbox" style="width:auto;margin:0" ${showAssistantTotal ? 'checked' : ''}> نمایش جمع دو حساب</label><div class="combinedbalance" ${showAssistantTotal ? '' : 'hidden'} style="margin-top:6px">جمع دو حساب: <b>${result}${all ? ' تومان' : ''}</b><div style="font-size:12px">فقط نمایش جمع است؛ قرض و دستمزد جدا می‌مانند.</div></div>` : ''}</div>
-    <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
+    <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
     ${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="number" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><div class="mut">تاریخ</div><input id="wdt" value="${nowStr().slice(0, 10)}" placeholder="1405/08/15"><button id="wadd">ثبت کارکرد</button></details>` : ''}
     <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent">قرض: او به من بدهکار است</option><option value="borrowed">قرض: من به او بدهکارم</option></select><input id="manualamount" type="number" inputmode="numeric" min="1" placeholder="مبلغ به تومان"><input id="manualdate" value="${nowStr().slice(0, 10)}" placeholder="تاریخ، مثلاً 1405/08/15"><input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
-    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(rowHtml).join('')}`;
+    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
   return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined, w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${co ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
 }
-function rowHtml(t) {
+function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
-  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${t.xfer ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance ? '' : (t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
+  const work = statusMap instanceof Map ? statusMap.get(String(t.id)) : null;
+  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
@@ -793,7 +799,7 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'wadd') { const a = Number($('#wa').value), d = $('#wd').value.trim(); if (!a || !lp) { alert('مبلغ را بنویس'); return; } const b = tx.find(x => x.account) || {}; let dt = ($('#wdt').value || '').trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/'); const nw = nowStr(), m = dt.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (dt && !m) { alert('تاریخ را مثل 1405/08/15 بنویس'); return; } const wdate = m ? `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nw.slice(11)}` : nw; tx.push({ id: Date.now(), ghost: true, bank: b.bank, account: b.account, type: 'credit', amount: a * 10, balance: null, date: wdate, cat: 'کارکرد همکار', loan: 'share', person: lp, desc: d || 'کارکرد', pending: false }); save(); render(); return; }
   if (e.target.classList.contains('wdel')) { if (confirm('این ردیف حذف شود؟ مطمئنی؟')) { tomb([e.target.dataset.id]); tx = tx.filter(x => x.id !== Number(e.target.dataset.id)); save(); render(); } return; }
   if (e.target.id === 'pdel') { if (confirm('«' + lp + '» و همهٔ ردیف‌های حساب او حذف شود؟')) { const c = cols(), j = pjobs(); delete c[lp]; delete j[lp]; setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); tx.forEach(x => { if (x.colleague === lp) { x.colleague = ''; x.pct = 0; } }); tomb(tx.filter(x => x.person === lp).map(x => x.id)); tx = tx.filter(x => x.person !== lp); lp = null; save(); render(); } return; }
-  const cpb = e.target.closest('.cp'); if (cpb) { const cd = cpb.closest('.card'), pi = cd.querySelector('.p'); pi.value = cpb.dataset.n; (drafts[cd.dataset.id] = drafts[cd.dataset.id] || {}).p = pi.value; balHint(cd); return; }
+  const cpb = e.target.closest('button.cp'); if (cpb) { const cd = cpb.closest('.card'), pi = cd.querySelector('.p'); pi.value = cpb.dataset.n; (drafts[cd.dataset.id] = drafts[cd.dataset.id] || {}).p = pi.value; balHint(cd); return; }
   if (e.target.id === 'nadd' || (e.target.id === 'psv' && $('#pcb'))) {
     const nw = e.target.id === 'nadd', nm = nw ? $('#nn').value.trim() : lp; if (!nm) return;
     const jb = $(nw ? '#nj' : '#pj').value.trim(), on = !!$(nw ? '#ncb' : '#pcb').value, pc = Math.max(0, Math.min(100, Number($(nw ? '#npc' : '#ppc').value) || 0));
@@ -802,7 +808,9 @@ document.addEventListener('click', async e => {
   }
   const rb = e.target.closest('.rdn'); if (rb && tab !== 'rem') { const r = rem.find(x => x.id == rb.dataset.i); if (r) { r.done = !r.done; saveRem(); render(); } return; }
   const lpc = e.target.closest('.lp'); if (lpc) { lp = lpc.dataset.p; showAssistantTotal = false; render(); return; }
-  if (e.target.id === 'pdfb') { pdfPerson(lp); return; }
+  if (e.target.id === 'pdfb') { $('#pdfchoices')?.classList.toggle('hide'); return; }
+  if (e.target.id === 'pdfcancel') { $('#pdfchoices')?.classList.add('hide'); return; }
+  if (e.target.id === 'pdftable' || e.target.id === 'pdflinear') { pdfPerson(lp, e.target.id === 'pdflinear' ? 'linear' : 'table'); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
@@ -860,7 +868,7 @@ function push() {
 }
 async function doPush() {
   try {
-    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl') }) }, log: log.slice(0, 100) }) })).json();
+    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
     if (!r.ok) throw new Error(r.error);
     localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + ' — بعداً دوباره تلاش می‌شود'; }
@@ -1076,42 +1084,106 @@ let ppl = load('ppl', []), cv = 'work', pe = null, pq = '', pf = '';
 const savePpl = () => { localStorage.setItem('ppl', JSON.stringify(ppl)); localStorage.setItem('dirty', '1'); push(); };
 const PT0 = ['مشتری', 'راننده', 'همکار', 'تأمین‌کننده', 'خانواده'];
 const ptags = () => [...new Set([...PT0, ...ppl.flatMap(p => p.tags || [])])];
-const pfa = s => String(s || '').replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c));
+const pfa = s => String(s || '').replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c));
+function carModels() { try { const v = JSON.parse(localStorage.getItem('carModels')); return Array.isArray(v) ? v : ['اسکانیا', 'ولوو']; } catch { return ['اسکانیا', 'ولوو']; } }
+const idDigits = s => pfa(s).replace(/\D/g, '');
+function contactFacts() {
+  const out = [];
+  tx.filter(t => !t.ghost).forEach(t => {
+    const phone = idDigits(t.cphone || '');
+    if (t.customer && phone.length >= 10) out.push({ key: String(t.id) + '|customer', tid: String(t.id), name: t.customer.trim(), phone, card: '', role: t.ctype === 'driver' ? 'راننده' : 'مشتری' });
+    if (t.receipt) {
+      const rc = parseReceipt(t.receipt), normalized = pfa(t.receipt).replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '');
+      const m = normalized.match(/به\s*مقصد\s*([\d\s-]{16,24})/), card = m ? idDigits(m[1]) : '';
+      if (rc && rc.name && card.length === 16) out.push({ key: String(t.id) + '|receipt', tid: String(t.id), name: rc.name, phone: '', card, role: t.loan ? 'شخص' : 'تأمین‌کننده' });
+    }
+  });
+  return out;
+}
+function contactCardList(p) { return Array.isArray(p.cards) ? p.cards.map(idDigits).filter(x => x.length === 16) : []; }
+function contactMatches(p, f) { return !!((f.phone && [p.phone, ...(Array.isArray(p.phones) ? p.phones : [])].map(idDigits).includes(f.phone)) || (f.card && contactCardList(p).includes(f.card))); }
+function contactNames(p) { return [p.name, ...(Array.isArray(p.aliases) ? p.aliases : [])].filter(Boolean).map(nrm); }
+function attachFact(p, f, rememberName) {
+  p.links = Array.isArray(p.links) ? p.links : [];
+  if (!p.links.includes(f.key)) p.links.push(f.key);
+  if (f.card) { p.cards = contactCardList(p); if (!p.cards.includes(f.card)) p.cards.push(f.card); }
+  if (f.phone && !p.phone) p.phone = f.phone;
+  else if (f.phone && idDigits(p.phone) !== f.phone) { p.phones = Array.isArray(p.phones) ? p.phones : []; if (!p.phones.includes(f.phone)) p.phones.push(f.phone); }
+  if (rememberName && !contactNames(p).includes(nrm(f.name))) { p.aliases = Array.isArray(p.aliases) ? p.aliases : []; p.aliases.push(f.name); }
+  p.tags = Array.isArray(p.tags) ? p.tags : [];
+  if (f.role !== 'شخص' && !p.tags.includes(f.role)) p.tags.push(f.role);
+  if (f.role === 'راننده' && !p.tags.includes('مشتری')) p.tags.push('مشتری');
+}
+function reconcileContacts() {
+  const facts = contactFacts(), proposals = [], ignored = new Set(load('pplIgnored', [])), factByKey = new Map(facts.map(f => [f.key, f])); let changed = false;
+  for (const p of ppl) {
+    if (!Array.isArray(p.links)) continue;
+    const valid = p.links.filter(key => { const f = factByKey.get(key); return f && contactMatches(p, f) && contactNames(p).includes(nrm(f.name)); });
+    if (valid.length !== p.links.length) { p.links = valid; changed = true; }
+  }
+  for (const f of facts) {
+    if (!f.name || ignored.has(f.key) || ppl.some(p => Array.isArray(p.links) && p.links.includes(f.key))) continue;
+    const exact = ppl.filter(p => contactMatches(p, f));
+    const near = ppl.filter(p => contactNames(p).some(n => n === nrm(f.name) || (n.length >= 5 && nrm(f.name).length >= 5 && lev(n, nrm(f.name)) <= 2)));
+    if (exact.length === 1 && contactNames(exact[0]).includes(nrm(f.name))) { attachFact(exact[0], f, false); changed = true; }
+    else if (exact.length || near.length) proposals.push({ f, options: [...new Set([...exact, ...near])] });
+    else { const p = { id: Date.now() + Math.random(), name: f.name, phone: '', cards: [], tags: [], cars: [], note: '', links: [] }; attachFact(p, f, false); ppl.push(p); changed = true; }
+  }
+  if (changed) savePpl();
+  return proposals;
+}
+function contactHistory(p) {
+  const keys = new Set(Array.isArray(p.links) ? p.links : []), ids = new Set([...keys].map(x => x.split('|')[0]));
+  const list = ordTx(tx.filter(t => ids.has(String(t.id)) && !t.ghost));
+  const account = amountOf(tx.filter(t => t.loan && LOAN[t.loan] && !isWage(t) && ids.has(String(t.id))));
+  return `<details class="card"><summary><b>📋 سابقه ارتباط (${list.length.toLocaleString('fa-IR')})</b></summary><div class="mut">فقط مواردی که با شماره کارت یا تلفن تأیید شده‌اند.</div>${list.map(t => `<div style="border-bottom:1px solid #eee;padding:8px 0"><div class="row"><b>${esc(t.loan ? LOAN[t.loan]?.[0] || 'تراکنش' : t.type === 'credit' ? 'واریزی / فروش یا خدمت' : 'پرداخت / خرید')}</b><b class="${t.type === 'credit' ? 'grn' : 'red'}">${toman(t.amount)} تومان</b></div><div class="mut">${esc(t.date)} · ${esc(accName(t.account))}</div>${t.desc ? `<div>${esc(t.desc)}</div>` : ''}${t.service ? `<div class="mut">خدمت: ${esc(t.service)}</div>` : ''}${t.receipt ? `<details><summary class="mut">رسید بانکی</summary><div style="white-space:pre-wrap">${esc(t.receipt)}</div></details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div>`).join('') || '<div class="mut">هنوز سابقه تأییدشده‌ای نیست.</div>'}${account ? `<div class="mut">مانده قرض‌های مرتبط با این موارد: ${account > 0 ? 'طلب من' : 'بدهی من'} ${toman(Math.abs(account))} تومان</div>` : ''}</details>`;
+}
 function contactsHtml() {
   ppl = load('ppl', []);
+  const proposals = reconcileContacts();
   const sw = `<div class="row" style="margin-bottom:8px"><button class="${cv === 'list' ? '' : 'sec'}" data-cv="list">👥 مخاطبین</button><button class="${cv === 'work' ? '' : 'sec'}" data-cv="work">🤝 دستیاران و کارکردها</button></div>`;
   if (cv === 'work') return sw + loansHtml();
   if (pe !== null) {
     const p = pe === 'new' ? { tags: [] } : ppl.find(x => x.id === pe) || { tags: [] };
     return sw + `<div class="card" id="pform"><b>${pe === 'new' ? 'مخاطب جدید' : 'پروندهٔ ' + esc(p.name)}</b>
-      <input id="pn" placeholder="نام" value="${esc(p.name || '')}"><input id="pp" inputmode="tel" placeholder="تلفن" value="${esc(p.phone || '')}">
+      <input id="pn" placeholder="نام" value="${esc(p.name || '')}"><input id="pp" inputmode="tel" placeholder="تلفن" value="${esc(p.phone || '')}"><div class="mut">شماره کارت‌ها (هر شماره در یک خط)</div><textarea id="pcards" rows="2" inputmode="numeric" placeholder="شماره کارت">${esc((p.cards || []).join('\n'))}</textarea>
       <div class="mut">برچسب‌ها (چندتایی)</div><div class="row" style="flex-wrap:wrap;gap:6px">${ptags().map(t => `<button class="ptg ${(p.tags || []).includes(t) ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
       <div id="pcars" style="${(p.tags || []).includes('راننده') ? '' : 'display:none'}"><div class="mut">🚚 ماشین‌ها</div><div id="cl">${(p.cars || []).map(carRow).join('')}</div><button class="sec cadd">＋ ماشین</button></div>
       <input id="pnt" placeholder="برچسب تازه (نوشتن و Enter)"><textarea id="pno" rows="3" placeholder="یادداشت">${esc(p.note || '')}</textarea>
-      <div class="row"><button id="psv">ذخیره</button><button class="sec" id="pcn">بستن</button>${pe === 'new' ? '' : '<button class="sec" id="pdl">🗑 حذف</button>'}</div></div>`;
+      <div class="row"><button id="psv">ذخیره</button><button class="sec" id="pcn">بستن</button>${pe === 'new' ? '' : '<button class="sec" id="pdl">🗑 حذف</button>'}</div></div>${pe === 'new' ? '' : contactHistory(p)}`;
   }
-  const q = pfa(pq).trim(), L = ppl.filter(p => (!pf || (p.tags || []).includes(pf)) && (!q || (p.name + ' ' + (p.phone || '')).includes(q)));
-  return sw + `<div class="card"><div class="row"><b>مخاطبین (${ppl.length.toLocaleString('fa-IR')})</b><button id="pnew">＋ جدید</button></div>
-    <input id="pq" placeholder="جستجوی نام یا تلفن" value="${esc(pq)}">
+  const q = pfa(pq).trim(), L = ppl.filter(p => (!pf || (p.tags || []).includes(pf)) && (!q || (p.name + ' ' + (p.phone || '') + ' ' + contactCardList(p).join(' ')).includes(q)));
+  return sw + (proposals.length ? `<div class="card"><b>🔎 موارد نیازمند بررسی (${proposals.length.toLocaleString('fa-IR')})</b><div class="mut">تشابه نام یا شماره مشترک پیدا شد؛ خودکار ادغام نمی‌شود.</div>${proposals.map((x, i) => `<div style="margin-top:12px"><b>${esc(x.f.name)}</b><div class="mut">${x.f.card ? 'کارت: ' + esc(x.f.card) : 'تلفن: ' + esc(x.f.phone)} · ${esc(x.f.role)}</div><select class="pmatch" data-index="${i}"><option value="">انتخاب پرونده…</option>${x.options.map(p => `<option value="${p.id}">${esc(p.name)} · ${esc(p.phone || contactCardList(p).join('، ') || 'بدون شماره')}</option>`).join('')}<option value="new">شخص جدید و جدا</option></select><button class="pmatchsave" data-index="${i}">تأیید انتخاب</button></div>`).join('')}</div>` : '') + `<div class="card"><div class="row"><b>مخاطبین (${ppl.length.toLocaleString('fa-IR')})</b><button id="pnew">＋ جدید</button></div>
+    <input id="pq" placeholder="جستجوی نام، تلفن یا کارت" value="${esc(pq)}">
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="pfl ${pf ? 'sec' : ''}" data-t="">همه</button>${ptags().map(t => `<button class="pfl ${pf === t ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
     ${L.map(p => `<div class="card pc" data-pid="${p.id}"><b>${esc(p.name)}</b> <span class="mut" dir="ltr">${esc(p.phone || '')}</span><div class="mut">${(p.tags || []).map(esc).join(' · ')}</div>${(p.cars || []).map(c => `<div class="mut">🚚 ${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}${p.note ? `<div class="mut">${esc(p.note)}</div>` : ''}</div>`).join('') || '<div class="mut" style="padding:12px">مخاطبی نیست.</div>'}`;
 }
-const carRow = c => `<div class="crow row" style="flex-wrap:wrap;gap:4px;margin:6px 0;border-bottom:1px solid #eee;padding-bottom:6px"><input class="cp" placeholder="پلاک" value="${esc(c.plate || '')}"><input class="cm" placeholder="مدل" value="${esc(c.model || '')}"><input class="cc" placeholder="رنگ" value="${esc(c.color || '')}"><input class="ct" placeholder="نوع (کامیون، وانت…)" value="${esc(c.type || '')}"><button class="sec cdel">✕</button></div>`;
-const pRead = () => ({ cars: [...document.querySelectorAll('#cl .crow')].map(r => ({ plate: pfa(r.querySelector('.cp').value.trim()), model: r.querySelector('.cm').value.trim(), color: r.querySelector('.cc').value.trim(), type: r.querySelector('.ct').value.trim() })).filter(c => c.plate || c.model || c.color || c.type), name: $('#pn').value.trim(), phone: pfa($('#pp').value.trim()), note: $('#pno').value.trim(), tags: [...document.querySelectorAll('#pform .ptg:not(.sec)')].map(b => b.dataset.t) });
+const carRow = c => `<div class="crow row" style="flex-wrap:wrap;gap:4px;margin:6px 0;border-bottom:1px solid #eee;padding-bottom:6px"><input class="cp" placeholder="پلاک" value="${esc(c.plate || '')}"><input class="cm" list="car-model-list" placeholder="مدل" value="${esc(c.model || '')}"><datalist id="car-model-list">${carModels().map(m => `<option value="${esc(m)}">`).join('')}</datalist><input class="cc" placeholder="رنگ" value="${esc(c.color || '')}"><input class="ct" placeholder="نوع (کامیون، وانت…)" value="${esc(c.type || '')}"><button class="sec cdel">✕</button></div>`;
+const pRead = () => ({ cars: [...document.querySelectorAll('#cl .crow')].map(r => ({ plate: pfa(r.querySelector('.cp').value.trim()), model: r.querySelector('.cm').value.trim(), color: r.querySelector('.cc').value.trim(), type: r.querySelector('.ct').value.trim() })).filter(c => c.plate || c.model || c.color || c.type), name: $('#pn').value.trim(), phone: pfa($('#pp').value.trim()), cards: $('#pcards').value.split(/\n/).map(idDigits).filter(Boolean), note: $('#pno').value.trim(), tags: [...document.querySelectorAll('#pform .ptg:not(.sec)')].map(b => b.dataset.t) });
 document.addEventListener('click', e => {
   if (tab !== 'contacts') return;
   const g = s => e.target.closest(s);
+  if (g('.pmatchsave')) {
+    ppl = load('ppl', []); const proposals = reconcileContacts(), i = +g('.pmatchsave').dataset.index, item = proposals[i];
+    const select = document.querySelector('.pmatch[data-index="' + i + '"]'); if (!item || !select || !select.value) { alert('ابتدا پرونده را انتخاب کن'); return; }
+    const f = item.f, chosen = select.value;
+    if (!confirm(chosen === 'new' ? 'این شخص به عنوان پرونده‌ای جدا ثبت شود؟' : 'این مورد به پرونده انتخاب‌شده وصل شود؟')) return;
+    let person = chosen === 'new' ? null : item.options.find(p => String(p.id) === chosen);
+    if (chosen !== 'new' && !person) { alert('پرونده پیدا نشد؛ دوباره تلاش کن'); return; }
+    if (!person) { person = { id: Date.now() + Math.random(), name: f.name, phone: '', cards: [], tags: [], cars: [], note: '', links: [] }; ppl.push(person); }
+    attachFact(person, f, true); savePpl(); render(); return;
+  }
   if (g('[data-cv]')) { cv = g('[data-cv]').dataset.cv; pe = null; render(); return; }
   if (g('#pnew')) { pe = 'new'; render(); return; }
   if (g('#pcn')) { pe = null; render(); return; }
   if (g('.pfl')) { pf = g('.pfl').dataset.t; render(); return; }
-  if (g('.cadd')) { $('#cl').insertAdjacentHTML('beforeend', carRow({})); return; }
+  if (g('.cadd')) { $('#cl').insertAdjacentHTML('beforeend', carRow({ model: carModels().includes('اسکانیا') ? 'اسکانیا' : (carModels()[0] || '') })); return; }
   if (g('.cdel')) { g('.crow').remove(); return; }
   if (g('.ptg')) { g('.ptg').classList.toggle('sec'); const dr = [...document.querySelectorAll('#pform .ptg:not(.sec)')].some(b => b.dataset.t === 'راننده'); $('#pcars').style.display = dr ? '' : 'none'; return; }
   if (g('.pc')) { pe = +g('.pc').dataset.pid; render(); return; }
-  if (g('#pdl')) { if (confirm('این مخاطب حذف شود؟')) { ppl = ppl.filter(x => x.id !== pe); savePpl(); pe = null; render(); } return; }
+  if (g('#pdl')) { if (confirm('این مخاطب حذف شود؟')) { const old = ppl.find(x => x.id === pe); const ignored = new Set(load('pplIgnored', [])); (old?.links || []).forEach(k => ignored.add(k)); localStorage.setItem('pplIgnored', JSON.stringify([...ignored])); ppl = ppl.filter(x => x.id !== pe); savePpl(); pe = null; render(); } return; }
   if (g('#psv')) {
-    const d = pRead(); if (!d.name) { alert('نام را بنویس'); return; }
+    const d = pRead(); if (!d.name) { alert('نام را بنویس'); return; } if (d.cards.some(x => x.length !== 16)) { alert('هر شماره کارت باید ۱۶ رقم باشد'); return; } if (pe !== 'new') { const old = ppl.find(x => x.id === pe); if (old && JSON.stringify({name:old.name || '',phone:old.phone || '',cards:old.cards || [],tags:old.tags || [],cars:old.cars || [],note:old.note || ''}) !== JSON.stringify({name:d.name,phone:d.phone,cards:d.cards,tags:d.tags,cars:d.cars,note:d.note}) && !confirm('مشخصات مخاطب تغییر کرده است. ذخیره شود؟')) return; }
     if (pe === 'new') { if (d.phone && ppl.some(x => x.phone === d.phone)) { alert('این تلفن قبلاً ثبت شده'); return; } ppl.push({ id: Date.now(), ...d }); }
     else Object.assign(ppl.find(x => x.id === pe), d);
     savePpl(); pe = null; render();
