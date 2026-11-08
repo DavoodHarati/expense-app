@@ -3,7 +3,7 @@ const lsj = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); ret
 const CATS = lsj('cats', ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر']);
 const INC = lsj('icats', ['فروش', 'مشتری', 'حقوق', 'سایر']);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet'];
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet'];
 function makeFullBackup() {
   const data = {};
   BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
@@ -17,7 +17,7 @@ function validateFullBackup(backup) {
   const parse = key => { try { return JSON.parse(backup.data[key]); } catch { throw new Error('اطلاعات «' + key + '» در پشتیبان معتبر نیست'); } };
   if (!Array.isArray(parse('tx'))) throw new Error('فهرست تراکنش‌ها معتبر نیست');
   const acc = parse('accounts'); if (!acc || typeof acc !== 'object' || Array.isArray(acc)) throw new Error('اطلاعات حساب‌ها معتبر نیست');
-  for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
+  for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
   for (const key of ['cols', 'pjobs']) if (key in backup.data) { const value = parse(key); if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('اطلاعات «' + key + '» معتبر نیست'); }
   return backup.data;
 }
@@ -88,6 +88,51 @@ function parseReceipt(raw) {
   const p2 = v => String(v).padStart(2, '0');
   return { amount: Number(a[1].replace(/[,٬]/g, '')), date: `${d[3]}/${p2(m)}/${p2(d[1])} ${p2(d[4])}:${d[5]}`, name: n[1].trim() };
 }
+function receiptArchive() {
+  const saved = load('receiptArchive', []);
+  return Array.isArray(saved) ? saved.filter(item => item && typeof item.raw === 'string' && item.raw.trim()) : [];
+}
+function archiveReceipts(items) {
+  const saved = receiptArchive(), seen = new Set(saved.map(item => item.raw.trim().slice(0, 1000)));
+  let added = false;
+  for (const item of items) {
+    const raw = String(item.raw || '').trim(), key = raw.slice(0, 1000);
+    if (!raw || seen.has(key)) continue;
+    seen.add(key); saved.unshift({ raw, at: Number(item.at) || Date.now() }); added = true;
+  }
+  if (added) { localStorage.setItem('receiptArchive', JSON.stringify(saved)); localStorage.setItem('dirty', '1'); }
+  return saved;
+}
+function receiptArchiveItems() {
+  return archiveReceipts([
+    ...rcPending().map(raw => ({ raw })),
+    ...log.filter(item => item.rc && item.raw).map(item => ({ raw: item.raw, at: item.at })),
+    ...tx.filter(item => item.receipt).map(item => ({ raw: item.receipt }))
+  ]);
+}
+function receiptArchiveRender(query) {
+  const box = document.getElementById('receipt-archive-results'); if (!box) return;
+  const term = nrm(pfa(query || ''));
+  const items = receiptArchiveItems().map(item => {
+    const match = tx.find(entry => entry.receipt === item.raw.slice(0, 1000));
+    const parsed = parseReceipt(item.raw);
+    return { ...item, match, parsed };
+  }).filter(item => {
+    const t = item.match, parsed = item.parsed;
+    const fields = [item.raw, parsed && parsed.name, parsed && parsed.date, parsed && String(parsed.amount), parsed && String(Math.round(parsed.amount / 10)), t && t.date, t && t.account, t && accName(t.account), t && t.person, t && t.seller, t && t.desc, t && String(t.amount), t && String(Math.round(t.amount / 10))];
+    return !term || fields.some(value => value != null && nrm(pfa(String(value))).includes(term));
+  });
+  box.innerHTML = items.length ? items.map(item => {
+    const t = item.match, rc = item.parsed;
+    const name = rc && rc.name || t && (t.person || t.seller) || 'رسید';
+    const amount = rc && rc.amount || t && t.amount;
+    const date = rc && rc.date || t && t.date || '';
+    return `<details style="border-top:1px solid #e5e7eb;padding:10px 0"><summary><b>${esc(name)}</b>${amount ? ' · ' + toman(amount) + ' تومان' : ''}<span class="mut"> · ${t ? 'وصل‌شده به تراکنش' : 'بدون تراکنش متصل'}</span></summary><div class="mut">${esc(date)}${t ? ' · حساب: ' + esc(accName(t.account)) : ''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.raw)}</div></details>`;
+  }).join('') : '<div class="mut">رسیدی پیدا نشد.</div>';
+}
+function receiptArchiveHtml() {
+  return `<details class="card"><summary><b>🧾 آرشیو رسیدها</b></summary><div class="mut">رسیدهای موجود و رسیدهای جدید در این دستگاه نگهداری می‌شوند. جست‌وجو با نام، شماره حساب، مبلغ، تاریخ یا متن رسید است.</div><input id="receipt-archive-search" placeholder="جست‌وجوی رسید"><div id="receipt-archive-results"></div></details>`;
+}
 function rcCands(rc) {
   const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
   return tx.filter(t => t.type === 'debit' && !t.ghost && !t.xfer && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 1000000 && dist(t) <= 4320).sort((p, q) => dist(p) - dist(q));
@@ -139,6 +184,7 @@ function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
   raw = String(raw).trim(); const rw = raw.slice(0, 1000);
+  archiveReceipts([{ raw }]);
   if (!log.some(l => l.rc && l.raw === rw)) { log.unshift({ at: Date.now(), raw: rw, ok: true, rc: 1, msg: '🧾 رسید بانکی' }); saveLog(); }
   const done = tx.find(t => t.receipt === rw);
   if (done) { box.textContent = rcMessage(done, rc, true); return true; }
@@ -354,6 +400,7 @@ function _render() {
   if (tab === 'home' || tab === 'report') {
     el.innerHTML = tab === 'home' ? homeHtml() : reportHtml();
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
+    if (tab === 'report' && $('#receipt-archive-search')) { receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); }
   } else if (tab === 'rem') {
     el.innerHTML = remHtml(); accordion(el, 'rem'); remBind();
   } else if (tab === 'contacts') {
@@ -557,7 +604,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۰۱)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۰۲)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -653,7 +700,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-08T08:15:00Z';
+const BUILD = '2026-11-08T08:56:32Z';
 function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
@@ -786,8 +833,8 @@ function reportHtml() {
     const l = list.filter(t => t.account === a && !t.ghost);
     return { a, o: sum(l.filter(t => t.type === 'debit' && !t.xfer)), i: sum(l.filter(t => t.type === 'credit' && !t.xfer)), xo: sum(l.filter(t => t.type === 'debit' && t.xfer)), xi: sum(l.filter(t => t.type === 'credit' && t.xfer)) };
   }).filter(r => r.o || r.i || r.xo || r.xi);
-  if (!months.length) return filterBar() + '<div class="card mut">داده‌ای نیست.</div>';
-  return `${filterBar()}${nameSugHtml()}
+  if (!months.length) return filterBar() + receiptArchiveHtml() + '<div class="card mut">داده‌ای نیست.</div>';
+  return `${filterBar()}${nameSugHtml()}${receiptArchiveHtml()}
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
     <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b><div style="font-size:11px;opacity:.75">درآمد منهای خرج</div></span></div></div>
@@ -1426,6 +1473,7 @@ document.addEventListener('click', e => {
   const txt = (add.closest('details').querySelector('.rcpin').value || '').trim();
   if (!txt) { alert('متن پیامک رسید را بچسبان'); return; }
   t.receipt = txt.slice(0, 1000);
+  archiveReceipts([{ raw: txt }]);
   // اگر نام یکی از اشخاص در رسید باشد، پرداخت به همان شخص وصل شود
   const names = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs())])].filter(n => n && txt.includes(n));
   if (names.length === 1 && names[0] !== t.person) { if (confirm('این رسید به نام «' + names[0] + '» است. پرداخت به همین شخص وصل شود؟')) t.person = names[0]; }
