@@ -2,24 +2,47 @@
 
 function directSyncMessage(text) { const el = document.getElementById('direct-sync-message'); if (el) el.textContent = text; }
 function directSyncButtons(disabled) {
-  for (const id of ['direct-sync-create', 'direct-sync-run', 'direct-sync-receipts']) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
+  for (const id of ['direct-sync-create', 'direct-sync-run', 'direct-sync-receipts', 'direct-sync-receive']) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
 }
 function directSyncLink(state) {
   const el = document.getElementById('direct-sync-link');
   if (!el) return;
   el.replaceChildren();
   if (!state || !/^[A-Za-z0-9_-]+$/.test(state.id || '')) return;
-  const a = document.createElement('a'); a.href = 'https://docs.google.com/spreadsheets/d/' + state.id + '/edit'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'باز کردن شیت اتصال مستقیم'; el.appendChild(a);
+  const url = 'https://docs.google.com/spreadsheets/d/' + state.id + '/edit';
+  const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'باز کردن شیت اتصال مستقیم'; el.appendChild(a);
+  const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'sec'; copy.textContent = 'کپی لینک برای گوشی دوم';
+  copy.onclick = async () => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(url);
+      directSyncMessage('✅ لینک کپی شد؛ آن را برای گوشی دوم بفرست.');
+    } catch (_) {
+      window.prompt('کپی خودکار ممکن نشد. لینک زیر را انتخاب و کپی کن:', url);
+    }
+  };
+  el.appendChild(document.createElement('br')); el.appendChild(copy);
+}
+function directSyncSheetId(input) {
+  try {
+    const u = new URL(input);
+    if (u.protocol !== 'https:' || u.hostname !== 'docs.google.com' || u.port || u.username || u.password) return '';
+    return (u.pathname.match(/^\/spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]+)(?:\/|$)/) || [])[1] || '';
+  } catch (_) { return ''; }
 }
 function directSyncPrepare() {
   directSyncLink(load('directSyncState', null));
   googleIdentityLoad.then(() => {
-    const create = document.getElementById('direct-sync-create'), run = document.getElementById('direct-sync-run'), receipts = document.getElementById('direct-sync-receipts');
+    const create = document.getElementById('direct-sync-create'), run = document.getElementById('direct-sync-run'), receipts = document.getElementById('direct-sync-receipts'), receive = document.getElementById('direct-sync-receive');
     if (!create || !run) return;
     directSyncButtons(false);
     create.onclick = () => directSyncAuthorize('create');
     run.onclick = () => directSyncAuthorize('sync');
     if (receipts) receipts.onclick = () => directSyncAuthorize('receipts');
+    if (receive) receive.onclick = () => directSyncAuthorize('receive');
+    const previous = document.getElementById('direct-receive-previous'), clear = document.getElementById('direct-receive-clear');
+    if (previous) previous.onclick = () => { try { directReceiveDownloadPrevious(); directSyncMessage('فایل پشتیبان قبل از دریافت آماده شد؛ ذخیره‌شدن آن را در دانلودها بررسی کن.'); } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); } };
+    if (clear) clear.onclick = () => { const raw = localStorage.getItem(DIRECT_RECEIVE_JOURNAL); if (!raw) { directSyncMessage('پشتیبانی برای پاک‌کردن وجود ندارد.'); return; } try { if (JSON.parse(raw).phase !== 'committed') throw new Error('پشتیبان در حال بازیابی است'); if (confirm('فقط پس از اطمینان از ذخیره فایل پشتیبان، نسخه محلی قبلی حذف شود؟')) { localStorage.removeItem(DIRECT_RECEIVE_JOURNAL); directSyncMessage('نسخه محلی قبلی حذف شد.'); } } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); } };
     const autoStart = document.getElementById('direct-auto-start'), autoStop = document.getElementById('direct-auto-stop');
     if (autoStart) autoStart.onclick = directAutoStart;
     if (autoStop) autoStop.onclick = () => directAutoStop('ارسال خودکار متوقف شد. اگر ارسالی در جریان بود ممکن است همان نسخه به شیت افزوده شود.');
@@ -138,7 +161,7 @@ function directSyncAuthorize(action) {
           }
           const input = document.getElementById('direct-sync-url').value.trim();
           if (input) {
-            let id = ''; try { const u = new URL(input); if (u.protocol === 'https:' && u.hostname === 'docs.google.com') id = (u.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)(?:\/|$)/) || [])[1] || ''; } catch (_) {}
+            const id = directSyncSheetId(input);
             if (!id) throw new Error('لینک شیت معتبر نیست');
             if (!state || state.id !== id) state = { id, email: user.email, base: '' };
           }
@@ -161,6 +184,21 @@ function directSyncAuthorize(action) {
             const count = await directSyncReceiptArchive(state.id, headers, receiptItems);
             directSyncMessage(count ? '✅ ' + count.toLocaleString('fa-IR') + ' رسید در برگه جدا اضافه و خوانده شد. حساب و وضعیت مربوط به زمان ارسال است.' : '✅ همه رسیدهای موجود قبلاً در برگه ثبت شده‌اند.');
             return;
+          }
+          if (action === 'receive') {
+            if (!head || !state.base) throw new Error('ابتدا این دستگاه باید به نسخه یکسان شیت متصل باشد');
+            const base = records.find(item => item.id === state.base);
+            if (!base) throw new Error('نسخه مبنای این دستگاه در شیت پیدا نشد');
+            const decision = DirectSyncCore.decide(DirectSyncCore.canonicalData(base.backup.data), localValue, DirectSyncCore.canonicalData(head.backup.data));
+            if (decision === 'conflict' || decision === 'upload') throw new Error('این دستگاه تغییرات ارسال‌نشده دارد؛ دریافت متوقف شد تا اطلاعات حفظ شود');
+            if (decision === 'unchanged') { directSyncMessage('✅ اطلاعات این دستگاه با شیت یکسان است؛ دریافتی لازم نیست.'); return; }
+            if (SYNC() || directReceiveLegacyAtBoot) throw new Error('اتصال قدیمی Apps Script باید غیرفعال باشد و برنامه پس از آن دوباره باز شود؛ دریافت مستقیم متوقف است');
+            const count = JSON.parse(head.backup.data.tx).length;
+            if (!confirm('نسخه جدید شیت شامل ' + count.toLocaleString('fa-IR') + ' تراکنش است. اطلاعات فعلی این دستگاه با آن جایگزین شود؟ نسخه قبلی در دستگاه نگهداری می‌شود. سایر تب‌های برنامه را ببند.')) { directSyncMessage('دریافت لغو شد.'); return; }
+            directReceiveApply(head.backup, localValue, state, head.id);
+            directAutoStop('دریافت انجام شد.');
+            alert('دریافت انجام شد. پشتیبان نسخه قبلی در تنظیمات اتصال مستقیم در دسترس است.');
+            location.reload(); return;
           }
           if (head && !state.base) {
             if (localValue !== DirectSyncCore.canonicalData(head.backup.data)) {
