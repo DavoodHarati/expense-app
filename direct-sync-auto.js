@@ -71,7 +71,7 @@ async function directAutoTick() {
     const api = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/';
     const read = async () => {
       const response = await fetch(api + encodeURIComponent("'DirectSync'!A:GR"), { headers });
-      if (!response.ok) throw new Error('خواندن شیت ناموفق بود (کد ' + response.status + ')');
+      if (!response.ok) throw new Error(await directSyncReadError(response, session.email));
       return directSyncParse((await response.json()).values);
     };
     let records = await read();

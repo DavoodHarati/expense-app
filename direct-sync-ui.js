@@ -1,6 +1,22 @@
 'use strict';
 
 function directSyncMessage(text) { const el = document.getElementById('direct-sync-message'); if (el) el.textContent = text; }
+async function directSyncReadError(response, email) {
+  let reason = '';
+  try {
+    const data = await response.json();
+    const errors = data && data.error && data.error.errors;
+    const candidate = Array.isArray(errors) && errors[0] && errors[0].reason;
+    if (typeof candidate === 'string' && /^[A-Za-z0-9_]{1,80}$/.test(candidate)) reason = candidate;
+  } catch (_) {}
+  let text = 'خواندن شیت ناموفق بود (کد ' + response.status + ')';
+  if (response.status === 403) {
+    text += '؛ حساب انتخاب‌شده: ' + email + '. دسترسی شیت یا برنامه را بررسی کن.';
+    if (reason) text += ' دلیل گوگل: ' + reason + '.';
+    text += ' هیچ اطلاعاتی تغییر نکرد.';
+  }
+  return text;
+}
 function directSyncButtons(disabled) {
   for (const id of ['direct-sync-create', 'direct-sync-run', 'direct-sync-receipts', 'direct-sync-receive']) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
 }
@@ -169,7 +185,7 @@ function directSyncAuthorize(action) {
           if (state.email && state.email !== user.email) throw new Error('حساب گوگل انتخاب‌شده با حساب شیت متفاوت است');
           const baseUrl = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/';
           const range = encodeURIComponent("'DirectSync'!A:GR");
-          const read = async () => { const r = await fetch(baseUrl + range, { headers }); if (!r.ok) throw new Error('خواندن شیت ناموفق بود (کد ' + r.status + ')'); return directSyncParse((await r.json()).values); };
+          const read = async () => { const r = await fetch(baseUrl + range, { headers }); if (!r.ok) throw new Error(await directSyncReadError(r, user.email)); return directSyncParse((await r.json()).values); };
           directSyncMessage('در حال بررسی نسخه‌های شیت…');
           let records = await read(), graph = DirectSyncCore.inspectHistory(records);
           if (graph.state === 'conflict') throw new Error('دو دستگاه نسخه‌های متفاوت ذخیره کرده‌اند. هر دو در شیت حفظ شده‌اند و همگام‌سازی متوقف است');
