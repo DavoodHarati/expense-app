@@ -20,6 +20,10 @@ function directSyncPrepare() {
     create.onclick = () => directSyncAuthorize('create');
     run.onclick = () => directSyncAuthorize('sync');
     if (receipts) receipts.onclick = () => directSyncAuthorize('receipts');
+    const autoStart = document.getElementById('direct-auto-start'), autoStop = document.getElementById('direct-auto-stop');
+    if (autoStart) autoStart.onclick = directAutoStart;
+    if (autoStop) autoStop.onclick = () => directAutoStop('ارسال خودکار متوقف شد. اگر ارسالی در جریان بود ممکن است همان نسخه به شیت افزوده شود.');
+    directAutoShow(directAutoStatus);
   }).catch(() => directSyncMessage('سرویس ورود گوگل بارگذاری نشد.'));
 }
 function directSyncSnapshot() {
