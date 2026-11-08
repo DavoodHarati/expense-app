@@ -4,16 +4,18 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 (async () => {
-  let copied = '', fallback = '', message = '';
+  let copied = '', fallback = '', message = '', wide = false;
   const elements = [];
   const container = { children: [], replaceChildren() { this.children = []; }, appendChild(child) { this.children.push(child); } };
   const context = vm.createContext({
-    URL, navigator: { clipboard: { writeText: async value => { copied = value; } } },
+    URL, load: () => wide, navigator: { clipboard: { writeText: async value => { copied = value; } } },
     window: { prompt: (_, value) => { fallback = value; } },
     document: { getElementById: () => container, createElement: tag => { const el = { tag }; elements.push(el); return el; } }
   });
   vm.runInContext(fs.readFileSync('direct-sync-ui.js', 'utf8'), context);
   context.directSyncMessage = value => { message = value; };
+  assert.doesNotMatch(context.directSyncScope(), /auth\/spreadsheets/);
+  wide = true; assert.match(context.directSyncScope(), /auth\/spreadsheets/); wide = false;
   assert.equal(context.directSyncSheetId('https://docs.google.com/spreadsheets/u/0/d/abc_123/edit?x=1'), 'abc_123');
   assert.equal(context.directSyncSheetId('https://docs.google.com/spreadsheets/d/abc_123/edit'), 'abc_123');
   for (const input of ['https://docs.google.com.evil.test/spreadsheets/d/abc/edit', 'http://docs.google.com/spreadsheets/d/abc/edit', 'https://docs.google.com/spreadsheets/u/0/']) assert.equal(context.directSyncSheetId(input), '');

@@ -1,6 +1,9 @@
 'use strict';
 
 function directSyncMessage(text) { const el = document.getElementById('direct-sync-message'); if (el) el.textContent = text; }
+function directSyncScope() {
+  return 'openid email https://www.googleapis.com/auth/drive.file' + (load('directSyncWideSheets', false) === true ? ' https://www.googleapis.com/auth/spreadsheets' : '');
+}
 async function directSyncReadError(response, email) {
   let reason = '';
   try {
@@ -54,6 +57,19 @@ function directSyncPrepare() {
     directSyncButtons(false);
     create.onclick = () => directSyncAuthorize('create');
     run.onclick = () => directSyncAuthorize('sync');
+    const permission = document.createElement('button');
+    permission.type = 'button'; permission.className = 'sec';
+    const updatePermission = () => { permission.textContent = load('directSyncWideSheets', false) === true ? 'خاموش‌کردن درخواست مجوز گسترده شیت‌ها' : 'رفع خطای دسترسی: درخواست مجوز گسترده شیت‌ها'; };
+    updatePermission();
+    permission.onclick = () => {
+      if (load('directSyncWideSheets', false) === true) {
+        localStorage.removeItem('directSyncWideSheets'); directAutoStop(); updatePermission();
+        directSyncMessage('درخواست مجوز گسترده در برنامه خاموش شد. برای لغو مجوزی که قبلاً به گوگل داده‌ای، باید از تنظیمات حساب گوگل استفاده کنی.'); return;
+      }
+      if (!confirm('این گزینه از گوگل اجازه خواندن و ویرایش همه Google Sheets قابل دسترس در حساب انتخابی را می‌خواهد، نه فقط این شیت. فقط اگر با این دسترسی موافقی تأیید کن. اطلاعات گوشی تغییر نمی‌کند.')) return;
+      localStorage.setItem('directSyncWideSheets', 'true'); directAutoStop(); updatePermission(); directSyncAuthorize('sync');
+    };
+    run.insertAdjacentElement('afterend', permission);
     if (receipts) receipts.onclick = () => directSyncAuthorize('receipts');
     if (receive) receive.onclick = () => directSyncAuthorize('receive');
     const previous = document.getElementById('direct-receive-previous'), clear = document.getElementById('direct-receive-clear');
@@ -151,7 +167,7 @@ function directSyncAuthorize(action) {
   if (action === 'create' && localStorage.getItem('directSyncCreatePending') && !confirm('ممکن است شیت قبلی ساخته شده باشد. ابتدا گوگل درایو را بررسی کن. شیت دیگری ساخته شود؟')) return;
   if (action === 'create' && load('directSyncState', null) && !confirm('یک شیت اتصال مستقیم روی این دستگاه ثبت شده است. شیت جداگانه دیگری ساخته شود؟')) return;
   try {
-    const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_TEST_CLIENT, scope: 'openid email https://www.googleapis.com/auth/drive.file',
+    const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_TEST_CLIENT, scope: directSyncScope(),
       callback: async response => {
         let pending = false;
         try {

@@ -31,7 +31,7 @@ function directAutoStart() {
   try {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_TEST_CLIENT,
-      scope: 'openid email https://www.googleapis.com/auth/drive.file',
+      scope: directSyncScope(),
       callback: async response => {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه گوگل صادر نشد');
