@@ -3,7 +3,7 @@ const lsj = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); ret
 const CATS = lsj('cats', ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر']);
 const INC = lsj('icats', ['فروش', 'مشتری', 'حقوق', 'سایر']);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet'];
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet'];
 function makeFullBackup() {
   const data = {};
   BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
@@ -17,7 +17,7 @@ function validateFullBackup(backup) {
   const parse = key => { try { return JSON.parse(backup.data[key]); } catch { throw new Error('اطلاعات «' + key + '» در پشتیبان معتبر نیست'); } };
   if (!Array.isArray(parse('tx'))) throw new Error('فهرست تراکنش‌ها معتبر نیست');
   const acc = parse('accounts'); if (!acc || typeof acc !== 'object' || Array.isArray(acc)) throw new Error('اطلاعات حساب‌ها معتبر نیست');
-  for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
+  for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
   for (const key of ['cols', 'pjobs']) if (key in backup.data) { const value = parse(key); if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('اطلاعات «' + key + '» معتبر نیست'); }
   return backup.data;
 }
@@ -400,9 +400,8 @@ function _render() {
   if (tab === 'home' || tab === 'report') {
     el.innerHTML = tab === 'home' ? homeHtml() : reportHtml();
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
-    if (tab === 'report' && $('#receipt-archive-search')) { receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); }
   } else if (tab === 'rem') {
-    el.innerHTML = remHtml(); accordion(el, 'rem'); remBind();
+    el.innerHTML = receiptArchiveHtml() + remHtml(); accordion(el, 'rem'); remBind(); receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
   } else if (tab === 'contacts') {
     el.innerHTML = contactsHtml();
   } else if (tab === 'loans') {
@@ -470,9 +469,9 @@ function _render() {
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#defaultct').onchange = e => { localStorage.setItem('defaultCustomerType', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
-    const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [], carModels: ['اسکانیا', 'ولوو'] };
+    const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [], carModels: ['اسکانیا', 'ولوو'], carColors: [], carTypes: [] };
     const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : k === 'carModels' ? carModels() : lsj(k, []);
-    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»'], ['carModels', 'مدل خودروهای رانندگان']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${k === 'svq' || k === 'carModels' ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div class="mut lbstatus" data-k="${k}" aria-live="polite"></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
+    const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»'], ['carModels', 'مدل خودروهای رانندگان'], ['carColors', 'رنگ خودرو'], ['carTypes', 'نوع خودرو']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${['svq', 'carModels', 'carColors', 'carTypes'].includes(k) ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div class="mut lbstatus" data-k="${k}" aria-live="polite"></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">با زدن × برچسب حذف می‌شود، با نوشتن نام و «افزودن» (یا Enter) اضافه می‌شود. همه‌جا همین‌ها دیده می‌شوند و بین دستگاه‌ها همگام می‌شوند.</div><div class="mut" id="lbm" style="color:#0f766e;min-height:18px"></div><div id="lbx">${labHtml()}</div></div>`);
     const lbMsg = (k, m) => { const el = $('#lbx .lbstatus[data-k="' + k + '"]'); if (el) el.textContent = m; };
     const lbSet = (k, L, m) => { if (k === 'cats') { CATS.length = 0; CATS.push(...L); } else if (k === 'icats') { INC.length = 0; INC.push(...L); } localStorage.setItem(k, JSON.stringify(L)); localStorage.setItem('dirty', '1'); $('#lbx').innerHTML = labHtml(); lbMsg(k, m); push(); };
@@ -605,7 +604,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۰۴)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۰۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -701,7 +700,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-08T09:45:28Z';
+const BUILD = '2026-11-08T11:25:28Z';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -836,8 +835,8 @@ function reportHtml() {
     const l = list.filter(t => t.account === a && !t.ghost);
     return { a, o: sum(l.filter(t => t.type === 'debit' && !t.xfer)), i: sum(l.filter(t => t.type === 'credit' && !t.xfer)), xo: sum(l.filter(t => t.type === 'debit' && t.xfer)), xi: sum(l.filter(t => t.type === 'credit' && t.xfer)) };
   }).filter(r => r.o || r.i || r.xo || r.xi);
-  if (!months.length) return filterBar() + receiptArchiveHtml() + '<div class="card mut">داده‌ای نیست.</div>';
-  return `${filterBar()}${nameSugHtml()}${receiptArchiveHtml()}
+  if (!months.length) return filterBar() + '<div class="card mut">داده‌ای نیست.</div>';
+  return `${filterBar()}${nameSugHtml()}
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
     <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b><div style="font-size:11px;opacity:.75">درآمد منهای خرج</div></span></div></div>

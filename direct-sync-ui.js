@@ -2,7 +2,7 @@
 
 function directSyncMessage(text) { const el = document.getElementById('direct-sync-message'); if (el) el.textContent = text; }
 function directSyncButtons(disabled) {
-  for (const id of ['direct-sync-create', 'direct-sync-run']) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
+  for (const id of ['direct-sync-create', 'direct-sync-run', 'direct-sync-receipts']) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
 }
 function directSyncLink(state) {
   const el = document.getElementById('direct-sync-link');
@@ -14,11 +14,12 @@ function directSyncLink(state) {
 function directSyncPrepare() {
   directSyncLink(load('directSyncState', null));
   googleIdentityLoad.then(() => {
-    const create = document.getElementById('direct-sync-create'), run = document.getElementById('direct-sync-run');
+    const create = document.getElementById('direct-sync-create'), run = document.getElementById('direct-sync-run'), receipts = document.getElementById('direct-sync-receipts');
     if (!create || !run) return;
     directSyncButtons(false);
     create.onclick = () => directSyncAuthorize('create');
     run.onclick = () => directSyncAuthorize('sync');
+    if (receipts) receipts.onclick = () => directSyncAuthorize('receipts');
   }).catch(() => directSyncMessage('سرویس ورود گوگل بارگذاری نشد.'));
 }
 function directSyncSnapshot() {
@@ -44,8 +45,66 @@ function directSyncDownload(backup) {
   a.href = url; a.download = 'expense-direct-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
+async function directSyncReceiptArchive(sheetId, headers, items) {
+  const api = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId);
+  const valuesApi = api + '/values/';
+  const name = 'ReceiptArchive';
+  const header = ['شناسه رسید (expense-receipt-v1)', 'گیرنده', 'مبلغ تومان', 'تاریخ', 'حساب هنگام ارسال', 'وضعیت هنگام ارسال', 'متن رسید'];
+  const metadata = async () => {
+    const response = await fetch(api + '?fields=sheets(properties(title))', { headers });
+    if (!response.ok) throw new Error('فهرست برگه‌های شیت دریافت نشد (کد ' + response.status + ')');
+    const result = await response.json();
+    if (!Array.isArray(result.sheets)) throw new Error('فهرست برگه‌های شیت معتبر نیست');
+    return result.sheets.some(sheet => sheet.properties && sheet.properties.title === name);
+  };
+  if (!(await metadata())) {
+    const random = new Uint32Array(1); crypto.getRandomValues(random);
+    const tabId = 1 + (random[0] % 2000000000);
+    const requests = [
+      { addSheet: { properties: { sheetId: tabId, title: name, rightToLeft: true } } },
+      { updateCells: { start: { sheetId: tabId, rowIndex: 0, columnIndex: 0 }, rows: [{ values: header.map(value => ({ userEnteredValue: { stringValue: value } })) }], fields: 'userEnteredValue' } }
+    ];
+    const created = await fetch(api + ':batchUpdate', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) });
+    if (!created.ok && !(await metadata())) throw new Error('ساخت برگه رسیدها تأیید نشد (کد ' + created.status + ')');
+  }
+  const url = valuesApi + encodeURIComponent("'ReceiptArchive'!A:G");
+  const read = async () => {
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('خواندن برگه رسیدها ناموفق بود (کد ' + response.status + ')');
+    const result = await response.json(), rows = result.values;
+    if (!Array.isArray(rows) || JSON.stringify(rows[0]) !== JSON.stringify(header)) throw new Error('برگه ReceiptArchive قالب معتبر برنامه را ندارد؛ هیچ تغییری داده نشد');
+    const existing = new Map();
+    for (const row of rows.slice(1)) {
+      if (!Array.isArray(row) || !/^[a-f0-9]{64}$/.test(row[0] || '') || typeof row[6] !== 'string' || !row[6]) throw new Error('یک ردیف در برگه رسیدها ناقص است؛ ارسال متوقف شد');
+      if (existing.has(row[0]) && existing.get(row[0]) !== row[6]) throw new Error('شناسه‌های رسید در شیت با هم ناسازگارند');
+      existing.set(row[0], row[6]);
+    }
+    return existing;
+  };
+  const known = await read(), toSend = [];
+  for (const item of items) {
+    const raw = String(item.raw || '').trim(); if (!raw) continue;
+    if (raw.length > 45000) throw new Error('متن یکی از رسیدها برای یک سلول شیت بیش از حد طولانی است');
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    const id = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+    if (known.has(id)) { if (known.get(id) !== raw) throw new Error('شناسه رسید با متن شیت مطابقت ندارد'); continue; }
+    const txItem = tx.find(entry => entry.receipt === raw.slice(0, 1000));
+    const parsed = parseReceipt(raw);
+    const nameValue = parsed && parsed.name || txItem && (txItem.person || txItem.seller) || '';
+    const amount = parsed && parsed.amount || txItem && txItem.amount;
+    const date = parsed && parsed.date || txItem && txItem.date || '';
+    const row = [id, String(nameValue), amount ? String(Math.round(amount / 10)) : '', String(date), txItem ? String(accName(txItem.account)) : '', txItem ? 'وصل‌شده' : 'بدون تراکنش متصل', raw];
+    toSend.push(row); known.set(id, raw);
+  }
+  if (!toSend.length) return 0;
+  const appended = await fetch(valuesApi + encodeURIComponent("'ReceiptArchive'!A:G") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: toSend }) });
+  if (!appended.ok) throw new Error('ارسال رسیدها تأیید نشد (کد ' + appended.status + ')؛ پیش از تلاش دوباره برگه رسیدها را بررسی کن');
+  const confirmed = await read();
+  for (const row of toSend) if (confirmed.get(row[0]) !== row[6]) throw new Error('بررسی رسیدهای ارسال‌شده کامل نشد؛ برگه را بررسی کن');
+  return toSend.length;
+}
 function directSyncAuthorize(action) {
-  if (googleTestBusy) return;
+  if (googleTestBusy) { directSyncMessage('عملیات دیگری در حال انجام است؛ پس از پایان آن دوباره تلاش کن.'); return; }
   if (action === 'create' && localStorage.getItem('directSyncCreatePending') && !confirm('ممکن است شیت قبلی ساخته شده باشد. ابتدا گوگل درایو را بررسی کن. شیت دیگری ساخته شود؟')) return;
   if (action === 'create' && load('directSyncState', null) && !confirm('یک شیت اتصال مستقیم روی این دستگاه ثبت شده است. شیت جداگانه دیگری ساخته شود؟')) return;
   try {
@@ -88,7 +147,17 @@ function directSyncAuthorize(action) {
           let records = await read(), graph = DirectSyncCore.inspectHistory(records);
           if (graph.state === 'conflict') throw new Error('دو دستگاه نسخه‌های متفاوت ذخیره کرده‌اند. هر دو در شیت حفظ شده‌اند و همگام‌سازی متوقف است');
           const head = records.find(item => item.id === graph.heads[0]);
+          const receiptItems = action === 'receipts' ? receiptArchiveItems() : null;
           const local = directSyncSnapshot(), localValue = DirectSyncCore.canonicalData(local.data);
+          if (action === 'receipts') {
+            if (!head) throw new Error('ابتدا یک نسخه با همگام‌سازی دستی در این شیت ثبت کن');
+            if (!receiptItems.length) { directSyncMessage('هنوز رسیدی برای ارسال وجود ندارد.'); return; }
+            if (!confirm('رسیدهای این دستگاه در برگه جداگانه شیت اتصال مستقیم ذخیره شوند؟ اطلاعات شخصی رسیدها در حساب گوگل انتخاب‌شده قرار می‌گیرد.')) { directSyncMessage('ارسال رسیدها لغو شد.'); return; }
+            directSyncMessage('در حال آماده‌سازی و بررسی برگه رسیدها…');
+            const count = await directSyncReceiptArchive(state.id, headers, receiptItems);
+            directSyncMessage(count ? '✅ ' + count.toLocaleString('fa-IR') + ' رسید در برگه جدا اضافه و خوانده شد. حساب و وضعیت مربوط به زمان ارسال است.' : '✅ همه رسیدهای موجود قبلاً در برگه ثبت شده‌اند.');
+            return;
+          }
           if (head && !state.base) {
             if (localValue !== DirectSyncCore.canonicalData(head.backup.data)) {
               if (confirm('اطلاعات این دستگاه با آخرین نسخه شیت متفاوت است. فایل نسخه شیت برای بررسی دانلود شود؟ اطلاعات فعلی تغییر نمی‌کند.')) directSyncDownload(head.backup);
