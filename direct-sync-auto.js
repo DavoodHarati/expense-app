@@ -29,12 +29,14 @@ function directAutoStart() {
   if (!state || !state.id || !state.base || !state.email) { directAutoShow('ابتدا شیت اتصال مستقیم را بساز و یک بار همگام‌سازی دستی را کامل کن.'); return; }
   if (!confirm('تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
   try {
+    const requestedScope = directSyncScope();
     const client = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_TEST_CLIENT,
-      scope: directSyncScope(),
+      scope: requestedScope,
       callback: async response => {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه گوگل صادر نشد');
+          directSyncCheckGranted(response, requestedScope);
           const lifetime = Number(response.expires_in);
           if (!Number.isFinite(lifetime) || lifetime <= 60) throw new Error('زمان اعتبار دسترسی گوگل مشخص نیست');
           const headers = { Authorization: 'Bearer ' + response.access_token };

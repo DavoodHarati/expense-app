@@ -4,19 +4,26 @@ function directSyncMessage(text) { const el = document.getElementById('direct-sy
 function directSyncScope() {
   return 'openid email https://www.googleapis.com/auth/drive.file' + (load('directSyncWideSheets', false) === true ? ' https://www.googleapis.com/auth/spreadsheets' : '');
 }
+function directSyncCheckGranted(response, requestedScope) {
+  const required = 'https://www.googleapis.com/auth/spreadsheets';
+  if (requestedScope.split(' ').includes(required) && typeof response.scope === 'string' && !response.scope.split(/\s+/).includes(required)) throw new Error('گوگل مجوز گسترده شیت‌ها را صادر نکرد. گزینه مجوز گسترده را خاموش و دوباره روشن کن و در پنجره گوگل اجازه را تأیید کن.');
+}
 async function directSyncReadError(response, email) {
-  let reason = '';
+  let reason = '', status = '';
   try {
     const data = await response.json();
     const errors = data && data.error && data.error.errors;
-    const candidate = Array.isArray(errors) && errors[0] && errors[0].reason;
+    const details = data && data.error && data.error.details;
+    const candidate = (Array.isArray(errors) && errors[0] && errors[0].reason) || (Array.isArray(details) && details.find(item => item && typeof item.reason === 'string') || {}).reason;
     if (typeof candidate === 'string' && /^[A-Za-z0-9_]{1,80}$/.test(candidate)) reason = candidate;
+    if (data && data.error && typeof data.error.status === 'string' && /^[A-Z_]{1,80}$/.test(data.error.status)) status = data.error.status;
   } catch (_) {}
   let text = 'خواندن شیت ناموفق بود (کد ' + response.status + ')';
   if (response.status === 403) {
     text += '؛ حساب انتخاب‌شده: ' + email + '. دسترسی شیت یا برنامه را بررسی کن.';
     if (reason) text += ' دلیل گوگل: ' + reason + '.';
-    text += ' هیچ اطلاعاتی تغییر نکرد.';
+    if (status) text += ' وضعیت: ' + status + '.';
+    text += ' عملیات کامل تأیید نشد؛ پیش از تلاش دوباره شیت را بررسی کن.';
   }
   return text;
 }
@@ -67,7 +74,7 @@ function directSyncPrepare() {
         directSyncMessage('درخواست مجوز گسترده در برنامه خاموش شد. برای لغو مجوزی که قبلاً به گوگل داده‌ای، باید از تنظیمات حساب گوگل استفاده کنی.'); return;
       }
       if (!confirm('این گزینه از گوگل اجازه خواندن و ویرایش همه Google Sheets قابل دسترس در حساب انتخابی را می‌خواهد، نه فقط این شیت. فقط اگر با این دسترسی موافقی تأیید کن. اطلاعات گوشی تغییر نمی‌کند.')) return;
-      localStorage.setItem('directSyncWideSheets', 'true'); directAutoStop(); updatePermission(); directSyncAuthorize('sync');
+      localStorage.setItem('directSyncWideSheets', 'true'); directAutoStop(); updatePermission(); directSyncAuthorize('sync', true);
     };
     run.insertAdjacentElement('afterend', permission);
     if (receipts) receipts.onclick = () => directSyncAuthorize('receipts');
@@ -162,16 +169,18 @@ async function directSyncReceiptArchive(sheetId, headers, items) {
   for (const row of toSend) if (confirmed.get(row[0]) !== row[6]) throw new Error('بررسی رسیدهای ارسال‌شده کامل نشد؛ برگه را بررسی کن');
   return toSend.length;
 }
-function directSyncAuthorize(action) {
+function directSyncAuthorize(action, requestConsent = false) {
   if (googleTestBusy) { directSyncMessage('عملیات دیگری در حال انجام است؛ پس از پایان آن دوباره تلاش کن.'); return; }
   if (action === 'create' && localStorage.getItem('directSyncCreatePending') && !confirm('ممکن است شیت قبلی ساخته شده باشد. ابتدا گوگل درایو را بررسی کن. شیت دیگری ساخته شود؟')) return;
   if (action === 'create' && load('directSyncState', null) && !confirm('یک شیت اتصال مستقیم روی این دستگاه ثبت شده است. شیت جداگانه دیگری ساخته شود؟')) return;
   try {
-    const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_TEST_CLIENT, scope: directSyncScope(),
+    const requestedScope = directSyncScope();
+    const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_TEST_CLIENT, scope: requestedScope,
       callback: async response => {
         let pending = false;
         try {
           if (response.error || !response.access_token) throw new Error('اجازه گوگل صادر نشد');
+          directSyncCheckGranted(response, requestedScope);
           const headers = { Authorization: 'Bearer ' + response.access_token };
           const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
           if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
@@ -274,6 +283,6 @@ function directSyncAuthorize(action) {
       },
       error_callback: () => { googleTestBusy = false; directSyncButtons(false); googleTestButton(); directSyncMessage('⚠️ پنجره گوگل بسته شد یا باز نشد.'); }
     });
-    googleTestBusy = true; directSyncButtons(true); googleTestButton(); directSyncMessage('در حال باز کردن پنجره گوگل…'); client.requestAccessToken({ prompt: 'select_account' });
+    googleTestBusy = true; directSyncButtons(true); googleTestButton(); directSyncMessage('در حال باز کردن پنجره گوگل…'); client.requestAccessToken({ prompt: requestConsent ? 'consent select_account' : 'select_account' });
   } catch (_) { googleTestBusy = false; directSyncButtons(false); googleTestButton(); directSyncMessage('⚠️ آماده‌سازی اتصال ناموفق بود.'); }
 }
