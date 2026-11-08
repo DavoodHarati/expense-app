@@ -170,7 +170,13 @@ function directSyncAuthorize(action) {
           if (state.base && !base) throw new Error('نسخه مبنای این دستگاه در شیت پیدا نشد');
           if (head && base) {
             const decision = DirectSyncCore.decide(DirectSyncCore.canonicalData(base.backup.data), localValue, DirectSyncCore.canonicalData(head.backup.data));
-            if (decision === 'conflict') throw new Error('اطلاعات دستگاه و شیت هر دو تغییر کرده‌اند؛ هیچ‌کدام بازنویسی نشد');
+            if (decision === 'conflict') {
+              const preview = DirectSyncCore.previewMerge(base.backup.data, local.data, head.backup.data);
+              const detail = preview.conflicts.length ? preview.conflicts.length.toLocaleString('fa-IR') + ' مورد نیازمند بررسی است.' : 'تغییرها در بررسی اولیه قابل تفکیک‌اند؛ ادغام خودکار هنوز فعال نیست.';
+              const download = confirm('اطلاعات این دستگاه و شیت هر دو تغییر کرده‌اند. ' + detail + ' نسخه شیت برای بررسی دانلود شود؟ اطلاعات فعلی تغییر نمی‌کند.');
+              if (download) directSyncDownload(head.backup);
+              directSyncMessage('⚠️ ' + detail + ' هیچ اطلاعاتی تغییر نکرد.'); return;
+            }
             if (decision === 'download') { const download = confirm('نسخه شیت جدیدتر است. فایل آن برای بررسی دانلود شود؟ اطلاعات فعلی تغییر نمی‌کند.'); if (download) directSyncDownload(head.backup); directSyncMessage(download ? 'فایل نسخه شیت آماده شد؛ برای بازیابی از بخش پشتیبان‌گیری استفاده کن.' : 'دریافت لغو شد؛ اطلاعات دستگاه تغییر نکرد.'); return; }
             if (decision === 'unchanged') { state.base = head.id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state); directSyncMessage('✅ اطلاعات دستگاه و شیت یکسان است.'); return; }
           }

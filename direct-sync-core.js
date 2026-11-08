@@ -60,7 +60,55 @@
     return 'conflict';
   }
 
-  const api = Object.freeze({ canonicalData, inspectHistory, decide });
+  function stable(value) {
+    if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+    if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stable(value[key])).join(',') + '}';
+    return JSON.stringify(value);
+  }
+
+  function previewMerge(base, local, remote) {
+    for (const value of [base, local, remote]) if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid backup data');
+    const entities = new Set(['tx', 'rem', 'ppl', 'invoices']);
+    const missing = Symbol('missing');
+    const equal = (first, second) => first === missing || second === missing ? first === second : stable(first) === stable(second);
+    const result = {}, conflicts = [];
+    const resolve = (key, id, before, left, right) => {
+      if (equal(left, right)) return left;
+      if (equal(before, left)) return right;
+      if (equal(before, right)) return left;
+      conflicts.push({ key, id }); return missing;
+    };
+    const parse = value => { if (value === missing) return missing; if (typeof value !== 'string') throw new Error('Invalid backup value'); try { return JSON.parse(value); } catch (_) { return value; } };
+    for (const key of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
+      if (excluded.has(key)) continue;
+      const before = Object.prototype.hasOwnProperty.call(base, key) ? base[key] : missing;
+      const left = Object.prototype.hasOwnProperty.call(local, key) ? local[key] : missing;
+      const right = Object.prototype.hasOwnProperty.call(remote, key) ? remote[key] : missing;
+      const arrays = [before, left, right].map(parse);
+      if (entities.has(key) && arrays.every(value => value === missing || Array.isArray(value))) {
+        const maps = arrays.map(value => {
+          const map = new Map();
+          for (const item of value === missing ? [] : value) {
+            if (!item || (typeof item.id !== 'string' && typeof item.id !== 'number') || !String(item.id) || map.has(String(item.id))) throw new Error('Invalid or duplicate record ID in ' + key);
+            map.set(String(item.id), item);
+          }
+          return map;
+        });
+        const merged = [];
+        for (const id of new Set(maps.flatMap(map => [...map.keys()]))) {
+          const values = maps.map(map => map.has(id) ? map.get(id) : missing);
+          const item = resolve(key, id, ...values); if (item !== missing) merged.push(item);
+        }
+        if (arrays.some(value => value !== missing)) result[key] = JSON.stringify(merged);
+      } else {
+        const value = resolve(key, '', before, left, right);
+        if (value !== missing) result[key] = value;
+      }
+    }
+    return { data: result, conflicts };
+  }
+
+  const api = Object.freeze({ canonicalData, inspectHistory, decide, previewMerge });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DirectSyncCore = api;
 })(globalThis);
