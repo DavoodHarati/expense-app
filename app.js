@@ -414,7 +414,7 @@ function _render() {
       ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
     el.insertAdjacentHTML('beforeend', `<div class="card" id="google-test"><b>آزمایش ورود به گوگل</b><div class="mut">ورود به گوگل را آزمایش کن یا یک شیت آزمایشی خالی بساز. اطلاعات مالی به آن منتقل نمی‌شود و همگام‌سازی فعلی تغییر نمی‌کند.</div><button id="google-test-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-test-msg" aria-live="polite">${esc(googleTestMessage)}</div><button class="sec" id="google-sheet-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-sheet-test-msg" aria-live="polite">${esc(googleSheetMessage)}</div><button class="sec" id="google-write-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-write-test-msg" aria-live="polite">${esc(googleWriteMessage)}</div><button class="sec" id="google-data-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-data-test-msg" aria-live="polite">${esc(googleDataMessage)}</div><div class="google-sheet-link">${googleSheetLink()}</div></div>`);
     prepareGoogleTest();
-    el.insertAdjacentHTML('beforeend', `<div class="card" id="google-copy"><b>نسخه پشتیبان در گوگل</b><div class="mut">با اجازه تو یک شیت جدید و جدا برای نسخه‌ای از اطلاعات این دستگاه ساخته می‌شود. این فقط پشتیبان است؛ همگام‌سازی خودکار یا بازیابی از آن هنوز آماده نیست.</div><button id="google-copy-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-copy-msg" aria-live="polite">${esc(googleCopyMessage)}</div><div id="google-copy-link">${googleCopyLink()}</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="google-copy"><b>نسخه پشتیبان در گوگل</b><div class="mut">نسخه‌ای جدا از اطلاعات این دستگاه در شیت جدید ساخته می‌شود؛ همگام‌سازی خودکار فعال نیست.</div><button id="google-copy-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-copy-msg" aria-live="polite">${esc(googleCopyMessage)}</div><div id="google-copy-link">${googleCopyLink()}</div><hr><b>بازیابی نسخه گوگل</b><div class="mut">لینک شیت پشتیبان را وارد کن یا خالی بگذار تا آخرین شیت ساخته‌شده در این دستگاه بررسی شود. فایل بررسی‌شده دانلود می‌شود؛ سپس از بخش «پشتیبان‌گیری» آن را بازیابی کن.</div><input id="google-restore-url" type="url" placeholder="لینک شیت پشتیبان (اختیاری)" dir="ltr"><button id="google-restore-btn" disabled>در حال آماده‌سازی…</button><div id="google-restore-msg" class="mut" aria-live="polite"></div></div>`);
     prepareGoogleCopy();
     el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"><div class="mut">مشتری‌های اصلی من چه کسانی هستند؟</div><select id="defaultct"><option value="">انتخاب در هر تراکنش</option><option value="driver"${defaultCustomerType() === 'driver' ? ' selected' : ''}>راننده</option><option value="normal"${defaultCustomerType() === 'normal' ? ' selected' : ''}>مشتری عادی</option>${lsj('ctypes', []).map(x => `<option value="${esc(x)}"${defaultCustomerType() === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
@@ -555,7 +555,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۹۹)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۰۰)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -651,7 +651,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-08T02:53:07Z';
+const BUILD = '2026-11-08T03:38:14Z';
 function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
   const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
@@ -941,6 +941,7 @@ function googleTestButton() {
   const wb = document.getElementById('google-write-test-btn'); if (wb) { wb.disabled = !ready || googleTestBusy; wb.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'آزمایش نوشتن و خواندن شیت' : 'در حال آماده‌سازی…'; }
   const db = document.getElementById('google-data-test-btn'); if (db) { db.disabled = !ready || googleTestBusy; db.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'آزمایش اطلاعات ساختگی' : 'در حال آماده‌سازی…'; }
   const cb = document.getElementById('google-copy-btn'); if (cb) { cb.disabled = !ready || googleTestBusy; cb.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'ساخت پشتیبان جدا در گوگل' : 'در حال آماده‌سازی…'; }
+  const rb = document.getElementById('google-restore-btn'); if (rb) { rb.disabled = !ready || googleTestBusy; rb.textContent = googleTestBusy ? 'در حال بررسی…' : ready ? 'بررسی و دریافت پشتیبان گوگل' : 'در حال آماده‌سازی…'; }
 }
 function prepareGoogleTest() {
   if (!googleIdentityLoad) {
@@ -1117,8 +1118,57 @@ function prepareGoogleCopy() {
   googleIdentityLoad.then(() => {
     const button = document.getElementById('google-copy-btn');
     if (button) button.onclick = googleCreateBackupCopy;
+    const restore = document.getElementById('google-restore-btn');
+    if (restore) restore.onclick = googleDownloadBackup;
     googleTestButton();
   }).catch(() => googleCopyStatus('⚠️ سرویس گوگل بارگذاری نشد؛ اینترنت را بررسی کن و تنظیمات را دوباره باز کن.'));
+}
+function googleBackupFromRows(rows) {
+  if (!Array.isArray(rows) || !rows[0] || rows[0][0] !== 'format' || rows[0][1] !== 'expense-app-backup-v1' || !rows[1] || rows[1][0] !== 'chunks' || !/^[1-9]\d*$/.test(rows[1][1] || '')) throw new Error('این شیت پشتیبان معتبر برنامه نیست');
+  const count = Number(rows[1][1]);
+  if (!Number.isSafeInteger(count) || count > 100000 || rows.length !== count + 2) throw new Error('پشتیبان ناقص است');
+  const parts = [];
+  for (let index = 0; index < count; index++) {
+    const row = rows[index + 2];
+    if (!row || row[0] !== String(index + 1) || typeof row[1] !== 'string') throw new Error('بخش‌های پشتیبان ناقص یا نامرتب هستند');
+    parts.push(row[1]);
+  }
+  const backup = JSON.parse(parts.join(''));
+  validateFullBackup(backup);
+  return backup;
+}
+function googleDownloadBackup() {
+  if (googleTestBusy) return;
+  const status = message => { const element = document.getElementById('google-restore-msg'); if (element) element.textContent = message; };
+  const input = document.getElementById('google-restore-url').value.trim();
+  let id = '';
+  if (input) {
+    try { const url = new URL(input); if (url.protocol === 'https:' && url.hostname === 'docs.google.com') id = (url.pathname.match(/^\/spreadsheets\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/) || [])[1] || ''; } catch { id = ''; }
+  } else { const copy = load('googleBackupCopy', null); id = copy && copy.id || ''; }
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) { status('⚠️ لینک معتبر شیت پشتیبان را وارد کن.'); return; }
+  try {
+    const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_TEST_CLIENT, scope: 'openid email https://www.googleapis.com/auth/drive.file',
+      callback: async response => {
+        try {
+          if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
+          status('در حال خواندن و بررسی پشتیبان…');
+          const auth = { Authorization: 'Bearer ' + response.access_token };
+          const result = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(id) + '/values/' + encodeURIComponent("'Backup'!A:B"), { headers: auth });
+          if (!result.ok) throw new Error('شیت خوانده نشد (کد ' + result.status + '). حساب سازنده شیت و لینک را بررسی کن');
+          const backup = googleBackupFromRows((await result.json()).values);
+          const count = JSON.parse(backup.data.tx).length;
+          const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob), link = document.createElement('a');
+          link.href = url; link.download = 'expense-google-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+          document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+          status('✅ پشتیبان بررسی شد: ' + count.toLocaleString('fa-IR') + ' تراکنش. فایل را در دانلودها بررسی کن؛ برای جایگزینی اطلاعات از بخش پشتیبان‌گیری، بازیابی فایل را انتخاب کن. اطلاعات فعلی هنوز تغییر نکرده است.');
+        } catch (err) { status('⚠️ دریافت یا بررسی پشتیبان انجام نشد: ' + (err.message || 'خطای نامشخص')); }
+        finally { googleTestBusy = false; googleTestButton(); }
+      },
+      error_callback: () => { googleTestBusy = false; status('⚠️ پنجره اجازه گوگل بسته شد یا باز نشد.'); googleTestButton(); }
+    });
+    googleTestBusy = true; status('در حال باز کردن پنجره اجازه گوگل…'); googleTestButton(); client.requestAccessToken({ prompt: 'select_account' });
+  } catch (err) { googleTestBusy = false; status('⚠️ آماده‌سازی دسترسی گوگل ناموفق بود.'); googleTestButton(); }
 }
 function googleCreateBackupCopy() {
   if (googleTestBusy) return;
