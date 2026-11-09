@@ -305,7 +305,7 @@ function pendingCard(t) {
     ${showCu ? ctBlock(t, D, cat0) : ''}
     ${debit ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-    <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="date" value="${esc(D.rdt || '')}">
+    <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}
     <div class="row"><button class="ok">ذخیره</button>${editing.has(String(t.id)) ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
@@ -606,7 +606,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۱۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۱۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -881,7 +881,7 @@ document.addEventListener('change', e => {
   const row = document.querySelector('.combinedbalance'); if (row) row.hidden = !showAssistantTotal;
 });
 document.addEventListener('click', async e => {
-  const workDay = e.target.closest('.work-day'); if (workDay) { const date = document.getElementById(workDay.dataset.target); if (date) { date.value = invoiceDate(Number(workDay.dataset.days)); syncPersianDate(date); } return; }
+  const workDay = e.target.closest('.work-day'); if (workDay) { const date = document.getElementById(workDay.dataset.target); if (date) { date.value = invoiceDate(Number(workDay.dataset.days)); syncPersianDate(date); date.dispatchEvent(new Event('input', { bubbles:true })); } return; }
   const review = e.target.closest('.workreview');
   if (review) {
     const t = tx.find(x => String(x.id) === review.dataset.id), box = $('#workreviewbox'); if (!t || !box) return;
@@ -931,6 +931,7 @@ document.addEventListener('click', async e => {
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
+  if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
   if (e.target.classList.contains('ok') && editing.has(String(id))) { const old = editSnapshots[id]; if (old === editSignature(card)) { editing.delete(String(id)); delete editSnapshots[id]; delete drafts[id]; render(); return; } if (!confirm('اطلاعات تراکنش تغییر کرده است. تغییرات ذخیره شود؟')) return; }
   if (e.target.classList.contains('ln') && editing.has(String(id)) && !confirm('نوع تراکنش تغییر می‌کند. تغییرات ذخیره شود؟')) return;
   if (e.target.matches('.cx,.xf,.skip')) { delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; }
@@ -1383,7 +1384,7 @@ function remHtml() {
     <select id="rt"><option value="check">ثبت/سررسید چک</option><option value="inst">قسط</option><option value="custom">سفارشی (شهریه، باشگاه…)</option></select>
     <input id="rn" placeholder="عنوان (مثلاً: چک ملت، قسط وام، شهریه)">
     <input id="ra" type="text" inputmode="numeric" placeholder="مبلغ به تومان (اختیاری)">
-    <div class="mut" id="rdl">تاریخ سررسید:</div><input id="rd" type="date">
+    <div class="mut" id="rdl">تاریخ سررسید:</div>${persianDateFields('rd-persian')}<input id="rd" type="hidden">
     <div class="mut">چند روز قبل هشدار؟ (چند عدد با ویرگول، مثلاً ۷,۳,۱)</div><input id="rb" value="7,3,1" dir="ltr">
     <div id="rc" class="hide"><input id="rk" type="number" inputmode="numeric" placeholder="تعداد کل اقساط (ماهانه)"></div>
     <select id="rr" class="hide"><option value="">تکرار ندارد</option><option value="m">هر ماه</option><option value="y">هر سال</option></select>
@@ -1399,7 +1400,7 @@ function remBind() {
   const ty = () => { const t = $('#rt').value; $('#rc').classList.toggle('hide', t !== 'inst'); $('#rr').classList.toggle('hide', t !== 'custom'); $('#rdl').textContent = t === 'inst' ? 'تاریخ اولین قسط:' : 'تاریخ سررسید:'; };
   $('#rt').onchange = ty; ty();
   $('#rg').onclick = () => {
-    const title = $('#rn').value.trim(), date = $('#rd').value; if (!title || !date) { alert('عنوان و تاریخ لازم است'); return; }
+    const title = $('#rn').value.trim(), date = persianToIso($('#rd-persian').value.trim()); if (!title || !date) { alert('عنوان و تاریخ شمسی معتبر لازم است'); return; }
     const bs = $('#rb').value.split(/[,،]/).map(x => +x.trim()).filter(x => x >= 0);
     const t = $('#rt').value;
     const amount = $('#ra').value ? invoiceDigits($('#ra').value) : 0; if (amount === null || !Number.isSafeInteger(amount * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; }

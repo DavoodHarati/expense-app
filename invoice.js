@@ -11,10 +11,25 @@ function invoiceDate(daysAgo = 0) {
   const get = type => parts.find(part => part.type === type).value;
   return get('year') + '/' + get('month') + '/' + get('day');
 }
-function persianDateFields(id) {
-  const today = invoiceDate(), [year, month, day] = today.split('/').map(Number);
-  const options = (start, end, selected) => Array.from({ length: end - start + 1 }, (_, index) => { const value = start + index; return `<option value="${value}"${value === selected ? ' selected' : ''}>${value.toLocaleString('fa-IR')}</option>`; }).join('');
-  return `<label class="mut" for="${id}">تاریخ شمسی</label><input id="${id}" inputmode="numeric" value="${today}" placeholder="1405/08/15"><div class="row" dir="rtl" data-date-target="${id}"><select data-date-part="day" aria-label="روز شمسی">${options(1,31,day)}</select><select data-date-part="month" aria-label="ماه شمسی">${options(1,12,month)}</select><select data-date-part="year" aria-label="سال شمسی">${options(year-20,year+10,year)}</select></div><div class="row"><button type="button" class="sec work-day" data-target="${id}" data-days="0">امروز</button><button type="button" class="sec work-day" data-target="${id}" data-days="1">دیروز</button><button type="button" class="sec work-day" data-target="${id}" data-days="2">پریروز</button></div>`;
+function persianDateFields(id, initial = invoiceDate(), inputClass = '') {
+  const today = invoiceDate(), [year, month, day] = (initial || today).split('/').map(Number), currentYear = Number(today.slice(0, 4));
+  const options = (start, end, selected) => Array.from({ length: end - start + 1 }, (_, index) => { const value = start + index; return `<option value="${value}"${value === selected ? ' selected' : ''}>${value.toLocaleString('fa-IR', { useGrouping: false })}</option>`; }).join('');
+  return `<label class="mut" for="${id}">تاریخ شمسی</label><input id="${id}" class="${inputClass} persian-date-input" inputmode="numeric" value="${esc(initial)}" placeholder="1405/08/15"><div class="row" dir="rtl" data-date-target="${id}"><select data-date-part="day" aria-label="روز شمسی">${options(1,31,day)}</select><select data-date-part="month" aria-label="ماه شمسی">${options(1,12,month)}</select><select data-date-part="year" aria-label="سال شمسی">${options(Math.min(currentYear-20,year),Math.max(currentYear+10,year),year)}</select></div><div class="row"><button type="button" class="sec work-day" data-target="${id}" data-days="0">امروز</button><button type="button" class="sec work-day" data-target="${id}" data-days="1">دیروز</button><button type="button" class="sec work-day" data-target="${id}" data-days="2">پریروز</button></div>`;
+}
+function persianToIso(text) {
+  const normalized = String(text).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  const match = normalized.match(/^(1[34]\d{2})\/(\d{1,2})\/(\d{1,2})$/); if (!match) return '';
+  const year = +match[1], month = +match[2], day = +match[3]; if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+  const formatter = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
+  const start = Date.UTC(year + 621, 2, 18, 12);
+  for (let offset = 0; offset < 370; offset++) { const date = new Date(start + offset * 86400000), parts = formatter.formatToParts(date), part = type => Number(parts.find(p => p.type === type).value); if (part('year') === year && part('month') === month && part('day') === day) return date.toISOString().slice(0, 10); }
+  return '';
+}
+function isoToPersian(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const date = new Date(iso + 'T12:00:00Z'); if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date), part = type => parts.find(p => p.type === type).value;
+  return part('year') + '/' + part('month') + '/' + part('day');
 }
 function syncPersianDate(input) {
   const group = document.querySelector('[data-date-target="' + input.id + '"]');
@@ -27,8 +42,8 @@ document.addEventListener('change', event => {
   const group = event.target.closest('[data-date-target]');
   if (group && event.target.dataset.datePart) {
     const value = part => group.querySelector('[data-date-part="' + part + '"]').value;
-    document.getElementById(group.dataset.dateTarget).value = value('year') + '/' + value('month').padStart(2,'0') + '/' + value('day').padStart(2,'0');
-  } else if (event.target.matches('#wdt,#manualdate')) syncPersianDate(event.target);
+    const input = document.getElementById(group.dataset.dateTarget); input.value = value('year') + '/' + value('month').padStart(2,'0') + '/' + value('day').padStart(2,'0'); input.dispatchEvent(new Event('input', { bubbles:true }));
+  } else if (event.target.matches('.persian-date-input')) syncPersianDate(event.target);
 });
 function invoiceAmountInput(input) {
   const numeric = invoiceDigits(input.value);
@@ -121,7 +136,7 @@ function invoiceBind() {
   const contacts = load('ppl', []), peopleList = Array.isArray(contacts) ? contacts : [];
   const get = id => document.getElementById(id);
   const todayYear = Number(invoiceDate().slice(0, 4));
-  for (const [id, start, end] of [['inv-jyear', todayYear - 20, todayYear + 10], ['inv-jmonth', 1, 12], ['inv-jday', 1, 31]]) get(id).innerHTML = Array.from({length:end-start+1}, (_,i) => `<option value="${start+i}">${(start+i).toLocaleString('fa-IR')}</option>`).join('');
+  for (const [id, start, end] of [['inv-jyear', todayYear - 20, todayYear + 10], ['inv-jmonth', 1, 12], ['inv-jday', 1, 31]]) get(id).innerHTML = Array.from({length:end-start+1}, (_,i) => `<option value="${start+i}">${(start+i).toLocaleString('fa-IR', { useGrouping: false })}</option>`).join('');
   const dateSelectors = () => { const m = get('inv-date').value.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (m) for (const [id, value] of [['inv-jyear',m[1]],['inv-jmonth',m[2]],['inv-jday',m[3]]]) get(id).value = String(Number(value)); };
   dateSelectors(); get('inv-plate-letter').value = 'ع';
   for (const id of ['inv-jyear','inv-jmonth','inv-jday']) get(id).onchange = () => { get('inv-date').value = get('inv-jyear').value + '/' + get('inv-jmonth').value.padStart(2,'0') + '/' + get('inv-jday').value.padStart(2,'0'); };
