@@ -1,0 +1,53 @@
+'use strict';
+
+// Read only: never calls the old Apps Script endpoint, which can write to Sheets.
+const LEGACY_REFERENCE_SHEET = '1U_yhqwnlOszzu_wh3FSVbsBbtg1rDeNxSgtzdHY_LpU';
+function legacyReferenceParse(valueRanges) {
+  if (!Array.isArray(valueRanges) || valueRanges.length !== 5) throw new Error('برگه‌های شیت کامل دریافت نشدند');
+  const expected = [['id','date','account','type','amount','balance','cat','desc','pending','xfer','person','loan','raw','json'], ['key','name'], ['id','json'], ['at','time','ok','msg','raw'], ['key','value']];
+  for (let i = 0; i < expected.length; i++) if (!valueRanges[i] || !Array.isArray(valueRanges[i].values) || !Array.isArray(valueRanges[i].values[0]) || expected[i].some((name, column) => valueRanges[i].values[0][column] !== name)) throw new Error('سرستون برگه اصلی معتبر نیست؛ عملیات متوقف شد');
+  const rows = valueRanges.map(range => { if (!range || !Array.isArray(range.values) || !range.values.length) throw new Error('یکی از برگه‌های اصلی موجود نیست یا سرستون ندارد'); return range.values.slice(1); });
+  const parseRows = (list, column, name) => list.map(row => {
+    try { const item = JSON.parse(row[column]); if (!item || typeof item !== 'object' || Array.isArray(item)) throw Error(); return item; }
+    catch (_) { throw new Error('ردیف نامعتبر در برگه ' + name + '؛ عملیات متوقف شد'); }
+  });
+  const tx = parseRows(rows[0], 13, 'Transactions');
+  const rem = parseRows(rows[2], 1, 'Reminders');
+  for (const list of [tx, rem]) { const ids = new Set(); for (const item of list) { if ((typeof item.id !== 'string' && typeof item.id !== 'number') || !String(item.id) || ids.has(String(item.id))) throw new Error('شناسه داده در شیت نامعتبر یا تکراری است'); ids.add(String(item.id)); } }
+  const accounts = {};
+  for (const row of rows[1]) { if (!row[0] || Object.prototype.hasOwnProperty.call(accounts, row[0])) throw new Error('ردیف حساب نامعتبر یا تکراری است'); accounts[String(row[0])] = String(row[1] || ''); }
+  const log = rows[3].map(row => ({ at: Number(row[0]), ok: row[2] === true || row[2] === 'true', msg: String(row[3] || ''), raw: String(row[4] || '') }));
+  if (log.some(item => !Number.isFinite(item.at))) throw new Error('تاریخ پیامک در شیت نامعتبر است');
+  const profile = {}; for (const row of rows[4]) { if (row[0]) profile[String(row[0])] = String(row[1] || ''); }
+  return { tx, accounts, rem, log, profile };
+}
+function legacyReferenceRead() {
+  if (googleTestBusy) { directSyncMessage('عملیات دیگری در حال انجام است.'); return; }
+  const scope = directSyncScope();
+  try {
+    const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_TEST_CLIENT, scope,
+      callback: async response => {
+        try {
+          if (response.error || !response.access_token) throw new Error('اجازه گوگل صادر نشد');
+          directSyncCheckGranted(response, scope);
+          const headers = { Authorization: 'Bearer ' + response.access_token };
+          const ur = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
+          if (!ur.ok) throw new Error('حساب گوگل بررسی نشد');
+          const user = await ur.json();
+          const ranges = ['Transactions!A:N','Accounts!A:B','Reminders!A:B','SMS!A:E','Profile!A:B'];
+          const query = ranges.map(range => 'ranges=' + encodeURIComponent(range)).join('&');
+          const responseSheet = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + LEGACY_REFERENCE_SHEET + '/values:batchGet?' + query, { headers });
+          if (!responseSheet.ok) throw new Error(await directSyncReadError(responseSheet, user.email || 'نامشخص'));
+          const legacy = legacyReferenceParse((await responseSheet.json()).valueRanges);
+          const file = { format: 'expense-legacy-reference', version: 1, capturedAt: new Date().toISOString(), sheetId: LEGACY_REFERENCE_SHEET, data: legacy };
+          const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob), link = document.createElement('a');
+          link.href = url; link.download = 'expense-legacy-reference-' + Date.now() + '.json'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+          directSyncMessage('✅ شیت قدیمی خوانده شد: ' + legacy.tx.length.toLocaleString('fa-IR') + ' تراکنش و ' + legacy.rem.length.toLocaleString('fa-IR') + ' یادآوری. فایل مرجع در دانلودها آماده شد؛ اطلاعات گوشی و شیت تغییر نکرد.');
+        } catch (error) { directSyncMessage('⚠️ خواندن شیت قدیمی انجام نشد: ' + (error.message || error)); }
+        finally { googleTestBusy = false; directSyncButtons(false); googleTestButton(); }
+      }, error_callback: () => { googleTestBusy = false; directSyncButtons(false); googleTestButton(); directSyncMessage('⚠️ پنجره گوگل بسته شد یا باز نشد.'); }
+    });
+    googleTestBusy = true; directSyncButtons(true); googleTestButton(); directSyncMessage('در حال باز کردن اجازه گوگل…'); client.requestAccessToken({ prompt: 'select_account' });
+  } catch (error) { googleTestBusy = false; directSyncButtons(false); googleTestButton(); directSyncMessage('⚠️ آماده‌سازی خواندن شیت ناموفق بود: ' + (error.message || error)); }
+}

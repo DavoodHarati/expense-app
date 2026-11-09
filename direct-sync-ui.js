@@ -33,7 +33,7 @@ async function directSyncReadError(response, email) {
   return text;
 }
 function directSyncButtons(disabled) {
-  for (const id of ['direct-sync-create', 'direct-sync-run', 'direct-sync-receipts', 'direct-sync-receive']) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
+  for (const id of ['direct-sync-create', 'direct-sync-run', 'direct-sync-receipts', 'direct-sync-receive', 'legacy-reference-read']) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
 }
 function directSyncLink(state) {
   const el = document.getElementById('direct-sync-link');
@@ -82,6 +82,9 @@ function directSyncPrepare() {
       localStorage.setItem('directSyncWideSheets', 'true'); directAutoStop(); updatePermission(); directSyncAuthorize('sync', true);
     };
     run.insertAdjacentElement('afterend', permission);
+    const legacyRead = document.createElement('button'); legacyRead.id = 'legacy-reference-read'; legacyRead.type = 'button'; legacyRead.className = 'sec';
+    legacyRead.textContent = 'خواندن و بررسی شیت اصلی قدیمی';
+    legacyRead.onclick = legacyReferenceRead; permission.insertAdjacentElement('afterend', legacyRead);
     if (receipts) receipts.onclick = () => directSyncAuthorize('receipts');
     if (receive) receive.onclick = () => directSyncAuthorize('receive');
     const previous = document.getElementById('direct-receive-previous'), clear = document.getElementById('direct-receive-clear');

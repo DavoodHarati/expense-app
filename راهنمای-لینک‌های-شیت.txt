@@ -1,0 +1,16 @@
+﻿راهنمای نشانی‌های پروژه هزینه‌ها
+
+۱. نشانی شیت ثبت‌شده در پشتیبان کامل ۷ نوامبر ۲۰۲۶ (کلید sheetUrl):
+https://docs.google.com/spreadsheets/d/1U_yhqwnlOszzu_wh3FSVbsBbtg1rDeNxSgtzdHY_LpU/edit
+
+۲. نشانی Web App اتصال قدیمی Apps Script ثبت‌شده در همان پشتیبان:
+https://script.google.com/macros/s/AKfycbzTbcediPA19FktqC0MPESdptKf2Y-CLxt8cmzauLo3A2nYuJvkpcAkMkHOe3CEfqrJ/exec
+
+۳. نشانی شیت اتصال مستقیم که در گفتگو فرستاده شد:
+https://docs.google.com/spreadsheets/d/1U_yhqwnlOszzu_wh3FSVbsBbtg1rDeNxSgtzdHY_LpU/edit
+
+نتیجه: شناسه شیت شماره ۱ و ۳ یکسان است. این به تنهایی ثابت نمی‌کند کدام برگه‌ها جدیدترین یا کامل‌ترین اطلاعات را دارند؛ ممکن است روش قدیمی و مستقیم از برگه‌های متفاوت در یک فایل استفاده کنند.
+
+منبع: expense-backup-2026/expense-backup-2026-11-07T20-32-46-279Z.json. پشتیبان مربوط به ۷ نوامبر است و ممکن است پس از آن تغییراتی رخ داده باشد.
+
+این فایل خصوصی است؛ آدرس Web App ممکن است امکان دسترسی به اطلاعات را بدهد. آن را عمومی نکنید. قبل از بازیابی، پشتیبان هر دو گوشی را نگه دارید.
