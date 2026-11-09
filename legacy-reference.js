@@ -21,6 +21,36 @@ function legacyReferenceParse(valueRanges) {
   const profile = {}; for (const row of rows[4]) { if (row[0]) profile[String(row[0])] = String(row[1] || ''); }
   return { tx, accounts, rem, log, profile };
 }
+function legacyReferenceBackup(file, local) {
+  if (!file || file.format !== 'expense-legacy-reference' || file.version !== 1 || file.sheetId !== LEGACY_REFERENCE_SHEET || !file.data || !local || !local.data) throw new Error('فایل مرجع شیت قدیمی معتبر نیست');
+  const data = file.data;
+  if (!Array.isArray(data.tx) || !Array.isArray(data.rem) || !Array.isArray(data.log) || !data.accounts || typeof data.accounts !== 'object' || Array.isArray(data.accounts)) throw new Error('اطلاعات فایل مرجع ناقص است');
+  for (const list of [data.tx, data.rem]) { const ids = new Set(); for (const item of list) { if (!item || (typeof item.id !== 'string' && typeof item.id !== 'number') || !String(item.id) || ids.has(String(item.id))) throw new Error('شناسه اطلاعات فایل مرجع نامعتبر یا تکراری است'); ids.add(String(item.id)); } }
+  for (const value of Object.values(data.accounts)) if (typeof value !== 'string') throw new Error('نام حساب فایل مرجع معتبر نیست');
+  for (const item of data.log) if (!item || !Number.isFinite(item.at) || typeof item.ok !== 'boolean' || typeof item.msg !== 'string' || typeof item.raw !== 'string') throw new Error('اطلاعات پیامک فایل مرجع معتبر نیست');
+  const merged = { ...local, data: { ...local.data, tx: JSON.stringify(data.tx), accounts: JSON.stringify(data.accounts), rem: JSON.stringify(data.rem), log: JSON.stringify(data.log), txDel: '[]', remDel: '[]', logDel: '[]', delAcc: '[]' } };
+  validateFullBackup(merged);
+  return merged;
+}
+async function legacyReferenceRestore(file) {
+  try {
+    if (!file || file.size > 5000000) throw new Error('فایل انتخاب‌شده معتبر نیست یا بیش از حد بزرگ است');
+    if (googleTestBusy || directAutoRunning) throw new Error('عملیات اتصال در جریان است؛ پس از پایان دوباره تلاش کن');
+    if (SYNC() || directReceiveLegacyAtBoot) throw new Error('ابتدا اتصال قدیمی را متوقف کن و برنامه را دوباره باز کن');
+    const source = JSON.parse(await file.text());
+    const snapshot = directSyncSnapshot(), value = DirectSyncCore.canonicalData(snapshot.data);
+    const backup = legacyReferenceBackup(source, snapshot);
+    const state = load('directSyncState', null);
+    if (!state || !state.id || !state.base || !state.email) throw new Error('این دستگاه ابتدا باید به شیت اتصال مستقیم وصل شده باشد');
+    const message = 'از شیت اصلی ' + source.data.tx.length.toLocaleString('fa-IR') + ' تراکنش و ' + source.data.rem.length.toLocaleString('fa-IR') + ' یادآوری روی این گوشی جایگزین می‌شود. حساب‌ها و پیامک‌های شیت نیز جایگزین می‌شوند؛ فاکتورها، رسیدها و سایر اطلاعات این گوشی حفظ می‌شوند. پشتیبان این گوشی را قبلاً ذخیره کرده‌ای؟';
+    if (!confirm(message)) { directSyncMessage('بازگردانی لغو شد؛ اطلاعات تغییر نکرد.'); return; }
+    if (!confirm('نسخهٔ قبلی در این گوشی نگهداری می‌شود. بازگردانی فقط روی همین گوشی انجام شود؟')) { directSyncMessage('بازگردانی لغو شد؛ اطلاعات تغییر نکرد.'); return; }
+    directAutoStop('ارسال خودکار برای بازگردانی متوقف شد.');
+    directReceiveApply(backup, value, state, state.base);
+    alert('اطلاعات شیت اصلی روی این گوشی بازگردانی شد. فاکتورها و رسیدهای همین گوشی حفظ شدند. نسخهٔ قبلی در تنظیمات اتصال مستقیم موجود است. هنوز چیزی به شیت ارسال نشده است.');
+    location.reload();
+  } catch (error) { directSyncMessage('⚠️ بازگردانی انجام نشد: ' + (error.message || error)); }
+}
 function legacyReferenceRead() {
   if (googleTestBusy) { directSyncMessage('عملیات دیگری در حال انجام است.'); return; }
   const scope = directSyncScope();

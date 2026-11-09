@@ -85,6 +85,11 @@ function directSyncPrepare() {
     const legacyRead = document.createElement('button'); legacyRead.id = 'legacy-reference-read'; legacyRead.type = 'button'; legacyRead.className = 'sec';
     legacyRead.textContent = 'خواندن و بررسی شیت اصلی قدیمی';
     legacyRead.onclick = legacyReferenceRead; permission.insertAdjacentElement('afterend', legacyRead);
+    const legacyRestore = document.createElement('button'), legacyFile = document.createElement('input');
+    legacyRestore.type = 'button'; legacyRestore.className = 'sec'; legacyRestore.textContent = 'بازگردانی از فایل شیت اصلی';
+    legacyFile.type = 'file'; legacyFile.accept = '.json,application/json'; legacyFile.hidden = true;
+    legacyRestore.onclick = () => legacyFile.click(); legacyFile.onchange = event => { const file = event.target.files[0]; event.target.value = ''; if (file) legacyReferenceRestore(file); };
+    legacyRead.insertAdjacentElement('afterend', legacyRestore); legacyRestore.insertAdjacentElement('afterend', legacyFile);
     if (receipts) receipts.onclick = () => directSyncAuthorize('receipts');
     if (receive) receive.onclick = () => directSyncAuthorize('receive');
     const previous = document.getElementById('direct-receive-previous'), clear = document.getElementById('direct-receive-clear');
