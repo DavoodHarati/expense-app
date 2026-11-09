@@ -84,9 +84,11 @@ function directSyncPrepare() {
     run.insertAdjacentElement('afterend', permission);
     const legacyRead = document.createElement('button'); legacyRead.id = 'legacy-reference-read'; legacyRead.type = 'button'; legacyRead.className = 'sec';
     legacyRead.textContent = 'خواندن و بررسی شیت اصلی قدیمی';
-    legacyRead.onclick = legacyReferenceRead; permission.insertAdjacentElement('afterend', legacyRead);
+    legacyRead.onclick = legacyReferenceRead; legacyRead.style.cssText = 'display:block;width:100%;margin-top:8px';
+    run.parentElement.insertAdjacentElement('afterend', legacyRead);
     const legacyRestore = document.createElement('button'), legacyFile = document.createElement('input');
     legacyRestore.type = 'button'; legacyRestore.className = 'sec'; legacyRestore.textContent = 'بازگردانی از فایل شیت اصلی';
+    legacyRestore.style.cssText = 'display:block;width:100%;margin-top:8px';
     legacyFile.type = 'file'; legacyFile.accept = '.json,application/json'; legacyFile.hidden = true;
     legacyRestore.onclick = () => legacyFile.click(); legacyFile.onchange = event => { const file = event.target.files[0]; event.target.value = ''; if (file) legacyReferenceRestore(file); };
     legacyRead.insertAdjacentElement('afterend', legacyRestore); legacyRestore.insertAdjacentElement('afterend', legacyFile);
