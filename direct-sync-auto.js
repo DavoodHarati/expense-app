@@ -6,6 +6,17 @@ let directAutoTimer = null;
 let directAutoRunning = false;
 let directAutoStatus = 'ارسال خودکار غیرفعال است.';
 
+function directAutoResumePending(state) {
+  try {
+    const pending = JSON.parse(sessionStorage.getItem('directAutoResume') || 'null');
+    return !!(pending && state && pending.id === state.id && pending.email === state.email && pending.base === state.base && pending.until > Date.now());
+  } catch (_) { return false; }
+}
+
+function directAutoResumeClear() {
+  try { sessionStorage.removeItem('directAutoResume'); } catch (_) {}
+}
+
 function directAutoShow(message) {
   directAutoStatus = message;
   const status = document.getElementById('direct-auto-status');
@@ -13,12 +24,13 @@ function directAutoShow(message) {
   const stop = document.getElementById('direct-auto-stop');
   const receive = document.getElementById('direct-auto-receive');
   if (status) status.textContent = message;
-  if (start) start.disabled = !!directAutoSession || directAutoRunning;
+  if (start) { start.disabled = !!directAutoSession || directAutoRunning; start.textContent = directAutoResumePending(load('directSyncState', null)) ? 'ادامه اتصال خودکار' : 'فعال‌کردن ارسال خودکار'; }
   if (stop) stop.disabled = !directAutoSession;
   if (receive) receive.disabled = !!directAutoSession || directAutoRunning;
 }
 
 function directAutoStop(message = 'ارسال خودکار متوقف شد.') {
+  directAutoResumeClear();
   directAutoSession = null;
   if (directAutoTimer !== null) clearInterval(directAutoTimer);
   directAutoTimer = null;
@@ -30,7 +42,9 @@ function directAutoStart() {
   const state = load('directSyncState', null);
   if (!state || !state.id || !state.base || !state.email) { directAutoShow('ابتدا شیت اتصال مستقیم را بساز و یک بار همگام‌سازی دستی را کامل کن.'); return; }
   const receive = !!document.getElementById('direct-auto-receive')?.checked;
-  if (!confirm(receive ? 'تا وقتی صفحه باز است، تغییرات این دستگاه ارسال و نسخه جدید شیت در صورت نبود تغییر ارسال‌نشده دریافت شود؟ بعد از دریافت، برنامه دوباره باز می‌شود و برای ادامه باید اتصال خودکار را دوباره فعال کنی.' : 'تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
+  const resume = receive && directAutoResumePending(state);
+  if (!resume && !confirm(receive ? 'تا وقتی صفحه باز است، تغییرات این دستگاه ارسال و نسخه جدید شیت در صورت نبود تغییر ارسال‌نشده دریافت شود؟ بعد از دریافت، برنامه دوباره باز می‌شود و برای ادامه باید اتصال خودکار را دوباره فعال کنی.' : 'تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
+  directAutoResumeClear();
   try {
     const requestedScope = directSyncScope();
     const client = google.accounts.oauth2.initTokenClient({
@@ -100,7 +114,8 @@ async function directAutoTick() {
       if ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add')) { directAutoShow('نسخه جدید آماده است؛ پس از پایان کار با فرم دریافت می‌شود.'); return; }
       directReceiveApply(head.backup, value, state, head.id);
       directAutoStop('نسخه جدید دریافت شد؛ برنامه دوباره باز می‌شود.');
-      alert('نسخه جدید شیت دریافت شد. برنامه دوباره باز می‌شود؛ برای ادامه همگام‌سازی خودکار را دوباره فعال کن.');
+      try { sessionStorage.setItem('directAutoResume', JSON.stringify({ id: state.id, email: state.email, base: head.id, until: Date.now() + 300000 })); } catch (_) {}
+      alert('نسخه جدید شیت دریافت شد. پس از بازشدن دوباره برنامه، برای ادامه دکمه اتصال خودکار را بزن و در صورت درخواست حساب گوگل را انتخاب کن.');
       location.reload(); return;
     }
     if (decision === 'unchanged') {

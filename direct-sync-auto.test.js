@@ -11,6 +11,7 @@ function fixture() {
   const rows = [['expense-direct-sync', '1'], ['root', 'ROOT', 'time', '1', JSON.stringify(base)]];
   let state = { id: 'sheet', email: 'test@example.invalid', base: 'root' }, snapshot = newer, posts = 0, race = false, fail = false, uncertain = false, failReadAfterPost = false;
   const writes = [];
+  const sessionValues = new Map();
   const context = vm.createContext({
     console, URL, Date, JSON, Number, String, Math, Array, Object, Error, Set, Map, Uint8Array, Uint32Array,
     crypto: webcrypto, DirectSyncCore: core, googleTestBusy: false,
@@ -18,6 +19,7 @@ function fixture() {
     addEventListener() {}, setInterval() { return 1; }, clearInterval() {},
     load: (key, fallback) => key === 'directSyncState' ? { ...state } : fallback,
     localStorage: { getItem() { return null; }, setItem(key, value) { writes.push({ key, value }); if (key === 'directSyncState') state = JSON.parse(value); } },
+    sessionStorage: { getItem: key => sessionValues.get(key) || null, setItem: (key, value) => sessionValues.set(key, value), removeItem: key => sessionValues.delete(key) },
     makeFullBackup: () => snapshot, validateFullBackup() {}, googleTestButton() {},
     fetch: async (url, options = {}) => {
       if (fail) throw new Error('offline');
@@ -83,12 +85,30 @@ function fixture() {
   assert.equal(checks, 1); assert.ok(vm.runInContext('!!directAutoSession', h.context));
   assert.ok(h.writes.every(write => !write.value.includes('session-token')));
   h.context.directAutoStop(); assert.equal(vm.runInContext('directAutoSession', h.context), null);
+  const resumed = fixture(); let resumedCallback, confirmations = 0;
+  resumed.context.sessionStorage.setItem('directAutoResume', JSON.stringify({ id: 'sheet', email: 'test@example.invalid', base: 'root', until: Date.now() + 60000 }));
+  resumed.context.document.getElementById = id => id === 'direct-auto-receive' ? { checked: true } : null;
+  resumed.context.confirm = () => { confirmations++; return true; }; resumed.context.GOOGLE_TEST_CLIENT = 'client';
+  resumed.context.fetch = async () => ({ ok: true, json: async () => ({ email: 'test@example.invalid' }) });
+  resumed.context.google = { accounts: { oauth2: { initTokenClient: options => ({ requestAccessToken() { resumedCallback = options.callback({ access_token: 'session-token', expires_in: 3600 }); } }) } } };
+  resumed.context.directAutoTick = () => {};
+  resumed.context.directAutoStart(); await resumedCallback;
+  assert.equal(confirmations, 0); assert.equal(vm.runInContext('directAutoSession.receive', resumed.context), true);
+  assert.equal(resumed.context.sessionStorage.getItem('directAutoResume'), null);
+  resumed.context.directAutoStop();
   const incoming = fixture(); incoming.rows.push(['other', 'root', 'time', '1', JSON.stringify(incoming.newer)]); incoming.setSnapshot(incoming.base);
   let applied = 0, reloaded = 0; incoming.context.DIRECT_RECEIVE_JOURNAL = 'journal';
   incoming.context.directReceiveApply = (backup, value, state, head) => { applied++; assert.equal(head, 'other'); assert.equal(backup.data.tx, incoming.newer.data.tx); };
   incoming.context.location = { reload() { reloaded++; } }; incoming.context.alert = () => {};
   incoming.start(); vm.runInContext('directAutoSession.receive = true', incoming.context); await incoming.context.directAutoTick();
   assert.equal(applied, 1); assert.equal(reloaded, 1); assert.equal(incoming.posts(), 0); assert.equal(vm.runInContext('directAutoSession', incoming.context), null);
+  const resume = JSON.parse(incoming.context.sessionStorage.getItem('directAutoResume'));
+  assert.deepEqual(Object.keys(resume).sort(), ['base', 'email', 'id', 'until']);
+  assert.equal(resume.base, 'other');
+  assert.equal(incoming.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'other' }), true);
+  assert.equal(incoming.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'root' }), false);
+  resume.until = Date.now() - 1; incoming.context.sessionStorage.setItem('directAutoResume', JSON.stringify(resume));
+  assert.equal(incoming.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'other' }), false);
 
   const blocked = fixture(); blocked.rows.push(['other', 'root', 'time', '1', JSON.stringify(blocked.newer)]); blocked.setSnapshot(blocked.base);
   blocked.context.DIRECT_RECEIVE_JOURNAL = 'journal'; blocked.context.localStorage.getItem = () => 'previous backup';

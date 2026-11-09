@@ -108,6 +108,7 @@ function directSyncPrepare() {
     }
     if (autoStart) autoStart.onclick = directAutoStart;
     if (autoStop) autoStop.onclick = () => directAutoStop('ارسال خودکار متوقف شد. اگر ارسالی در جریان بود ممکن است همان نسخه به شیت افزوده شود.');
+    if (directAutoResumePending(load('directSyncState', null))) directAutoStatus = 'نسخه جدید دریافت شد. برای ادامه، «ادامه اتصال خودکار» را بزن و در صورت درخواست حساب گوگل را انتخاب کن.';
     directAutoShow(directAutoStatus);
   }).catch(() => directSyncMessage('سرویس ورود گوگل بارگذاری نشد.'));
 }
