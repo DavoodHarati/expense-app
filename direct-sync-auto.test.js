@@ -51,6 +51,7 @@ function fixture() {
 
   const c = fixture(); c.rows.push(['other', 'root', 'time', '1', JSON.stringify(c.newer)]); c.setSnapshot(c.base); c.start();
   await c.context.directAutoTick(); assert.equal(c.posts(), 0); assert.equal(vm.runInContext('directAutoSession', c.context), null);
+  assert.match(vm.runInContext('directAutoStatus', c.context), /انتخاب نشده بود/);
 
   const d = fixture(); d.start(); d.setFail(); await d.context.directAutoTick();
   assert.equal(d.posts(), 0); assert.equal(d.state().base, 'root'); assert.equal(vm.runInContext('directAutoSession', d.context), null);
@@ -100,6 +101,7 @@ function fixture() {
   conflict.context.directReceiveApply = () => { throw Error('must not apply'); };
   conflict.start(); vm.runInContext('directAutoSession.receive = true', conflict.context); await conflict.context.directAutoTick();
   assert.equal(conflict.posts(), 0); assert.equal(vm.runInContext('directAutoSession', conflict.context), null);
+  assert.match(vm.runInContext('directAutoStatus', conflict.context), /هم این گوشی و هم شیت/);
 
   const editing = fixture(); editing.rows.push(['other', 'root', 'time', '1', JSON.stringify(editing.newer)]); editing.setSnapshot(editing.base);
   editing.context.busyTyping = () => true; editing.context.directReceiveApply = () => { throw Error('must not apply'); };

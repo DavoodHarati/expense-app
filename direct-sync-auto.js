@@ -11,9 +11,11 @@ function directAutoShow(message) {
   const status = document.getElementById('direct-auto-status');
   const start = document.getElementById('direct-auto-start');
   const stop = document.getElementById('direct-auto-stop');
+  const receive = document.getElementById('direct-auto-receive');
   if (status) status.textContent = message;
   if (start) start.disabled = !!directAutoSession || directAutoRunning;
   if (stop) stop.disabled = !directAutoSession;
+  if (receive) receive.disabled = !!directAutoSession || directAutoRunning;
 }
 
 function directAutoStop(message = 'ارسال خودکار متوقف شد.') {
@@ -27,7 +29,8 @@ function directAutoStart() {
   if (googleTestBusy || directAutoRunning || directAutoSession) { directAutoShow('عملیات دیگری در جریان است.'); return; }
   const state = load('directSyncState', null);
   if (!state || !state.id || !state.base || !state.email) { directAutoShow('ابتدا شیت اتصال مستقیم را بساز و یک بار همگام‌سازی دستی را کامل کن.'); return; }
-  if (!confirm('تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
+  const receive = !!document.getElementById('direct-auto-receive')?.checked;
+  if (!confirm(receive ? 'تا وقتی صفحه باز است، تغییرات این دستگاه ارسال و نسخه جدید شیت در صورت نبود تغییر ارسال‌نشده دریافت شود؟ بعد از دریافت، برنامه دوباره باز می‌شود و برای ادامه باید اتصال خودکار را دوباره فعال کنی.' : 'تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
   try {
     const requestedScope = directSyncScope();
     const client = google.accounts.oauth2.initTokenClient({
@@ -46,7 +49,7 @@ function directAutoStart() {
           const current = load('directSyncState', null);
           if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('تنظیمات اتصال تغییر کرده؛ دوباره تلاش کن');
           if (!user.email || user.email !== state.email) throw new Error('حساب گوگل با حساب شیت یکسان نیست');
-          directAutoSession = { token: response.access_token, expires: Date.now() + (lifetime - 60) * 1000, id: state.id, email: state.email };
+          directAutoSession = { token: response.access_token, expires: Date.now() + (lifetime - 60) * 1000, id: state.id, email: state.email, receive };
           directAutoTimer = setInterval(() => { if (document.visibilityState === 'visible') directAutoTick(); }, 60000);
           directAutoShow('در حال بررسی شیت برای ارسال خودکار…');
         } catch (error) { directAutoStop('⚠️ ' + (error.message || 'فعال‌سازی انجام نشد')); }
@@ -85,7 +88,21 @@ async function directAutoTick() {
     if (!head || !base) throw new Error('نسخه مبنای این دستگاه در شیت پیدا نشد');
     const local = directSyncSnapshot(), value = DirectSyncCore.canonicalData(local.data);
     const decision = DirectSyncCore.decide(DirectSyncCore.canonicalData(base.backup.data), value, DirectSyncCore.canonicalData(head.backup.data));
-    if (decision === 'download' || decision === 'conflict') throw new Error('شیت در دستگاه دیگری تغییر کرده است؛ ابتدا همگام‌سازی دستی و بررسی پشتیبان را انجام بده');
+    if (decision === 'conflict') throw new Error('هم این گوشی و هم شیت تغییر کرده‌اند؛ دریافت متوقف شد تا اطلاعات جایگزین نشوند. همگام‌سازی دستی را بررسی کن');
+    if (decision === 'download' && !session.receive) throw new Error('نسخه جدید در شیت هست، اما دریافت خودکار هنگام فعال‌سازی انتخاب نشده بود؛ توقف را بزن، تیک دریافت خودکار را بزن و دوباره فعال کن');
+    if (decision === 'download') {
+      if ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add')) { directAutoShow('نسخه جدید آماده است؛ پس از پایان کار با فرم دریافت می‌شود.'); return; }
+      if (localStorage.getItem(DIRECT_RECEIVE_JOURNAL)) throw new Error('برای دریافت خودکار ابتدا پشتیبان قبل از دریافت قبلی را تعیین تکلیف کن');
+      const refreshed = await read(), checked = DirectSyncCore.inspectHistory(refreshed);
+      const latest = refreshed.find(record => record.id === head.id);
+      if (directAutoSession !== session) return;
+      if (checked.state !== 'linear' || checked.heads[0] !== head.id || !latest || DirectSyncCore.canonicalData(latest.backup.data) !== DirectSyncCore.canonicalData(head.backup.data)) throw new Error('شیت هنگام دریافت تغییر کرد؛ دوباره بررسی کن');
+      if ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add')) { directAutoShow('نسخه جدید آماده است؛ پس از پایان کار با فرم دریافت می‌شود.'); return; }
+      directReceiveApply(head.backup, value, state, head.id);
+      directAutoStop('نسخه جدید دریافت شد؛ برنامه دوباره باز می‌شود.');
+      alert('نسخه جدید شیت دریافت شد. برنامه دوباره باز می‌شود؛ برای ادامه همگام‌سازی خودکار را دوباره فعال کن.');
+      location.reload(); return;
+    }
     if (decision === 'unchanged') {
       if (state.base !== head.id) { state.base = head.id; localStorage.setItem('directSyncState', JSON.stringify(state)); }
       directAutoShow('✅ ارسال خودکار فعال است؛ اطلاعات این دستگاه و شیت یکسان‌اند.'); return;

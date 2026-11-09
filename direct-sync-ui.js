@@ -101,6 +101,8 @@ function directSyncPrepare() {
     if (autoStart) {
       const receiveLabel = document.createElement('label'); receiveLabel.style.cssText = 'display:block;margin:10px 0';
       const receiveCheck = document.createElement('input'); receiveCheck.type = 'checkbox'; receiveCheck.id = 'direct-auto-receive';
+      receiveCheck.checked = load('directAutoReceiveEnabled', false) === true;
+      receiveCheck.onchange = () => localStorage.setItem('directAutoReceiveEnabled', JSON.stringify(receiveCheck.checked));
       receiveLabel.append(receiveCheck, document.createTextNode(' دریافت خودکار نسخه جدید وقتی تغییر ارسال‌نشده ندارم'));
       autoStart.parentElement.insertAdjacentElement('beforebegin', receiveLabel);
     }
