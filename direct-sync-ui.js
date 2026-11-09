@@ -94,6 +94,10 @@ function directSyncSnapshot() {
   validateFullBackup(backup);
   return backup;
 }
+function directSyncCompareSummary(local, remote) {
+  const count = backup => { try { const rows = JSON.parse(backup.data.tx); return Array.isArray(rows) ? rows.length.toLocaleString('fa-IR') : 'نامشخص'; } catch (_) { return 'نامشخص'; } };
+  return 'تعداد تراکنش‌های این دستگاه: ' + count(local) + '؛ نسخه شیت: ' + count(remote) + '. تعداد برابر به معنی یکسان بودن همه اطلاعات نیست.';
+}
 function directSyncParse(rows) {
   if (!Array.isArray(rows) || !rows.length || JSON.stringify(rows[0]) !== JSON.stringify(['expense-direct-sync', '1'])) throw new Error('این شیت، شیت اتصال مستقیم برنامه نیست');
   return rows.slice(1).map(row => {
@@ -243,8 +247,10 @@ function directSyncAuthorize(action, requestConsent = false) {
           }
           if (head && !state.base) {
             if (localValue !== DirectSyncCore.canonicalData(head.backup.data)) {
-              if (confirm('اطلاعات این دستگاه با آخرین نسخه شیت متفاوت است. فایل نسخه شیت برای بررسی دانلود شود؟ اطلاعات فعلی تغییر نمی‌کند.')) directSyncDownload(head.backup);
-              directSyncMessage('⚠️ اتصال انجام نشد؛ اطلاعات دستگاه و شیت متفاوت‌اند. ابتدا پشتیبان‌ها را بررسی کن.'); return;
+              const summary = directSyncCompareSummary(local, head.backup);
+              const download = confirm('✅ شیت با حساب ' + user.email + ' خوانده شد. این دستگاه و شیت اطلاعات متفاوت دارند و هنوز متصل نشده‌اند. ' + summary + ' نسخه شیت فقط برای بررسی دانلود شود؟ این کار اطلاعات را وارد یا جایگزین نمی‌کند.');
+              if (download) directSyncDownload(head.backup);
+              directSyncMessage('✅ شیت خوانده شد، اما اتصال متوقف است چون اطلاعات متفاوت‌اند. ' + summary + (download ? ' فایل نسخه شیت برای بررسی آماده شد؛ هنوز بازیابی نشده است.' : ' دانلود لغو شد.') + ' اطلاعات دستگاه تغییر نکرد.'); return;
             }
             state.base = head.id; state.email = user.email; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state); directSyncMessage('✅ دستگاه به نسخه یکسان شیت متصل شد.'); return;
           }
