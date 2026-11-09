@@ -268,7 +268,7 @@ function directSyncAuthorize(action, requestConsent = false) {
               const mergedData = DirectSyncCore.mergeAddedReminders(base.backup.data, local.data, head.backup.data);
               if (mergedData) {
                 if (SYNC() || directReceiveLegacyAtBoot) throw new Error('اتصال قدیمی Apps Script باید غیرفعال باشد و برنامه پس از آن دوباره باز شود؛ ادغام متوقف است');
-                if (!confirm('در شیت فقط یادآوری جدید اضافه شده و یادآوری‌های این گوشی تغییر نکرده‌اند. یادآوری‌ها به اطلاعات فعلی این گوشی اضافه شوند؟ نسخه قبلی در گوشی نگهداری می‌شود. سایر تب‌های برنامه را ببند. هنوز چیزی به شیت ارسال نمی‌شود.')) { directSyncMessage('ادغام لغو شد؛ اطلاعات تغییر نکرد.'); return; }
+                if (!confirm('در شیت یادآوری جدید اضافه شده و یادآوری‌های قبلی تغییر نکرده‌اند. یادآوری‌های جدید شیت به یادآوری‌های این گوشی اضافه شوند؟ نسخه قبلی در گوشی نگهداری می‌شود. سایر تب‌های برنامه را ببند. هنوز چیزی به شیت ارسال نمی‌شود.')) { directSyncMessage('ادغام لغو شد؛ اطلاعات تغییر نکرد.'); return; }
                 const refreshed = await read(), checked = DirectSyncCore.inspectHistory(refreshed);
                 if (checked.state !== 'linear' || checked.heads[0] !== head.id || DirectSyncCore.canonicalData(refreshed.find(item => item.id === head.id).backup.data) !== DirectSyncCore.canonicalData(head.backup.data)) throw new Error('شیت هنگام بررسی تغییر کرد؛ دوباره تلاش کن');
                 const merged = { ...local, data: mergedData };

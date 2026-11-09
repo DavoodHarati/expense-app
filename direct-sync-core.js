@@ -112,17 +112,20 @@
     const value = (data, key) => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null;
     const keys = new Set([...Object.keys(base), ...Object.keys(remote)]);
     for (const key of keys) if (!excluded.has(key) && key !== 'rem' && value(base, key) !== value(remote, key)) return null;
-    if (value(base, 'rem') !== value(local, 'rem')) return null;
-    let before, after;
-    try { before = JSON.parse(value(base, 'rem') || '[]'); after = JSON.parse(value(remote, 'rem') || '[]'); } catch (_) { return null; }
-    if (!Array.isArray(before) || !Array.isArray(after) || after.length <= before.length) return null;
-    const ids = new Set();
-    for (const item of after) {
-      if (!item || (typeof item.id !== 'string' && typeof item.id !== 'number') || !String(item.id) || ids.has(String(item.id))) return null;
-      ids.add(String(item.id));
+    let before, here, there;
+    try { before = JSON.parse(value(base, 'rem') || '[]'); here = JSON.parse(value(local, 'rem') || '[]'); there = JSON.parse(value(remote, 'rem') || '[]'); } catch (_) { return null; }
+    if (![before, here, there].every(Array.isArray) || here.length < before.length || there.length <= before.length) return null;
+    for (const list of [before, here, there]) {
+      const ids = new Set();
+      for (const item of list) {
+        if (!item || (typeof item.id !== 'string' && typeof item.id !== 'number') || !String(item.id) || ids.has(String(item.id))) return null;
+        ids.add(String(item.id));
+      }
     }
-    for (let index = 0; index < before.length; index++) if (stable(before[index]) !== stable(after[index])) return null;
-    return { ...local, rem: remote.rem };
+    for (let index = 0; index < before.length; index++) if (stable(before[index]) !== stable(here[index]) || stable(before[index]) !== stable(there[index])) return null;
+    const ids = new Set(here.map(item => String(item.id)));
+    for (const item of there.slice(before.length)) if (ids.has(String(item.id))) return null;
+    return { ...local, rem: JSON.stringify([...here, ...there.slice(before.length)]) };
   }
 
   const api = Object.freeze({ canonicalData, inspectHistory, decide, previewMerge, mergeAddedReminders });

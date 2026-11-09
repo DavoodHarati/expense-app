@@ -30,4 +30,8 @@ assert.equal(mergeAddedReminders(reminderBase, { ...reminderLocal, rem: '[]' }, 
 assert.equal(mergeAddedReminders(reminderBase, reminderLocal, { ...reminderRemote, accounts: '{"changed":1}' }), null);
 assert.equal(mergeAddedReminders(reminderBase, reminderLocal, { ...reminderRemote, rem: '[{"id":10,"title":"تغییر"},{"id":11}]' }), null);
 assert.equal(mergeAddedReminders(reminderBase, reminderLocal, { ...reminderRemote, rem: '[{"id":10,"title":"قبلی"},{"id":10}]' }), null);
+const bothAdded = { ...reminderLocal, rem: '[{"id":10,"title":"قبلی"},{"id":12,"title":"گوشی"}]' };
+assert.deepEqual(JSON.parse(mergeAddedReminders(reminderBase, bothAdded, reminderRemote).rem).map(x => x.id), [10, 12, 11]);
+assert.equal(mergeAddedReminders(reminderBase, { ...bothAdded, rem: '[{"id":10,"title":"قبلی"},{"id":11,"title":"دیگر"}]' }, reminderRemote), null);
+assert.equal(mergeAddedReminders(reminderBase, { ...bothAdded, rem: '[{"id":10,"title":"ویرایش"},{"id":12}]' }, reminderRemote), null);
 console.log('Direct sync merge preview tests passed.');
