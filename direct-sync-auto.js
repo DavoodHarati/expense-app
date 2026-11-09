@@ -106,7 +106,11 @@ async function directAutoTick() {
     if (decision === 'download' && !session.receive) throw new Error('نسخه جدید در شیت هست، اما دریافت خودکار هنگام فعال‌سازی انتخاب نشده بود؛ توقف را بزن، تیک دریافت خودکار را بزن و دوباره فعال کن');
     if (decision === 'download') {
       if ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add')) { directAutoShow('نسخه جدید آماده است؛ پس از پایان کار با فرم دریافت می‌شود.'); return; }
-      if (localStorage.getItem(DIRECT_RECEIVE_JOURNAL)) throw new Error('پشتیبان دریافت قبلی هنوز در گوشی است. ابتدا «دانلود پشتیبان قبل از دریافت» را بزن و ذخیره فایل را بررسی کن؛ سپس «حذف پشتیبان محلی قبلی» و دوباره «فعال‌کردن ارسال خودکار» را بزن. حذف، فقط پشتیبان محلی قبلی را پاک می‌کند');
+      if (localStorage.getItem(DIRECT_RECEIVE_JOURNAL)) {
+        directAutoShow('در حال نگهداری پشتیبان قبلی در این گوشی…');
+        await directReceiveArchivePrevious();
+        if (directAutoSession !== session) return;
+      }
       const refreshed = await read(), checked = DirectSyncCore.inspectHistory(refreshed);
       const latest = refreshed.find(record => record.id === head.id);
       if (directAutoSession !== session) return;

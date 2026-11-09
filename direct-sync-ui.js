@@ -96,6 +96,11 @@ function directSyncPrepare() {
     if (receive) receive.onclick = () => directSyncAuthorize('receive');
     const previous = document.getElementById('direct-receive-previous'), clear = document.getElementById('direct-receive-clear');
     if (previous) previous.onclick = () => { try { directReceiveDownloadPrevious(); directSyncMessage('فایل پشتیبان قبل از دریافت آماده شد؛ ذخیره‌شدن آن را در دانلودها بررسی کن.'); } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); } };
+    if (previous) {
+      const archived = document.createElement('button'); archived.type = 'button'; archived.className = 'sec'; archived.textContent = 'دانلود آخرین پشتیبان بایگانی‌شده';
+      archived.onclick = async () => { try { await directReceiveDownloadArchived(); directSyncMessage('دانلود آخرین پشتیبان بایگانی‌شده شروع شد؛ پوشه دانلودها را بررسی کن.'); } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); } };
+      previous.insertAdjacentElement('afterend', archived);
+    }
     if (clear) clear.onclick = () => { const raw = localStorage.getItem(DIRECT_RECEIVE_JOURNAL); if (!raw) { directSyncMessage('پشتیبانی برای پاک‌کردن وجود ندارد.'); return; } try { if (JSON.parse(raw).phase !== 'committed') throw new Error('پشتیبان در حال بازیابی است'); if (confirm('فقط پس از اطمینان از ذخیره فایل پشتیبان، نسخه محلی قبلی حذف شود؟')) { localStorage.removeItem(DIRECT_RECEIVE_JOURNAL); directSyncMessage('نسخه محلی قبلی حذف شد.'); } } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); } };
     const autoStart = document.getElementById('direct-auto-start'), autoStop = document.getElementById('direct-auto-stop');
     if (autoStart) {

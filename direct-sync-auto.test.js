@@ -112,6 +112,7 @@ function fixture() {
 
   const blocked = fixture(); blocked.rows.push(['other', 'root', 'time', '1', JSON.stringify(blocked.newer)]); blocked.setSnapshot(blocked.base);
   blocked.context.DIRECT_RECEIVE_JOURNAL = 'journal'; blocked.context.localStorage.getItem = () => 'previous backup';
+  blocked.context.directReceiveArchivePrevious = async () => { throw Error('پشتیبان بایگانی نشد'); };
   blocked.context.directReceiveApply = () => { throw Error('must not apply'); };
   blocked.start(); vm.runInContext('directAutoSession.receive = true', blocked.context); await blocked.context.directAutoTick();
   assert.equal(blocked.posts(), 0); assert.match(vm.runInContext('directAutoStatus', blocked.context), /پشتیبان/);

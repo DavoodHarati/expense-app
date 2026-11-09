@@ -4,6 +4,36 @@
 const DIRECT_RECEIVE_JOURNAL = 'directReceiveJournal';
 let directReceiveRecovered = false;
 
+function directReceiveArchivePrevious() {
+  const raw = localStorage.getItem(DIRECT_RECEIVE_JOURNAL);
+  if (!raw) return Promise.resolve();
+  let journal;
+  try { journal = JSON.parse(raw); } catch (_) { return Promise.reject(new Error('پشتیبان قبلی نامعتبر است؛ دریافت متوقف شد')); }
+  if (journal.version !== 1 || journal.phase !== 'committed' || !journal.old || typeof journal.old !== 'object') return Promise.reject(new Error('پشتیبان قبلی آماده بایگانی نیست؛ دریافت متوقف شد'));
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') { reject(new Error('بایگانی پشتیبان در این مرورگر در دسترس نیست؛ پشتیبان قبلی را دانلود کن')); return; }
+    const request = indexedDB.open('expense-direct-backups', 1);
+    request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains('backups')) request.result.createObjectStore('backups', { autoIncrement: true }); };
+    request.onerror = () => reject(new Error('بازکردن بایگانی پشتیبان ناموفق بود؛ اطلاعات تغییر نکرد'));
+    request.onblocked = () => reject(new Error('بایگانی پشتیبان باز نشد؛ تب‌های دیگر برنامه را ببند'));
+    request.onsuccess = () => {
+      const db = request.result;
+      try {
+        const transaction = db.transaction('backups', 'readwrite');
+        transaction.objectStore('backups').add({ savedAt: Date.now(), journal: raw });
+        transaction.oncomplete = () => {
+          db.close();
+          try {
+            if (localStorage.getItem(DIRECT_RECEIVE_JOURNAL) !== raw) throw new Error('پشتیبان هنگام بایگانی تغییر کرد؛ دوباره تلاش کن');
+            localStorage.removeItem(DIRECT_RECEIVE_JOURNAL); resolve();
+          } catch (error) { reject(error); }
+        };
+        transaction.onerror = transaction.onabort = () => { db.close(); reject(new Error('ذخیره پشتیبان قبلی ناموفق بود؛ اطلاعات تغییر نکرد')); };
+      } catch (_) { db.close(); reject(new Error('ذخیره پشتیبان قبلی ناموفق بود؛ اطلاعات تغییر نکرد')); }
+    };
+  });
+}
+
 function directReceiveRecover() {
   const raw = localStorage.getItem(DIRECT_RECEIVE_JOURNAL);
   if (!raw) return true;
@@ -59,6 +89,10 @@ function directReceiveApply(backup, expectedLocal, state, headId) {
 function directReceiveDownloadPrevious() {
   const raw = localStorage.getItem(DIRECT_RECEIVE_JOURNAL);
   if (!raw) throw new Error('پشتیبان قبل از دریافت وجود ندارد');
+  directReceiveDownloadJournal(raw);
+}
+
+function directReceiveDownloadJournal(raw) {
   const journal = JSON.parse(raw);
   if (journal.version !== 1 || journal.phase !== 'committed') throw new Error('پشتیبان هنوز آماده نیست');
   const data = {};
@@ -67,4 +101,27 @@ function directReceiveDownloadPrevious() {
   if (!data.accounts && journal.missingAccounts) data.accounts = journal.missingAccounts;
   const backup = { format: 'expense-app-backup', version: 1, createdAt: new Date().toISOString(), data };
   validateFullBackup(backup); directSyncDownload(backup);
+}
+
+function directReceiveDownloadArchived() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') { reject(new Error('بایگانی در این مرورگر در دسترس نیست')); return; }
+    const request = indexedDB.open('expense-direct-backups', 1);
+    request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains('backups')) request.result.createObjectStore('backups', { autoIncrement: true }); };
+    request.onerror = () => reject(new Error('بازکردن بایگانی ناموفق بود'));
+    request.onblocked = () => reject(new Error('بایگانی باز نشد؛ تب‌های دیگر برنامه را ببند'));
+    request.onsuccess = () => {
+      const db = request.result;
+      try {
+        const transaction = db.transaction('backups', 'readonly');
+        const cursor = transaction.objectStore('backups').openCursor(null, 'prev');
+        cursor.onsuccess = () => {
+          try { if (!cursor.result) throw new Error('پشتیبان بایگانی‌شده‌ای وجود ندارد'); directReceiveDownloadJournal(cursor.result.value.journal); resolve(); }
+          catch (error) { reject(error); }
+        };
+        transaction.oncomplete = () => db.close();
+        transaction.onabort = transaction.onerror = () => { db.close(); reject(new Error('خواندن بایگانی ناموفق بود')); };
+      } catch (_) { db.close(); reject(new Error('خواندن بایگانی ناموفق بود')); }
+    };
+  });
 }
