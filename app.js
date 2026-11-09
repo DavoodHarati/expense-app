@@ -614,7 +614,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۲۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۲۶)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -710,7 +710,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-09T08:25:37Z';
+const BUILD = '2026-11-09T20:47:07+03:30';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1351,9 +1351,14 @@ async function pull() {
 }
 let lastPull = 0;
 let editingUntil = 0;
-document.addEventListener('pointerdown', e => { if (e.target.closest('.card[data-id], #pform, #app details')) editingUntil = Date.now() + 120000; });
-document.addEventListener('input', e => { if (e.target.closest('#app')) editingUntil = Date.now() + 120000; });
-const busyTyping = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || Date.now() < editingUntil;
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#direct-sync') && e.target.closest('.card[data-id], #pform, #app details')) editingUntil = Date.now() + 120000; });
+document.addEventListener('input', e => { if (!e.target.closest('#direct-sync') && e.target.closest('#app')) editingUntil = Date.now() + 120000; });
+const busyTyping = () => {
+  const active = document.activeElement;
+  const syncControl = active && active.closest && active.closest('#direct-sync') && active.tagName === 'INPUT' && ['checkbox', 'radio', 'button', 'submit'].includes(active.type);
+  const editable = active && !active.disabled && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) && !syncControl;
+  return !!editable || Date.now() < editingUntil;
+};
 async function refresh() { if (!SYNC()) return; await pull(); if (!busyTyping() && tab !== 'add') render(); }
 document.addEventListener('visibilitychange', async () => { if (document.visibilityState !== 'visible') return; if (!pulled || Date.now() - lastPull > 15000) refresh(); else if (localStorage.getItem('dirty')) push(); });
 setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 60000);
