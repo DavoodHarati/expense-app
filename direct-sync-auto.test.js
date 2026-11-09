@@ -97,18 +97,26 @@ function fixture() {
   assert.equal(resumed.context.sessionStorage.getItem('directAutoResume'), null);
   resumed.context.directAutoStop();
   const incoming = fixture(); incoming.rows.push(['other', 'root', 'time', '1', JSON.stringify(incoming.newer)]); incoming.setSnapshot(incoming.base);
-  let applied = 0, reloaded = 0; incoming.context.DIRECT_RECEIVE_JOURNAL = 'journal';
-  incoming.context.directReceiveApply = (backup, value, state, head) => { applied++; assert.equal(head, 'other'); assert.equal(backup.data.tx, incoming.newer.data.tx); };
+  let applied = 0, reloaded = 0, refreshed = 0; incoming.context.DIRECT_RECEIVE_JOURNAL = 'journal';
+  incoming.context.directReceiveApply = (backup, value, state, head) => { applied++; assert.equal(head, 'other'); assert.equal(backup.data.tx, incoming.newer.data.tx); incoming.setSnapshot(backup); incoming.context.localStorage.setItem('directSyncState', JSON.stringify({ ...state, base: head })); };
+  incoming.context.directReceiveRefreshView = () => { refreshed++; };
   incoming.context.location = { reload() { reloaded++; } }; incoming.context.alert = () => {};
   incoming.start(); vm.runInContext('directAutoSession.receive = true', incoming.context); await incoming.context.directAutoTick();
-  assert.equal(applied, 1); assert.equal(reloaded, 1); assert.equal(incoming.posts(), 0); assert.equal(vm.runInContext('directAutoSession', incoming.context), null);
-  const resume = JSON.parse(incoming.context.sessionStorage.getItem('directAutoResume'));
+  assert.equal(applied, 1); assert.equal(refreshed, 1); assert.equal(reloaded, 0); assert.equal(incoming.posts(), 0); assert.ok(vm.runInContext('directAutoSession', incoming.context));
+  await incoming.context.directAutoTick(); assert.equal(applied, 1); assert.equal(incoming.posts(), 0); assert.ok(vm.runInContext('directAutoSession', incoming.context));
+  const recovery = fixture(); recovery.rows.push(['other', 'root', 'time', '1', JSON.stringify(recovery.newer)]); recovery.setSnapshot(recovery.base);
+  recovery.context.DIRECT_RECEIVE_JOURNAL = 'journal'; recovery.context.directReceiveApply = () => {};
+  recovery.context.directReceiveRefreshView = () => { throw Error('render failed'); };
+  recovery.context.location = { reload() { reloaded++; } }; recovery.context.alert = () => {};
+  recovery.start(); vm.runInContext('directAutoSession.receive = true', recovery.context); await recovery.context.directAutoTick();
+  assert.equal(reloaded, 1); assert.equal(vm.runInContext('directAutoSession', recovery.context), null);
+  const resume = JSON.parse(recovery.context.sessionStorage.getItem('directAutoResume'));
   assert.deepEqual(Object.keys(resume).sort(), ['base', 'email', 'id', 'until']);
   assert.equal(resume.base, 'other');
-  assert.equal(incoming.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'other' }), true);
-  assert.equal(incoming.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'root' }), false);
-  resume.until = Date.now() - 1; incoming.context.sessionStorage.setItem('directAutoResume', JSON.stringify(resume));
-  assert.equal(incoming.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'other' }), false);
+  assert.equal(recovery.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'other' }), true);
+  assert.equal(recovery.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'root' }), false);
+  resume.until = Date.now() - 1; recovery.context.sessionStorage.setItem('directAutoResume', JSON.stringify(resume));
+  assert.equal(recovery.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'other' }), false);
 
   const blocked = fixture(); blocked.rows.push(['other', 'root', 'time', '1', JSON.stringify(blocked.newer)]); blocked.setSnapshot(blocked.base);
   blocked.context.DIRECT_RECEIVE_JOURNAL = 'journal'; blocked.context.localStorage.getItem = () => 'previous backup';
@@ -127,7 +135,7 @@ function fixture() {
   const editing = fixture(); editing.rows.push(['other', 'root', 'time', '1', JSON.stringify(editing.newer)]); editing.setSnapshot(editing.base);
   editing.context.busyTyping = () => true; editing.context.directReceiveApply = () => { throw Error('must not apply'); };
   editing.start(); vm.runInContext('directAutoSession.receive = true', editing.context); await editing.context.directAutoTick();
-  assert.equal(editing.posts(), 0); assert.match(vm.runInContext('directAutoStatus', editing.context), /پایان کار/);
+  assert.equal(editing.posts(), 0); assert.match(vm.runInContext('directAutoStatus', editing.context), /صفحه خانه/);
 
   const activity = fixture(), handlers = {};
   activity.context.document.addEventListener = (name, handler) => { handlers[name] = handler; };

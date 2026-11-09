@@ -45,7 +45,7 @@ function directAutoStart() {
   if (!state || !state.id || !state.base || !state.email) { directAutoShow('ابتدا شیت اتصال مستقیم را بساز و یک بار همگام‌سازی دستی را کامل کن.'); return; }
   const receive = !!document.getElementById('direct-auto-receive')?.checked;
   const resume = receive && directAutoResumePending(state);
-  if (!resume && !confirm(receive ? 'تا وقتی صفحه باز است، تغییرات این دستگاه ارسال و نسخه جدید شیت در صورت نبود تغییر ارسال‌نشده دریافت شود؟ بعد از دریافت، برنامه دوباره باز می‌شود و برای ادامه باید اتصال خودکار را دوباره فعال کنی.' : 'تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
+  if (!resume && !confirm(receive ? 'تا وقتی صفحه باز است، تغییرات این دستگاه ارسال و نسخه جدید شیت در صورت نبود تغییر ارسال‌نشده دریافت شود؟ برای دریافت خودکار به صفحه خانه برو و فرم‌های باز را ببند.' : 'تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
   directAutoResumeClear();
   try {
     const requestedScope = directSyncScope();
@@ -107,7 +107,7 @@ async function directAutoTick() {
     if (decision === 'conflict') throw new Error('هم این گوشی و هم شیت تغییر کرده‌اند؛ دریافت متوقف شد تا اطلاعات جایگزین نشوند. همگام‌سازی دستی را بررسی کن');
     if (decision === 'download' && !session.receive) throw new Error('نسخه جدید در شیت هست، اما دریافت خودکار هنگام فعال‌سازی انتخاب نشده بود؛ توقف را بزن، تیک دریافت خودکار را بزن و دوباره فعال کن');
     if (decision === 'download') {
-      if ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add')) { directAutoShow('نسخه جدید آماده است؛ پس از پایان کار با فرم دریافت می‌شود.'); return; }
+      if (typeof directAutoCanApply === 'function' ? !directAutoCanApply() : ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add'))) { directAutoShow('نسخه جدید آماده است؛ فرم‌های باز را ببند و به صفحه خانه برو تا دریافت شود.'); return; }
       if (localStorage.getItem(DIRECT_RECEIVE_JOURNAL)) {
         directAutoShow('در حال نگهداری پشتیبان قبلی در این گوشی…');
         await directReceiveArchivePrevious();
@@ -117,12 +117,18 @@ async function directAutoTick() {
       const latest = refreshed.find(record => record.id === head.id);
       if (directAutoSession !== session) return;
       if (checked.state !== 'linear' || checked.heads[0] !== head.id || !latest || DirectSyncCore.canonicalData(latest.backup.data) !== DirectSyncCore.canonicalData(head.backup.data)) throw new Error('شیت هنگام دریافت تغییر کرد؛ دوباره بررسی کن');
-      if ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add')) { directAutoShow('نسخه جدید آماده است؛ پس از پایان کار با فرم دریافت می‌شود.'); return; }
+      if (typeof directAutoCanApply === 'function' ? !directAutoCanApply() : ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add'))) { directAutoShow('نسخه جدید آماده است؛ فرم‌های باز را ببند و به صفحه خانه برو تا دریافت شود.'); return; }
       directReceiveApply(head.backup, value, state, head.id);
-      directAutoStop('نسخه جدید دریافت شد؛ برنامه دوباره باز می‌شود.');
-      try { sessionStorage.setItem('directAutoResume', JSON.stringify({ id: state.id, email: state.email, base: head.id, until: Date.now() + 300000 })); } catch (_) {}
-      alert('نسخه جدید شیت دریافت شد. پس از بازشدن دوباره برنامه، برای ادامه دکمه اتصال خودکار را بزن و در صورت درخواست حساب گوگل را انتخاب کن.');
-      location.reload(); return;
+      try {
+        directReceiveRefreshView();
+        directAutoShow('✅ نسخه جدید دریافت شد؛ همگام‌سازی خودکار همچنان فعال است.');
+      } catch (_) {
+        directAutoStop('نسخه جدید دریافت شد؛ برنامه برای نمایش درست دوباره باز می‌شود.');
+        try { sessionStorage.setItem('directAutoResume', JSON.stringify({ id: state.id, email: state.email, base: head.id, until: Date.now() + 300000 })); } catch (_) {}
+        alert('نسخه جدید دریافت شد. برنامه دوباره باز می‌شود؛ برای ادامه اتصال خودکار را فعال کن.');
+        location.reload();
+      }
+      return;
     }
     if (decision === 'unchanged') {
       if (state.base !== head.id) { state.base = head.id; localStorage.setItem('directSyncState', JSON.stringify(state)); }
