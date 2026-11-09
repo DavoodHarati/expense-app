@@ -459,14 +459,22 @@ function _render() {
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button id="bf">وارد کردن فایل بانک</button> <input type="file" id="bfi" accept=".xlsx" class="hide"> <button id="mgx" class="sec">ادغام (بدون حذف)</button> <button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
-      <div class="mut">${esc(syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
-      ${localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
+      <div class="mut">${esc(localStorage.getItem('legacySyncPaused') === '1' ? 'اتصال قدیمی روی این دستگاه متوقف است؛ نشانی قبلی نگهداری شده است.' : syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
+      ${localStorage.getItem('legacySyncPaused') === '1' ? '<div class="mut">ادامه کار از بخش اتصال مستقیم انجام می‌شود.</div>' : localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}</div>`);
     el.insertAdjacentHTML('beforeend', `<div class="card" id="google-test"><b>آزمایش ورود به گوگل</b><div class="mut">ورود به گوگل را آزمایش کن یا یک شیت آزمایشی خالی بساز. اطلاعات مالی به آن منتقل نمی‌شود و همگام‌سازی فعلی تغییر نمی‌کند.</div><button id="google-test-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-test-msg" aria-live="polite">${esc(googleTestMessage)}</div><button class="sec" id="google-sheet-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-sheet-test-msg" aria-live="polite">${esc(googleSheetMessage)}</div><button class="sec" id="google-write-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-write-test-msg" aria-live="polite">${esc(googleWriteMessage)}</div><button class="sec" id="google-data-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-data-test-msg" aria-live="polite">${esc(googleDataMessage)}</div><div class="google-sheet-link">${googleSheetLink()}</div></div>`);
     prepareGoogleTest();
     el.insertAdjacentHTML('beforeend', `<div class="card" id="google-copy"><b>نسخه پشتیبان در گوگل</b><div class="mut">نسخه‌ای جدا از اطلاعات این دستگاه در شیت جدید ساخته می‌شود؛ همگام‌سازی خودکار فعال نیست.</div><button id="google-copy-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-copy-msg" aria-live="polite">${esc(googleCopyMessage)}</div><div id="google-copy-link">${googleCopyLink()}</div><hr><b>بازیابی نسخه گوگل</b><div class="mut">لینک شیت پشتیبان را وارد کن یا خالی بگذار تا آخرین شیت ساخته‌شده در این دستگاه بررسی شود. فایل بررسی‌شده دانلود می‌شود؛ سپس از بخش «پشتیبان‌گیری» آن را بازیابی کن.</div><input id="google-restore-url" type="url" placeholder="لینک شیت پشتیبان (اختیاری)" dir="ltr"><button id="google-restore-btn" disabled>در حال آماده‌سازی…</button><div id="google-restore-msg" class="mut" aria-live="polite"></div></div>`);
     prepareGoogleCopy();
     el.insertAdjacentHTML('beforeend', `<div class="card" id="direct-sync"><b>اتصال مستقیم آزمایشی به شیت</b><div class="mut">ذخیره و دریافت دستی در شیتی جدا انجام می‌شود. نسخه‌های قبلی حفظ می‌شوند و تعارض دستگاه‌ها اعلام می‌شود. همگام‌سازی خودکار و ادغام تعارض‌ها هنوز فعال نیست.</div><input id="direct-sync-url" type="url" dir="ltr" placeholder="لینک شیت اتصال مستقیم (برای دستگاه دیگر)"><div class="row"><button id="direct-sync-create" disabled>ساخت شیت جدا</button><button id="direct-sync-run" disabled>بررسی و همگام‌سازی دستی</button></div><button id="direct-sync-receive" disabled>دریافت مستقیم نسخه جدید</button><div class="mut">دریافت فقط وقتی مجاز است که اطلاعات دستگاه تغییر ارسال‌نشده نداشته باشد و اتصال قدیمی Apps Script غیرفعال باشد. نسخه قبلی در دستگاه نگهداری می‌شود.</div><div class="row"><button type="button" class="sec" id="direct-receive-previous">دانلود پشتیبان قبل از دریافت</button><button type="button" class="sec" id="direct-receive-clear">حذف پشتیبان محلی قبلی</button></div><button id="direct-sync-receipts" disabled>ارسال آرشیو رسیدها به شیت</button><div class="mut">رسیدها در برگه‌ای جدا و به‌صورت دستی اضافه می‌شوند؛ ابتدا همگام‌سازی دستی را انجام بده. وضعیت و حساب هر رسید مربوط به زمان ارسال است.</div><div class="mut" id="direct-sync-message" aria-live="polite"></div><div id="direct-sync-link"></div><hr><b>ارسال خودکار در این نشست</b><div class="mut">با اجازه تو، تا وقتی برنامه باز و دسترسی گوگل معتبر است، تغییرات این دستگاه به شیت افزوده می‌شود. دریافت از دستگاه دیگر همچنان دستی است. تعارض، قطع شبکه یا پایان اعتبار دسترسی ارسال را متوقف می‌کند.</div><div class="row"><button type="button" id="direct-auto-start" disabled>فعال‌کردن ارسال خودکار</button><button type="button" id="direct-auto-stop" class="sec" disabled>توقف</button></div><div id="direct-auto-status" class="mut" aria-live="polite"></div></div>`);
     directSyncPrepare();
+    if (SYNC()) {
+      const legacyButton = document.createElement('button'); legacyButton.type = 'button'; legacyButton.className = 'sec'; legacyButton.textContent = 'توقف اتصال قدیمی در این گوشی';
+      legacyButton.onclick = () => {
+        if (!confirm('اتصال قدیمی فقط در این گوشی متوقف شود؟ نشانی و اطلاعات باقی می‌مانند. ابتدا سایر پنجره‌ها و نسخه‌های باز برنامه را ببند؛ سپس برنامه دوباره باز می‌شود.')) return;
+        try { pauseLegacySync(); location.reload(); } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); }
+      };
+      document.getElementById('direct-sync-message').insertAdjacentElement('beforebegin', legacyButton);
+    }
     el.insertAdjacentHTML('beforeend', `    <div class="card" id="jbc"><b>شغل من</b><div class="mut">برنامه بر اساس شغل، برچسب و کادرهای پیش‌فرض را تنظیم می‌کند. (معلم، کارمند، بازنشسته: پیش‌فرض «حقوق»، بدون پرسش مشتری. فروشنده: «فروش». راننده و خدماتی: «مشتری» و «خدمت».) فقط روی همین دستگاه ذخیره می‌شود.</div><select id="jobs">${JOBS.map(j => `<option value="${esc(j)}" ${j === job() ? 'selected' : ''}>${j || 'انتخاب کن'}</option>`).join('')}</select><input id="wk" placeholder="کار اصلی؟ مثلاً: فروش زغال، تعمیر تاکوگراف" value="${esc(work())}"><div class="mut">مشتری‌های اصلی من چه کسانی هستند؟</div><select id="defaultct"><option value="">انتخاب در هر تراکنش</option><option value="driver"${defaultCustomerType() === 'driver' ? ' selected' : ''}>راننده</option><option value="normal"${defaultCustomerType() === 'normal' ? ' selected' : ''}>مشتری عادی</option>${lsj('ctypes', []).map(x => `<option value="${esc(x)}"${defaultCustomerType() === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>`);
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#defaultct').onchange = e => { localStorage.setItem('defaultCustomerType', e.target.value); localStorage.setItem('dirty', '1'); push(); };
@@ -597,7 +605,7 @@ function _render() {
     $('#sc').onclick = async () => { const c = 'EXP1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ accounts })))); $('#sk').value = c; try { await navigator.clipboard.writeText(c); alert('کد کپی شد'); } catch { $('#sk').select(); } };
     $('#sl').onclick = () => { try { const v = $('#sk').value.trim().replace(/^EXP1:/, ''); const d = JSON.parse(decodeURIComponent(escape(atob(v)))); accounts = { ...d.accounts, ...accounts }; save(); alert('راه‌اندازی شد'); pulled = false; pull().then(render); render(); } catch { alert('کد نامعتبر است'); } };
     if ($('#ul')) $('#ul').onclick = () => { if (confirm('قفل آدرس شیت باز شود؟ فقط اگر شیت جدید می‌خواهی.')) { localStorage.removeItem('syncLock'); localStorage.removeItem('sync_bak'); pulled = false; render(); } };
-    $('#sy').onclick = async () => { if ($('#su')) localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
+    if ($('#sy')) $('#sy').onclick = async () => { if ($('#su')) localStorage.setItem('sync', $('#su').value.trim()); pulled = false; syncMsg = 'در حال اتصال…'; render(); await pull(); render(); };
     { const key = t => [t.account, t.type, t.amount, t.date].join('|');
       const G = {}; tx.filter(t => !t.ghost && t.date).forEach(t => (G[key(t)] = G[key(t)] || []).push(t));
       const D = Object.values(G).filter(g => g.length > 1 && g.every(x => x.balance == null || g[0].balance == null || x.balance === g[0].balance));
@@ -606,7 +614,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۱۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۱۹)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -702,7 +710,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-09T07:58:09Z';
+const BUILD = '2026-11-09T08:25:37Z';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1280,24 +1288,36 @@ function googleCreateBackupCopy() {
 }
 
 // ---- همگام‌سازی با Google Sheets ----
-const SYNC = () => localStorage.getItem('sync') || localStorage.getItem('sync_bak');
+const SYNC = () => localStorage.getItem('legacySyncPaused') === '1' ? null : (localStorage.getItem('sync') || localStorage.getItem('sync_bak'));
 const directReceiveLegacyAtBoot = !!SYNC();
-let pulled = false, syncMsg = '', pt = null;
+let pulled = false, syncMsg = '', pt = null, legacyInFlight = 0;
+function pauseLegacySync() {
+  if (legacyInFlight) throw new Error('همگام‌سازی قبلی هنوز در جریان است؛ پس از پایان آن دوباره تلاش کن');
+  clearTimeout(pt);
+  localStorage.setItem('noSync', '1');
+  localStorage.setItem('legacySyncPaused', '1');
+  pulled = false;
+}
 function push() {
   if (!SYNC() || !pulled) return;
   clearTimeout(pt); pt = setTimeout(doPush, 1200);
 }
 async function doPush() {
+  const url = SYNC(); if (!url) return;
+  legacyInFlight++;
   try {
-    const r = await (await fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
+    const r = await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
+    if (SYNC() !== url) return;
     if (!r.ok) throw new Error(r.error);
     localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR');
-  } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + ' — بعداً دوباره تلاش می‌شود'; }
+  } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + ' — بعداً دوباره تلاش می‌شود'; } finally { legacyInFlight--; }
 }
 async function pull() {
-  if (!SYNC()) return;
+  const url = SYNC(); if (!url) return;
+  legacyInFlight++;
   try {
-    const rs = await fetch(SYNC()); const txt = await rs.text(); let d;
+    const rs = await fetch(url); const txt = await rs.text(); let d;
+    if (SYNC() !== url) return;
     try { d = JSON.parse(txt); } catch (_) { throw new Error(rs.status + ' ' + (/<title>(.*?)<\/title>/i.exec(txt)?.[1] || 'پاسخ JSON نیست (دسترسی Anyone نیست؟)')); }
     if (!d.ok) throw new Error(d.error || 'bad');
     if (d.sheetUrl) localStorage.setItem('sheetUrl', d.sheetUrl);
@@ -1324,10 +1344,10 @@ async function pull() {
     if (d.inbox && d.inbox.length) {
       d.inbox.forEach(i => addSms(i.raw)); localStorage.setItem('dirty', '1');
       await doPush();
-      fetch(SYNC(), { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
+      if (SYNC() === url) await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
     }
     if (localStorage.getItem('dirty')) await doPush();
-  } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); }
+  } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); } finally { legacyInFlight--; }
 }
 let lastPull = 0;
 let editingUntil = 0;
