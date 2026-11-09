@@ -98,6 +98,12 @@ function directSyncPrepare() {
     if (previous) previous.onclick = () => { try { directReceiveDownloadPrevious(); directSyncMessage('فایل پشتیبان قبل از دریافت آماده شد؛ ذخیره‌شدن آن را در دانلودها بررسی کن.'); } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); } };
     if (clear) clear.onclick = () => { const raw = localStorage.getItem(DIRECT_RECEIVE_JOURNAL); if (!raw) { directSyncMessage('پشتیبانی برای پاک‌کردن وجود ندارد.'); return; } try { if (JSON.parse(raw).phase !== 'committed') throw new Error('پشتیبان در حال بازیابی است'); if (confirm('فقط پس از اطمینان از ذخیره فایل پشتیبان، نسخه محلی قبلی حذف شود؟')) { localStorage.removeItem(DIRECT_RECEIVE_JOURNAL); directSyncMessage('نسخه محلی قبلی حذف شد.'); } } catch (error) { directSyncMessage('⚠️ ' + (error.message || error)); } };
     const autoStart = document.getElementById('direct-auto-start'), autoStop = document.getElementById('direct-auto-stop');
+    if (autoStart) {
+      const receiveLabel = document.createElement('label'); receiveLabel.style.cssText = 'display:block;margin:10px 0';
+      const receiveCheck = document.createElement('input'); receiveCheck.type = 'checkbox'; receiveCheck.id = 'direct-auto-receive';
+      receiveLabel.append(receiveCheck, document.createTextNode(' دریافت خودکار نسخه جدید وقتی تغییر ارسال‌نشده ندارم'));
+      autoStart.parentElement.insertAdjacentElement('beforebegin', receiveLabel);
+    }
     if (autoStart) autoStart.onclick = directAutoStart;
     if (autoStop) autoStop.onclick = () => directAutoStop('ارسال خودکار متوقف شد. اگر ارسالی در جریان بود ممکن است همان نسخه به شیت افزوده شود.');
     directAutoShow(directAutoStatus);

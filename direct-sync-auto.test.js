@@ -9,7 +9,7 @@ function fixture() {
   const base = { format: 'expense-app-backup', version: 1, data: { tx: '[{"id":1,"amount":10}]', accounts: '{}' } };
   const newer = { format: 'expense-app-backup', version: 1, data: { tx: '[{"id":1,"amount":20}]', accounts: '{}' } };
   const rows = [['expense-direct-sync', '1'], ['root', 'ROOT', 'time', '1', JSON.stringify(base)]];
-  let state = { id: 'sheet', email: 'test@example.invalid', base: 'root' }, snapshot = newer, posts = 0, race = false, fail = false, uncertain = false;
+  let state = { id: 'sheet', email: 'test@example.invalid', base: 'root' }, snapshot = newer, posts = 0, race = false, fail = false, uncertain = false, failReadAfterPost = false;
   const writes = [];
   const context = vm.createContext({
     console, URL, Date, JSON, Number, String, Math, Array, Object, Error, Set, Map, Uint8Array, Uint32Array,
@@ -17,7 +17,7 @@ function fixture() {
     document: { visibilityState: 'visible', getElementById: () => null, addEventListener() {} },
     addEventListener() {}, setInterval() { return 1; }, clearInterval() {},
     load: (key, fallback) => key === 'directSyncState' ? { ...state } : fallback,
-    localStorage: { setItem(key, value) { writes.push({ key, value }); if (key === 'directSyncState') state = JSON.parse(value); } },
+    localStorage: { getItem() { return null; }, setItem(key, value) { writes.push({ key, value }); if (key === 'directSyncState') state = JSON.parse(value); } },
     makeFullBackup: () => snapshot, validateFullBackup() {}, googleTestButton() {},
     fetch: async (url, options = {}) => {
       if (fail) throw new Error('offline');
@@ -27,6 +27,7 @@ function fixture() {
         rows.push(...JSON.parse(options.body).values);
         if (uncertain) { uncertain = false; throw new Error('connection lost'); }
       }
+      else if (failReadAfterPost && posts) { failReadAfterPost = false; throw new Error('connection lost during verification'); }
       return { ok: true, json: async () => ({ values: rows }) };
     }
   });
@@ -34,7 +35,7 @@ function fixture() {
   context.directSyncButtons = () => {}; context.directSyncLink = () => {};
   vm.runInContext(fs.readFileSync('direct-sync-auto.js', 'utf8'), context);
   const start = () => vm.runInContext("directAutoSession = { token: 'secret-token', expires: Date.now() + 600000, id: 'sheet', email: 'test@example.invalid' }", context);
-  return { context, rows, writes, start, state: () => state, posts: () => posts, setRace: () => { race = true; }, setFail: () => { fail = true; }, setUncertain: () => { uncertain = true; }, setSnapshot: value => { snapshot = value; }, base, newer };
+  return { context, rows, writes, start, state: () => state, posts: () => posts, setRace: () => { race = true; }, setFail: () => { fail = true; }, setUncertain: () => { uncertain = true; }, setFailReadAfterPost: () => { failReadAfterPost = true; }, setSnapshot: value => { snapshot = value; }, base, newer };
 }
 
 (async () => {
@@ -64,6 +65,14 @@ function fixture() {
   assert.equal(g.state().base, 'root'); assert.match(vm.runInContext('directAutoStatus', g.context), /ممکن است/);
   g.start(); await g.context.directAutoTick(); assert.equal(g.posts(), 1); assert.notEqual(g.state().base, 'root');
 
+  const interrupted = fixture(); interrupted.start(); interrupted.setFailReadAfterPost();
+  await interrupted.context.directAutoTick();
+  assert.equal(interrupted.posts(), 1); assert.equal(interrupted.rows.length, 3);
+  assert.equal(interrupted.state().base, 'root');
+  assert.match(vm.runInContext('directAutoStatus', interrupted.context), /ممکن است/);
+  interrupted.start(); await interrupted.context.directAutoTick();
+  assert.equal(interrupted.posts(), 1); assert.notEqual(interrupted.state().base, 'root');
+
   const h = fixture(); let callback, checks = 0;
   h.context.confirm = () => true; h.context.GOOGLE_TEST_CLIENT = 'client';
   h.context.fetch = async () => ({ ok: true, json: async () => ({ email: 'test@example.invalid' }) });
@@ -73,5 +82,28 @@ function fixture() {
   assert.equal(checks, 1); assert.ok(vm.runInContext('!!directAutoSession', h.context));
   assert.ok(h.writes.every(write => !write.value.includes('session-token')));
   h.context.directAutoStop(); assert.equal(vm.runInContext('directAutoSession', h.context), null);
+  const incoming = fixture(); incoming.rows.push(['other', 'root', 'time', '1', JSON.stringify(incoming.newer)]); incoming.setSnapshot(incoming.base);
+  let applied = 0, reloaded = 0; incoming.context.DIRECT_RECEIVE_JOURNAL = 'journal';
+  incoming.context.directReceiveApply = (backup, value, state, head) => { applied++; assert.equal(head, 'other'); assert.equal(backup.data.tx, incoming.newer.data.tx); };
+  incoming.context.location = { reload() { reloaded++; } }; incoming.context.alert = () => {};
+  incoming.start(); vm.runInContext('directAutoSession.receive = true', incoming.context); await incoming.context.directAutoTick();
+  assert.equal(applied, 1); assert.equal(reloaded, 1); assert.equal(incoming.posts(), 0); assert.equal(vm.runInContext('directAutoSession', incoming.context), null);
+
+  const blocked = fixture(); blocked.rows.push(['other', 'root', 'time', '1', JSON.stringify(blocked.newer)]); blocked.setSnapshot(blocked.base);
+  blocked.context.DIRECT_RECEIVE_JOURNAL = 'journal'; blocked.context.localStorage.getItem = () => 'previous backup';
+  blocked.context.directReceiveApply = () => { throw Error('must not apply'); };
+  blocked.start(); vm.runInContext('directAutoSession.receive = true', blocked.context); await blocked.context.directAutoTick();
+  assert.equal(blocked.posts(), 0); assert.match(vm.runInContext('directAutoStatus', blocked.context), /پشتیبان/);
+
+  const conflict = fixture(); conflict.rows.push(['other', 'root', 'time', '1', JSON.stringify(conflict.newer)]);
+  conflict.setSnapshot({ format: 'expense-app-backup', version: 1, data: { tx: '[{"id":1,"amount":30}]', accounts: '{}' } });
+  conflict.context.directReceiveApply = () => { throw Error('must not apply'); };
+  conflict.start(); vm.runInContext('directAutoSession.receive = true', conflict.context); await conflict.context.directAutoTick();
+  assert.equal(conflict.posts(), 0); assert.equal(vm.runInContext('directAutoSession', conflict.context), null);
+
+  const editing = fixture(); editing.rows.push(['other', 'root', 'time', '1', JSON.stringify(editing.newer)]); editing.setSnapshot(editing.base);
+  editing.context.busyTyping = () => true; editing.context.directReceiveApply = () => { throw Error('must not apply'); };
+  editing.start(); vm.runInContext('directAutoSession.receive = true', editing.context); await editing.context.directAutoTick();
+  assert.equal(editing.posts(), 0); assert.match(vm.runInContext('directAutoStatus', editing.context), /پایان کار/);
   console.log('Automatic upload tests passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
