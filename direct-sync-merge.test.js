@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { previewMerge } = require('./direct-sync-core.js');
+const { previewMerge, mergeAddedReminders } = require('./direct-sync-core.js');
 const data = (transactions, extra = {}) => ({ tx: JSON.stringify(transactions), accounts: '{}', ...extra });
 
 const base = data([{ id: 1, amount: 10 }]);
@@ -22,4 +22,12 @@ assert.deepEqual(previewMerge(base, data([], { txDel: '["1"]' }), base).conflict
 assert.deepEqual(previewMerge(data([], { job: 'one' }), data([], { job: 'two' }), data([], { job: 'three' })).conflicts, [{ key: 'job', id: '' }]);
 assert.throws(() => previewMerge(base, data([{ id: 1 }, { id: 1 }]), remote), /duplicate/);
 assert.throws(() => previewMerge(base, data([{ amount: 1 }]), remote), /record ID/);
+const reminderBase = data([{ id: 1 }], { rem: '[{"id":10,"title":"قبلی"}]' });
+const reminderLocal = data([{ id: 1 }, { id: 2 }], { rem: reminderBase.rem });
+const reminderRemote = data([{ id: 1 }], { rem: '[{"id":10,"title":"قبلی"},{"id":11,"title":"تست"}]' });
+assert.deepEqual(mergeAddedReminders(reminderBase, reminderLocal, reminderRemote), { ...reminderLocal, rem: reminderRemote.rem });
+assert.equal(mergeAddedReminders(reminderBase, { ...reminderLocal, rem: '[]' }, reminderRemote), null);
+assert.equal(mergeAddedReminders(reminderBase, reminderLocal, { ...reminderRemote, accounts: '{"changed":1}' }), null);
+assert.equal(mergeAddedReminders(reminderBase, reminderLocal, { ...reminderRemote, rem: '[{"id":10,"title":"تغییر"},{"id":11}]' }), null);
+assert.equal(mergeAddedReminders(reminderBase, reminderLocal, { ...reminderRemote, rem: '[{"id":10,"title":"قبلی"},{"id":10}]' }), null);
 console.log('Direct sync merge preview tests passed.');

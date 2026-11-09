@@ -108,7 +108,24 @@
     return { data: result, conflicts };
   }
 
-  const api = Object.freeze({ canonicalData, inspectHistory, decide, previewMerge });
+  function mergeAddedReminders(base, local, remote) {
+    const value = (data, key) => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null;
+    const keys = new Set([...Object.keys(base), ...Object.keys(remote)]);
+    for (const key of keys) if (!excluded.has(key) && key !== 'rem' && value(base, key) !== value(remote, key)) return null;
+    if (value(base, 'rem') !== value(local, 'rem')) return null;
+    let before, after;
+    try { before = JSON.parse(value(base, 'rem') || '[]'); after = JSON.parse(value(remote, 'rem') || '[]'); } catch (_) { return null; }
+    if (!Array.isArray(before) || !Array.isArray(after) || after.length <= before.length) return null;
+    const ids = new Set();
+    for (const item of after) {
+      if (!item || (typeof item.id !== 'string' && typeof item.id !== 'number') || !String(item.id) || ids.has(String(item.id))) return null;
+      ids.add(String(item.id));
+    }
+    for (let index = 0; index < before.length; index++) if (stable(before[index]) !== stable(after[index])) return null;
+    return { ...local, rem: remote.rem };
+  }
+
+  const api = Object.freeze({ canonicalData, inspectHistory, decide, previewMerge, mergeAddedReminders });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DirectSyncCore = api;
 })(globalThis);
