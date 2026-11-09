@@ -23,6 +23,8 @@ function directAutoShow(message) {
   const start = document.getElementById('direct-auto-start');
   const stop = document.getElementById('direct-auto-stop');
   const receive = document.getElementById('direct-auto-receive');
+  const homeStatus = document.getElementById('home-sync-status');
+  if (homeStatus && typeof homeSyncStatus === 'function') homeStatus.textContent = homeSyncStatus();
   if (status) status.textContent = message;
   if (start) { start.disabled = !!directAutoSession || directAutoRunning; start.textContent = directAutoResumePending(load('directSyncState', null)) ? 'ادامه اتصال خودکار' : 'فعال‌کردن ارسال خودکار'; }
   if (stop) stop.disabled = !directAutoSession;

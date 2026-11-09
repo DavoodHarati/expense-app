@@ -132,6 +132,12 @@ function fixture() {
   const activity = fixture(), handlers = {};
   activity.context.document.addEventListener = (name, handler) => { handlers[name] = handler; };
   const app = fs.readFileSync('app.js', 'utf8');
+  vm.runInContext(app.slice(app.indexOf('const fmt ='), app.indexOf('function statusCard()')), activity.context);
+  activity.context.SYNC = () => null;
+  assert.match(activity.context.homeSyncStatus(), /خودکار فعال نیست/);
+  activity.start(); activity.context.directAutoShow('آزمایش فعال');
+  assert.match(activity.context.homeSyncStatus(), /آزمایش فعال/);
+  activity.context.directAutoStop();
   vm.runInContext(app.slice(app.indexOf('let editingUntil = 0;'), app.indexOf('async function refresh()')), activity.context);
   const target = { closest: selector => selector === '#direct-sync' || selector === '#app' ? {} : null };
   activity.context.document.activeElement = { tagName: 'INPUT', type: 'checkbox', disabled: true };
