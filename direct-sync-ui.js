@@ -1,6 +1,11 @@
 'use strict';
 
 function directSyncMessage(text) { const el = document.getElementById('direct-sync-message'); if (el) el.textContent = text; }
+function directSyncChangedAreas(base, data) {
+  const names = { tx:'تراکنش‌ها', accounts:'حساب‌ها', rem:'یادآوری‌ها', remDel:'حذف یادآوری‌ها', txDel:'حذف تراکنش‌ها', ppl:'مخاطبان', invoices:'فاکتورها', receiptArchive:'رسیدها', log:'سوابق' };
+  const keys = [...new Set([...Object.keys(base), ...Object.keys(data)])].filter(key => base[key] !== data[key]);
+  return [...new Set(keys.map(key => names[key] || 'تنظیمات یا اطلاعات دیگر'))].join('، ') || 'بدون تغییر';
+}
 function directSyncScope() {
   return 'openid email https://www.googleapis.com/auth/drive.file' + (load('directSyncWideSheets', false) === true ? ' https://www.googleapis.com/auth/spreadsheets' : '');
 }
@@ -260,8 +265,21 @@ function directSyncAuthorize(action, requestConsent = false) {
           if (head && base) {
             const decision = DirectSyncCore.decide(DirectSyncCore.canonicalData(base.backup.data), localValue, DirectSyncCore.canonicalData(head.backup.data));
             if (decision === 'conflict') {
+              const mergedData = DirectSyncCore.mergeAddedReminders(base.backup.data, local.data, head.backup.data);
+              if (mergedData) {
+                if (SYNC() || directReceiveLegacyAtBoot) throw new Error('اتصال قدیمی Apps Script باید غیرفعال باشد و برنامه پس از آن دوباره باز شود؛ ادغام متوقف است');
+                if (!confirm('در شیت فقط یادآوری جدید اضافه شده و یادآوری‌های این گوشی تغییر نکرده‌اند. یادآوری‌ها به اطلاعات فعلی این گوشی اضافه شوند؟ نسخه قبلی در گوشی نگهداری می‌شود. سایر تب‌های برنامه را ببند. هنوز چیزی به شیت ارسال نمی‌شود.')) { directSyncMessage('ادغام لغو شد؛ اطلاعات تغییر نکرد.'); return; }
+                const refreshed = await read(), checked = DirectSyncCore.inspectHistory(refreshed);
+                if (checked.state !== 'linear' || checked.heads[0] !== head.id || DirectSyncCore.canonicalData(refreshed.find(item => item.id === head.id).backup.data) !== DirectSyncCore.canonicalData(head.backup.data)) throw new Error('شیت هنگام بررسی تغییر کرد؛ دوباره تلاش کن');
+                const merged = { ...local, data: mergedData };
+                directReceiveApply(merged, localValue, state, head.id);
+                directAutoStop('ادغام یادآوری انجام شد.');
+                alert('یادآوری به اطلاعات این گوشی اضافه شد. برای ثبت نسخه ترکیبی در شیت، پس از بازشدن برنامه همگام‌سازی دستی را دوباره بزن.');
+                location.reload(); return;
+              }
               const preview = DirectSyncCore.previewMerge(base.backup.data, local.data, head.backup.data);
-              const detail = preview.conflicts.length ? preview.conflicts.length.toLocaleString('fa-IR') + ' مورد نیازمند بررسی است.' : 'تغییرها در بررسی اولیه قابل تفکیک‌اند؛ ادغام خودکار هنوز فعال نیست.';
+              const areas = ' تغییرهای این گوشی: ' + directSyncChangedAreas(base.backup.data, local.data) + '؛ تغییرهای شیت: ' + directSyncChangedAreas(base.backup.data, head.backup.data) + '.';
+              const detail = (preview.conflicts.length ? preview.conflicts.length.toLocaleString('fa-IR') + ' مورد نیازمند بررسی است.' : 'تغییرها در بررسی اولیه قابل تفکیک‌اند؛ این نوع ادغام هنوز فعال نیست.') + areas;
               const download = confirm('اطلاعات این دستگاه و شیت هر دو تغییر کرده‌اند. ' + detail + ' نسخه شیت برای بررسی دانلود شود؟ اطلاعات فعلی تغییر نمی‌کند.');
               if (download) directSyncDownload(head.backup);
               directSyncMessage('⚠️ ' + detail + ' هیچ اطلاعاتی تغییر نکرد.'); return;

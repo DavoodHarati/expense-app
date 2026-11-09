@@ -1,4 +1,4 @@
-const C = 'exp-v116', F = ['./', 'index.html', 'app.js?v=115', 'invoice.js?v=115', 'direct-sync-core.js?v=116', 'direct-sync-ui.js?v=116', 'direct-sync-auto.js?v=112', 'direct-sync-receive.js?v=108', 'parser.js?v=36', 'xlsx.full.min.js', 'manifest.json', 'Code.gs', 'icon.svg'];
+const C = 'exp-v117', F = ['./', 'index.html', 'app.js?v=117', 'invoice.js?v=117', 'direct-sync-core.js?v=116', 'direct-sync-ui.js?v=117', 'direct-sync-auto.js?v=112', 'direct-sync-receive.js?v=108', 'parser.js?v=36', 'xlsx.full.min.js', 'manifest.json', 'Code.gs', 'icon.svg'];
 self.addEventListener('install', e => e.waitUntil(caches.open(C).then(c => c.addAll(F))));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x))))));
 self.addEventListener('fetch', e => { if (new URL(e.request.url).origin !== location.origin) return; e.respondWith(fetch(e.request).catch(() => caches.match(e.request, { ignoreSearch: true }))); });

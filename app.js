@@ -338,7 +338,7 @@ function colBlock(t, D) {
     <select class="sharemode${sel ? '' : ' hide'}"><option value="percent"${mode === 'percent' ? ' selected' : ''}>سهم درصدی</option><option value="fixed"${mode === 'fixed' ? ' selected' : ''}>مبلغ ثابت (تومان)</option></select>
     <div class="pcrow${sel && mode === 'percent' ? '' : ' hide'}"><span>درصد سهم از کل مبلغ واریزی</span>
       <span class="pcb"><button type="button" class="sec pa" data-d="-1">▼</button><b class="pv" data-v="${pct}">${Number(pct).toLocaleString('fa-IR')}٪</b><button type="button" class="sec pa" data-d="1">▲</button></span></div>
-    <input class="sharefixed${sel && mode === 'fixed' ? '' : ' hide'}" type="number" min="0" step="1" inputmode="numeric" value="${esc(fixed)}" placeholder="مبلغ سهم دستیار (تومان)">
+    <input class="sharefixed${sel && mode === 'fixed' ? '' : ' hide'}" type="text" inputmode="numeric" value="${esc(fixed)}" placeholder="مبلغ سهم دستیار (تومان)">
     <div class="mut cs"></div></div>`;
 }
 function colRefresh(card) {
@@ -349,7 +349,7 @@ function colRefresh(card) {
   card.querySelector('.sharemode').classList.toggle('hide', !has);
   card.querySelector('.pcrow').classList.toggle('hide', !has || mode !== 'percent');
   card.querySelector('.sharefixed').classList.toggle('hide', !has || mode !== 'fixed');
-  const sh = mode === 'fixed' ? (Number(card.querySelector('.sharefixed').value) || 0) * 10 : shareOf(t.amount, p);
+  const sh = mode === 'fixed' ? (invoiceDigits(card.querySelector('.sharefixed').value) || 0) * 10 : shareOf(t.amount, p);
   card.querySelector('.cs').innerHTML = has && sh ? `سهم دستیار: <b>${toman(sh)}</b> تومان · خالصِ من: <b>${toman(t.amount - sh)}</b> تومان` : '';
 }
 function applyShare(t, name, pct, mode, fixed) {
@@ -414,7 +414,7 @@ function _render() {
         <textarea id="sms" rows="5" placeholder="متن پیامک بانکی را اینجا Paste کنید"></textarea>
         <div class="row"><button id="go">تشخیص و افزودن</button><button id="pst" class="sec">📋 چسباندن</button></div><div id="msg" class="mut"></div></div>
       <div class="card"><b>ثبت دستی (مثلاً بلو)</b>
-        <input id="ma" type="number" inputmode="numeric" placeholder="مبلغ به تومان">
+        <input id="ma" type="text" inputmode="numeric" placeholder="مبلغ به تومان">
         <input id="md" placeholder="بابت چی؟">
         <select id="mc">${CATS.map(c => `<option>${c}</option>`).join('')}</select>
         <select id="mt"><option value="debit">هزینه</option><option value="credit">واریز</option><option value="xfer">انتقال بین حساب‌های خودم</option>${Object.entries(LOAN).map(([k, v]) => `<option value="loan:${k}">${v[0]}</option>`).join('')}</select>
@@ -428,7 +428,7 @@ function _render() {
     $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
     $('#mg').onclick = () => {
-      const a = +$('#ma').value; if (!a) return;
+      const a = invoiceDigits($('#ma').value); if (!a || !Number.isSafeInteger(a * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; }
       const mv = $('#mt').value, lk = mv.startsWith('loan:') ? mv.slice(5) : '';
       if (lk && !$('#mp').value.trim()) { alert('نام شخص را بنویس'); return; }
       if ($('#mt').value === 'xfer') {
@@ -606,7 +606,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۱۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 آخرین به‌روزرسانی برنامه (نسخه ۱۱۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -702,7 +702,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-08T13:54:18Z';
+const BUILD = '2026-11-09T07:58:09Z';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -741,8 +741,8 @@ function loansHtml() {
     const result = all > 0 ? 'او به من بدهکار است: ' + toman(all) : all < 0 ? 'من به او بدهکارم: ' + toman(-all) : 'حساب صاف است';
     return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div>${esc(lp)}</div><div style="margin-top:12px;font-size:13px;opacity:.85">${isCo ? (w > 0 ? 'پیش‌پرداخت دستمزد' : w < 0 ? 'دستمزد پرداخت‌نشده' : 'حساب دستمزد') : 'دستمزد'}</div><div class="big">${isCo && w ? toman(Math.abs(w)) + ' <small>تومان</small>' : 'تسویه'}</div><div style="margin-top:12px;font-size:13px;opacity:.85">قرض</div><div style="font-size:20px;font-weight:700">${balanceText(l, 'loan')}</div>${isCo ? `<label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="combinebalances" type="checkbox" style="width:auto;margin:0" ${showAssistantTotal ? 'checked' : ''}> نمایش جمع دو حساب</label><div class="combinedbalance" ${showAssistantTotal ? '' : 'hidden'} style="margin-top:6px">جمع دو حساب: <b>${result}${all ? ' تومان' : ''}</b><div style="font-size:12px">فقط نمایش جمع است؛ قرض و دستمزد جدا می‌مانند.</div></div>` : ''}</div>
     <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
-    ${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="text" inputmode="numeric" placeholder="مبلغ سهم (تومان)"><div class="mut">تاریخ</div><input id="wdt" value="${nowStr().slice(0, 10)}" placeholder="1405/08/15"><div class="row"><button type="button" class="sec work-day" data-days="0">امروز</button><button type="button" class="sec work-day" data-days="1">دیروز</button><button type="button" class="sec work-day" data-days="2">پریروز</button></div><button id="wadd">ثبت کارکرد</button></details>` : ''}
-    <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent">قرض: او به من بدهکار است</option><option value="borrowed">قرض: من به او بدهکارم</option></select><input id="manualamount" type="number" inputmode="numeric" min="1" placeholder="مبلغ به تومان"><input id="manualdate" value="${nowStr().slice(0, 10)}" placeholder="تاریخ، مثلاً 1405/08/15"><input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
+    ${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="text" inputmode="numeric" placeholder="مبلغ سهم (تومان)">${persianDateFields('wdt')}<button id="wadd">ثبت کارکرد</button></details>` : ''}
+    <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent">قرض: او به من بدهکار است</option><option value="borrowed">قرض: من به او بدهکارم</option></select><input id="manualamount" type="text" inputmode="numeric" placeholder="مبلغ به تومان">${persianDateFields('manualdate')}<input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
     <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
@@ -866,7 +866,7 @@ document.addEventListener('change', e => {
   drafts[card.dataset.id].pc = Number(card.querySelector('.pv').dataset.v);
   colRefresh(card);
 });
-document.addEventListener('input', e => { if (e.target.classList.contains('sharefixed')) { const card = e.target.closest('.card'); (drafts[card.dataset.id] = drafts[card.dataset.id] || {}).shareAmount = e.target.value; colRefresh(card); } });
+document.addEventListener('input', e => { if (e.target.matches('#wa,#manualamount,#ma,#ra,.sharefixed')) invoiceAmountInput(e.target); if (e.target.classList.contains('sharefixed')) { const card = e.target.closest('.card'); (drafts[card.dataset.id] = drafts[card.dataset.id] || {}).shareAmount = e.target.value; colRefresh(card); } });
 let _ht, _hi;
 function pstep(b, k) { const card = b.closest('.card'), v = card.querySelector('.pv'); v.dataset.v = Math.max(0, Math.min(100, Number(v.dataset.v) + b.dataset.d * k)); (drafts[card.dataset.id] = drafts[card.dataset.id] || {}).pc = Number(v.dataset.v); colRefresh(card); }
 document.addEventListener('pointerdown', e => {
@@ -881,7 +881,7 @@ document.addEventListener('change', e => {
   const row = document.querySelector('.combinedbalance'); if (row) row.hidden = !showAssistantTotal;
 });
 document.addEventListener('click', async e => {
-  const workDay = e.target.closest('.work-day'); if (workDay && $('#wdt')) { $('#wdt').value = invoiceDate(Number(workDay.dataset.days)); return; }
+  const workDay = e.target.closest('.work-day'); if (workDay) { const date = document.getElementById(workDay.dataset.target); if (date) { date.value = invoiceDate(Number(workDay.dataset.days)); syncPersianDate(date); } return; }
   const review = e.target.closest('.workreview');
   if (review) {
     const t = tx.find(x => String(x.id) === review.dataset.id), box = $('#workreviewbox'); if (!t || !box) return;
@@ -893,18 +893,18 @@ document.addEventListener('click', async e => {
   if (e.target.closest('.reviewclose')) { const box = $('#workreviewbox'); if (box) box.innerHTML = ''; return; }
   if (e.target.id === 'manualsave') {
     if (!lp) return;
-    const kind = $('#manualkind').value, amount = Number($('#manualamount').value) * 10;
+    const kind = $('#manualkind').value, amount = (invoiceDigits($('#manualamount').value) || 0) * 10;
     const dt = $('#manualdate').value.trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/');
     const m = dt.match(/^(1[34]\d{2})\/(\d{1,2})\/(\d{1,2})$/);
     if (!['share', 'wage', 'lent', 'borrowed'].includes(kind) || ((kind === 'share' || kind === 'wage') && cols()[lp] === undefined)) { alert('نوع حساب را انتخاب کن'); return; }
     if (!Number.isSafeInteger(amount) || amount <= 0) { alert('مبلغ معتبر به تومان وارد کن'); return; }
-    if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) { alert('تاریخ را مانند 1405/08/15 وارد کن'); return; }
+    if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > (+m[2] <= 6 ? 31 : 30)) { alert('تاریخ شمسی معتبر وارد کن'); return; }
     const date = `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nowStr().slice(11)}`;
     const b = tx.find(x => x.account) || {}, desc = $('#manualdesc').value.trim() || 'مانده حساب از قبل';
     tx.push({ id: Date.now() + Math.random(), ghost: true, manualBalance: true, bank: b.bank || '', account: b.account || '', type: LOAN[kind][1] > 0 ? 'debit' : 'credit', amount, balance: null, date, cat: lcat(kind), loan: kind, person: lp, desc, pending: false });
     save(); render(); return;
   }
-  if (e.target.id === 'wadd') { const a = invoiceDigits($('#wa').value), d = $('#wd').value.trim(); if (!a || !lp || !Number.isSafeInteger(a * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; } const b = tx.find(x => x.account) || {}; let dt = ($('#wdt').value || '').trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/'); const nw = nowStr(), m = dt.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (dt && (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31)) { alert('تاریخ را مثل 1405/08/15 بنویس'); return; } const wdate = m ? `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nw.slice(11)}` : nw; tx.push({ id: Date.now(), ghost: true, bank: b.bank, account: b.account, type: 'credit', amount: a * 10, balance: null, date: wdate, cat: 'کارکرد همکار', loan: 'share', person: lp, desc: d || 'کارکرد', pending: false }); save(); render(); return; }
+  if (e.target.id === 'wadd') { const a = invoiceDigits($('#wa').value), d = $('#wd').value.trim(); if (!a || !lp || !Number.isSafeInteger(a * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; } const b = tx.find(x => x.account) || {}; let dt = ($('#wdt').value || '').trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/'); const nw = nowStr(), m = dt.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (dt && (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > (+m[2] <= 6 ? 31 : 30))) { alert('تاریخ شمسی معتبر وارد کن'); return; } const wdate = m ? `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nw.slice(11)}` : nw; tx.push({ id: Date.now(), ghost: true, bank: b.bank, account: b.account, type: 'credit', amount: a * 10, balance: null, date: wdate, cat: 'کارکرد همکار', loan: 'share', person: lp, desc: d || 'کارکرد', pending: false }); save(); render(); return; }
   if (e.target.classList.contains('wdel')) { if (confirm('این ردیف حذف شود؟ مطمئنی؟')) { tomb([e.target.dataset.id]); tx = tx.filter(x => x.id !== Number(e.target.dataset.id)); save(); render(); } return; }
   if (e.target.id === 'pdel') { if (confirm('«' + lp + '» و همهٔ ردیف‌های حساب او حذف شود؟')) { const c = cols(), j = pjobs(); delete c[lp]; delete j[lp]; setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); tx.forEach(x => { if (x.colleague === lp) { x.colleague = ''; x.pct = 0; } }); tomb(tx.filter(x => x.person === lp).map(x => x.id)); tx = tx.filter(x => x.person !== lp); lp = null; save(); render(); } return; }
   const cpb = e.target.closest('button.cp'); if (cpb) { const cd = cpb.closest('.card'), pi = cd.querySelector('.p'); pi.value = cpb.dataset.n; (drafts[cd.dataset.id] = drafts[cd.dataset.id] || {}).p = pi.value; balHint(cd); return; }
@@ -946,7 +946,7 @@ document.addEventListener('click', async e => {
     if (co) {
       nm = co.value === '__new' ? card.querySelector('.cn').value.trim() : co.value;
       const pc = Number(card.querySelector('.pv').dataset.v) || 0, mode = card.querySelector('.sharemode').value;
-      const fixedInput = card.querySelector('.sharefixed').value, fixed = Number(fixedInput) * 10;
+      const fixedInput = card.querySelector('.sharefixed').value, fixed = (invoiceDigits(fixedInput) || 0) * 10;
       if (co.value === '__new' && !nm) { alert('نام دستیار / همکار را بنویس'); return; }
       if (nm && mode === 'fixed' && (!fixedInput || !Number.isSafeInteger(fixed) || fixed <= 0)) { alert('مبلغ سهم را به تومان وارد کن'); return; }
       if (nm && mode === 'percent' && (!Number.isFinite(pc) || pc <= 0 || pc > 100)) { alert('درصد سهم را بین ۱ و ۱۰۰ انتخاب کن'); return; }
@@ -1382,7 +1382,7 @@ function remHtml() {
   return remBanner() + `<div class="card"><b>افزودن یادآوری</b>
     <select id="rt"><option value="check">ثبت/سررسید چک</option><option value="inst">قسط</option><option value="custom">سفارشی (شهریه، باشگاه…)</option></select>
     <input id="rn" placeholder="عنوان (مثلاً: چک ملت، قسط وام، شهریه)">
-    <input id="ra" type="number" inputmode="numeric" placeholder="مبلغ به تومان (اختیاری)">
+    <input id="ra" type="text" inputmode="numeric" placeholder="مبلغ به تومان (اختیاری)">
     <div class="mut" id="rdl">تاریخ سررسید:</div><input id="rd" type="date">
     <div class="mut">چند روز قبل هشدار؟ (چند عدد با ویرگول، مثلاً ۷,۳,۱)</div><input id="rb" value="7,3,1" dir="ltr">
     <div id="rc" class="hide"><input id="rk" type="number" inputmode="numeric" placeholder="تعداد کل اقساط (ماهانه)"></div>
@@ -1402,7 +1402,8 @@ function remBind() {
     const title = $('#rn').value.trim(), date = $('#rd').value; if (!title || !date) { alert('عنوان و تاریخ لازم است'); return; }
     const bs = $('#rb').value.split(/[,،]/).map(x => +x.trim()).filter(x => x >= 0);
     const t = $('#rt').value;
-    rem.push({ id: Date.now(), type: t, title, date, amount: +$('#ra').value || 0, alerts: bs.length ? bs : [3], before: Math.max(...(bs.length ? bs : [3])), count: t === 'inst' ? +$('#rk').value || 1 : 0, rep: t === 'custom' ? $('#rr').value : '' });
+    const amount = $('#ra').value ? invoiceDigits($('#ra').value) : 0; if (amount === null || !Number.isSafeInteger(amount * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; }
+    rem.push({ id: Date.now(), type: t, title, date, amount, alerts: bs.length ? bs : [3], before: Math.max(...(bs.length ? bs : [3])), count: t === 'inst' ? +$('#rk').value || 1 : 0, rep: t === 'custom' ? $('#rr').value : '' });
     saveRem(); render();
   };
   document.querySelectorAll('.rdn').forEach(b => b.onclick = () => { const r = rem.find(x => x.id == b.dataset.i); r.done = !r.done; saveRem(); render(); });

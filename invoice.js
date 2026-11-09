@@ -11,6 +11,25 @@ function invoiceDate(daysAgo = 0) {
   const get = type => parts.find(part => part.type === type).value;
   return get('year') + '/' + get('month') + '/' + get('day');
 }
+function persianDateFields(id) {
+  const today = invoiceDate(), [year, month, day] = today.split('/').map(Number);
+  const options = (start, end, selected) => Array.from({ length: end - start + 1 }, (_, index) => { const value = start + index; return `<option value="${value}"${value === selected ? ' selected' : ''}>${value.toLocaleString('fa-IR')}</option>`; }).join('');
+  return `<label class="mut" for="${id}">تاریخ شمسی</label><input id="${id}" inputmode="numeric" value="${today}" placeholder="1405/08/15"><div class="row" dir="rtl" data-date-target="${id}"><select data-date-part="day" aria-label="روز شمسی">${options(1,31,day)}</select><select data-date-part="month" aria-label="ماه شمسی">${options(1,12,month)}</select><select data-date-part="year" aria-label="سال شمسی">${options(year-20,year+10,year)}</select></div><div class="row"><button type="button" class="sec work-day" data-target="${id}" data-days="0">امروز</button><button type="button" class="sec work-day" data-target="${id}" data-days="1">دیروز</button><button type="button" class="sec work-day" data-target="${id}" data-days="2">پریروز</button></div>`;
+}
+function syncPersianDate(input) {
+  const group = document.querySelector('[data-date-target="' + input.id + '"]');
+  const value = input.value.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  const match = value.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (!group || !match) return;
+  for (const [part, number] of [['year',match[1]],['month',match[2]],['day',match[3]]]) { const select = group.querySelector('[data-date-part="' + part + '"]'); if ([...select.options].some(option => option.value === String(Number(number)))) select.value = String(Number(number)); }
+}
+document.addEventListener('change', event => {
+  const group = event.target.closest('[data-date-target]');
+  if (group && event.target.dataset.datePart) {
+    const value = part => group.querySelector('[data-date-part="' + part + '"]').value;
+    document.getElementById(group.dataset.dateTarget).value = value('year') + '/' + value('month').padStart(2,'0') + '/' + value('day').padStart(2,'0');
+  } else if (event.target.matches('#wdt,#manualdate')) syncPersianDate(event.target);
+});
 function invoiceAmountInput(input) {
   const numeric = invoiceDigits(input.value);
   if (input.value && numeric !== null) {
