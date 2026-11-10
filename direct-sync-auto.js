@@ -101,6 +101,17 @@ async function directAutoTick() {
     if (directAutoSession !== session) return;
     let graph = DirectSyncCore.inspectHistory(records);
     if (graph.state !== 'linear') throw new Error('سابقه شیت چند شاخه شده است؛ نسخه‌ها حفظ شده‌اند');
+    if (session.pending) {
+      const pending = session.pending, saved = records.find(record => record.id === pending.id);
+      if (!saved) { directAutoShow('⚠️ نتیجه ارسال قبلی هنوز روشن نیست؛ برنامه بدون ارسال تکراری دوباره بررسی می‌کند.'); return; }
+      if (state.base !== pending.base || saved.parent !== pending.base || DirectSyncCore.canonicalData(saved.backup.data) !== pending.value) throw new Error('نسخه ارسال‌شده با انتظار دستگاه مطابقت ندارد؛ بررسی دستی لازم است');
+      const current = load('directSyncState', null);
+      if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال هنگام بررسی تغییر کرده است');
+      state.base = pending.id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
+      session.pending = null;
+      directAutoShow('✅ ارسال قبلی در شیت پیدا و تأیید شد؛ اتصال خودکار فعال است.');
+      return;
+    }
     const head = records.find(record => record.id === graph.heads[0]);
     const base = records.find(record => record.id === state.base);
     if (!head || !base) throw new Error('نسخه مبنای این دستگاه در شیت پیدا نشد');
@@ -146,7 +157,10 @@ async function directAutoTick() {
     if (!beforeSend || beforeSend.id !== state.id || beforeSend.base !== state.base || beforeSend.email !== state.email) throw new Error('اتصال هنگام بررسی تغییر کرده است');
     directAutoShow('در حال ارسال نسخه و بررسی مجدد…');
     appendStarted = true;
-    const sent = await fetch(api + encodeURIComponent("'DirectSync'!A:A") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [[id, head.id, new Date().toISOString(), String(parts.length), ...parts]] }) });
+    session.pending = { id, base: state.base, value };
+    let sent;
+    try { sent = await fetch(api + encodeURIComponent("'DirectSync'!A:A") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [[id, head.id, new Date().toISOString(), String(parts.length), ...parts]] }) }); }
+    catch (_) { const error = new Error('پاسخ ارسال نرسید'); error.directAutoPostNetwork = true; throw error; }
     if (!sent.ok) throw new Error('ارسال تأیید نشد (کد ' + sent.status + ')؛ پیش از تلاش مجدد شیت را بررسی کن');
     records = await read(); graph = DirectSyncCore.inspectHistory(records);
     const saved = records.find(record => record.id === id);
@@ -156,10 +170,12 @@ async function directAutoTick() {
     const current = load('directSyncState', null);
     if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال هنگام ارسال تغییر کرده است؛ شیت را بررسی کن');
     state.base = id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
+    session.pending = null;
     directAutoShow('✅ نسخه این دستگاه خودکار ارسال و دوباره خوانده شد.');
   } catch (error) {
     if (directAutoSession === session) {
-      if (error.directAutoReadNetwork && !appendStarted) directAutoShow('⚠️ ارتباط با شیت قطع است؛ با برگشت اینترنت دوباره بررسی می‌شود. اطلاعات دستگاه تغییر نکرده است.');
+      if (appendStarted && (error.directAutoPostNetwork || error.directAutoReadNetwork)) directAutoShow('⚠️ نتیجه ارسال نامشخص است؛ با برگشت ارتباط نسخه ارسالی بررسی می‌شود و ارسال تکراری انجام نمی‌شود.');
+      else if (error.directAutoReadNetwork && !appendStarted) directAutoShow('⚠️ ارتباط با شیت قطع است؛ با برگشت اینترنت دوباره بررسی می‌شود. اطلاعات دستگاه تغییر نکرده است.');
       else directAutoStop('⚠️ ارسال خودکار متوقف شد: ' + (error.message || error) + (appendStarted ? '؛ ممکن است نسخه به شیت اضافه شده باشد، پیش از تلاش دوباره آن را بررسی کن.' : ''));
     }
   }

@@ -9,7 +9,7 @@ function fixture() {
   const base = { format: 'expense-app-backup', version: 1, data: { tx: '[{"id":1,"amount":10}]', accounts: '{}' } };
   const newer = { format: 'expense-app-backup', version: 1, data: { tx: '[{"id":1,"amount":20}]', accounts: '{}' } };
   const rows = [['expense-direct-sync', '1'], ['root', 'ROOT', 'time', '1', JSON.stringify(base)]];
-  let state = { id: 'sheet', email: 'test@example.invalid', base: 'root' }, snapshot = newer, posts = 0, race = false, fail = false, uncertain = false, failReadAfterPost = false;
+  let state = { id: 'sheet', email: 'test@example.invalid', base: 'root' }, snapshot = newer, posts = 0, race = false, fail = false, uncertain = false, uncertainMissing = false, failReadAfterPost = false;
   const writes = [];
   const sessionValues = new Map();
   const context = vm.createContext({
@@ -25,6 +25,7 @@ function fixture() {
       if (fail) throw new Error('offline');
       if (options.method === 'POST') {
         posts++;
+        if (uncertainMissing) { uncertainMissing = false; throw new Error('connection lost before record'); }
         if (race) rows.push(['other', 'root', 'time', '1', JSON.stringify(newer)]);
         rows.push(...JSON.parse(options.body).values);
         if (uncertain) { uncertain = false; throw new Error('connection lost'); }
@@ -37,7 +38,7 @@ function fixture() {
   context.directSyncButtons = () => {}; context.directSyncLink = () => {};
   vm.runInContext(fs.readFileSync('direct-sync-auto.js', 'utf8'), context);
   const start = () => vm.runInContext("directAutoSession = { token: 'secret-token', expires: Date.now() + 600000, id: 'sheet', email: 'test@example.invalid' }", context);
-  return { context, rows, writes, start, state: () => state, posts: () => posts, setRace: () => { race = true; }, setFail: () => { fail = true; }, restoreNetwork: () => { fail = false; }, setUncertain: () => { uncertain = true; }, setFailReadAfterPost: () => { failReadAfterPost = true; }, setSnapshot: value => { snapshot = value; }, base, newer };
+  return { context, rows, writes, start, state: () => state, posts: () => posts, setRace: () => { race = true; }, setFail: () => { fail = true; }, restoreNetwork: () => { fail = false; }, setUncertain: () => { uncertain = true; }, setUncertainMissing: () => { uncertainMissing = true; }, setFailReadAfterPost: () => { failReadAfterPost = true; }, setSnapshot: value => { snapshot = value; }, base, newer };
 }
 
 (async () => {
@@ -67,15 +68,20 @@ function fixture() {
   assert.equal(f.posts(), 2); assert.equal(f.rows.length, 4);
 
   const g = fixture(); g.start(); g.setUncertain(); await g.context.directAutoTick();
-  assert.equal(g.state().base, 'root'); assert.match(vm.runInContext('directAutoStatus', g.context), /ممکن است/);
-  g.start(); await g.context.directAutoTick(); assert.equal(g.posts(), 1); assert.notEqual(g.state().base, 'root');
+  assert.equal(g.state().base, 'root'); assert.match(vm.runInContext('directAutoStatus', g.context), /نامشخص/);
+  await g.context.directAutoTick(); assert.equal(g.posts(), 1); assert.notEqual(g.state().base, 'root'); assert.ok(vm.runInContext('directAutoSession', g.context));
+
+  const missing = fixture(); missing.start(); missing.setUncertainMissing(); await missing.context.directAutoTick();
+  await missing.context.directAutoTick(); await missing.context.directAutoTick();
+  assert.equal(missing.posts(), 1); assert.equal(missing.state().base, 'root');
+  assert.match(vm.runInContext('directAutoStatus', missing.context), /بدون ارسال تکراری/);
 
   const interrupted = fixture(); interrupted.start(); interrupted.setFailReadAfterPost();
   await interrupted.context.directAutoTick();
   assert.equal(interrupted.posts(), 1); assert.equal(interrupted.rows.length, 3);
   assert.equal(interrupted.state().base, 'root');
-  assert.match(vm.runInContext('directAutoStatus', interrupted.context), /ممکن است/);
-  interrupted.start(); await interrupted.context.directAutoTick();
+  assert.match(vm.runInContext('directAutoStatus', interrupted.context), /نامشخص/);
+  await interrupted.context.directAutoTick();
   assert.equal(interrupted.posts(), 1); assert.notEqual(interrupted.state().base, 'root');
 
   const h = fixture(); let callback, checks = 0;
