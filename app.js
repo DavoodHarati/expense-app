@@ -7,7 +7,7 @@ const DEFAULT_INC = ['فروش', 'مشتری', 'حقوق', 'سایر'];
 const CATS = lsj('cats', [...DEFAULT_CATS]);
 const INC = lsj('icats', [...DEFAULT_INC]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet'];
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
 function makeFullBackup() {
   const data = {};
   BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
@@ -21,7 +21,7 @@ function validateFullBackup(backup) {
   const parse = key => { try { return JSON.parse(backup.data[key]); } catch { throw new Error('اطلاعات «' + key + '» در پشتیبان معتبر نیست'); } };
   if (!Array.isArray(parse('tx'))) throw new Error('فهرست تراکنش‌ها معتبر نیست');
   const acc = parse('accounts'); if (!acc || typeof acc !== 'object' || Array.isArray(acc)) throw new Error('اطلاعات حساب‌ها معتبر نیست');
-  for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
+  for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add', 'legacyInboxImported']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
   for (const key of ['cols', 'pjobs']) if (key in backup.data) { const value = parse(key); if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('اطلاعات «' + key + '» معتبر نیست'); }
   return backup.data;
 }
@@ -469,6 +469,7 @@ function _render() {
     prepareGoogleCopy();
     el.insertAdjacentHTML('beforeend', `<div class="card" id="direct-sync"><b>اتصال مستقیم آزمایشی به شیت</b><div class="mut">ذخیره و دریافت دستی در شیتی جدا انجام می‌شود. نسخه‌های قبلی حفظ می‌شوند و تعارض دستگاه‌ها اعلام می‌شود. ادغام همه تعارض‌ها هنوز فعال نیست.</div><input id="direct-sync-url" type="url" dir="ltr" placeholder="لینک شیت اتصال مستقیم (برای دستگاه دیگر)"><div class="row"><button id="direct-sync-create" disabled>ساخت شیت جدا</button><button id="direct-sync-run" disabled>بررسی و همگام‌سازی دستی</button></div><button id="direct-sync-receive" disabled>دریافت مستقیم نسخه جدید</button><div class="mut">دریافت فقط وقتی مجاز است که اطلاعات دستگاه تغییر ارسال‌نشده نداشته باشد و اتصال قدیمی Apps Script غیرفعال باشد. نسخه قبلی در دستگاه نگهداری می‌شود.</div><div class="row"><button type="button" class="sec" id="direct-receive-previous">دانلود پشتیبان قبل از دریافت</button><button type="button" class="sec" id="direct-receive-clear">حذف پشتیبان محلی قبلی</button></div><button id="direct-sync-receipts" disabled>ارسال آرشیو رسیدها به شیت</button><div class="mut">رسیدها در برگه‌ای جدا و به‌صورت دستی اضافه می‌شوند؛ ابتدا همگام‌سازی دستی را انجام بده. وضعیت و حساب هر رسید مربوط به زمان ارسال است.</div><div class="mut" id="direct-sync-message" aria-live="polite"></div><div id="direct-sync-link"></div><hr><b>ارسال خودکار در این نشست</b><div class="mut">با اجازه تو، تا وقتی برنامه باز و دسترسی گوگل معتبر است، تغییرات این دستگاه به شیت افزوده می‌شود. دریافت خودکار اختیاری است؛ برای دریافت، فرم‌های باز را ببند و به صفحه خانه برو. پس از قطع موقت، نتیجه ارسال حتی بعد از بازشدن مجدد برنامه هم با فعال‌کردن اتصال بررسی می‌شود؛ تعارض یا پایان اعتبار دسترسی اتصال را متوقف می‌کند.</div><div class="row"><button type="button" id="direct-auto-start" disabled>فعال‌کردن ارسال خودکار</button><button type="button" id="direct-auto-stop" class="sec" disabled>توقف</button></div><div id="direct-auto-status" class="mut" aria-live="polite"></div></div>`);
     directSyncPrepare();
+    legacyInboxPrepare(el);
     if (SYNC()) {
       const legacyButton = document.createElement('button'); legacyButton.type = 'button'; legacyButton.className = 'sec'; legacyButton.textContent = 'توقف اتصال قدیمی در این گوشی';
       legacyButton.onclick = () => {
@@ -616,7 +617,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۴)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -720,7 +721,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-10T07:08:29+03:30';
+const BUILD = '2026-11-10T08:19:29+03:30';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
