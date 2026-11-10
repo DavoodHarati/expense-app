@@ -49,16 +49,26 @@ details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
 .pcb{display:flex;align-items:center;gap:10px}.pcb b{font-size:20px;min-width:52px;text-align:center;color:var(--pri)}
 .pcb button{padding:8px 14px;touch-action:manipulation}
 .invoice-account-box{background:#f0fdfa;border:1px solid #b9e8e1;border-radius:12px;padding:12px;margin:12px 0;line-height:1.8}.invoice-result{border:1px solid #e3e9e8;border-radius:12px;padding:12px;margin:9px 0;line-height:1.8}.invoice-result summary{flex-wrap:wrap;font-size:14px}.invoice-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.invoice-actions button{font-size:13px}.invoice-ledger-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin:12px 0}.invoice-ledger-grid>div{background:#f3f8f7;border-radius:10px;padding:10px;font-size:13px;color:#52635f}.invoice-ledger-grid b{display:block;color:#0f766e;margin-top:4px;font-size:15px}#invoice-card{line-height:1.75;font-size:14px}#invoice-card input,#invoice-card select{font-size:15px}#invoice-card button{margin-block:3px}</style>
+<style>
+.topic-nav{display:flex;gap:7px;overflow-x:auto;padding:10px 12px;background:#fff;border-bottom:1px solid #e5e7eb;scrollbar-width:none;position:sticky;top:0;z-index:4}.topic-nav::-webkit-scrollbar{display:none}.topic-nav button{flex:0 0 auto;background:#edf3f2;color:#405652;padding:9px 13px;font-size:13px;white-space:nowrap}.topic-nav button.on{background:#0f766e;color:#fff;font-weight:700}.topic-heading{color:#0f766e;font-size:13px;margin:2px 3px 12px}.topic-actions{display:flex;gap:8px;flex-wrap:wrap}.topic-actions button{flex:1;min-width:125px}.topic-summary{background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;border-radius:16px;padding:16px;margin-bottom:12px}.topic-summary b{font-size:22px}.topic-nav[hidden]{display:none}
+</style>
 </head>
 <body>
 <header id="title">هزینه‌ها</header>
+<div class="topic-nav" id="topics" aria-label="موضوع برنامه">
+  <button type="button" data-topic="expenses">هزینه‌ها</button>
+  <button type="button" data-topic="invoices">فاکتورها</button>
+  <button type="button" data-topic="receipts">رسیدها</button>
+  <button type="button" data-topic="work">کارکردها</button>
+  <button type="button" data-topic="loans">قرض‌ها</button>
+  <button type="button" data-topic="reminders">یادآوری</button>
+</div>
 <main id="app"></main>
 <nav>
   <button data-t="home">خانه</button>
   <button data-t="report">گزارش</button>
-  <button data-t="add">افزودن</button>
-  <button data-t="contacts">مخاطبین</button>
-  <button data-t="rem">یادآوری</button>
+  <button data-t="add">ثبت</button>
+  <button data-t="contacts">اشخاص</button>
   <button data-t="settings">تنظیمات</button>
 </nav>
 <script src="xlsx.full.min.js"></script>
@@ -70,6 +80,6 @@ details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
 <script src="direct-sync-receive.js?v=129"></script>
 <script src="invoice.js?v=137"></script>
 <script src="legacy-inbox.js?v=135"></script>
-<script src="app.js?v=137"></script>
+<script src="app.js?v=138"></script>
 </body>
 </html>

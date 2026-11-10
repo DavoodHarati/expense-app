@@ -39,7 +39,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 let log = load('log', []);
 const saveLog = () => { localStorage.setItem('log', JSON.stringify(log.slice(0, 100))); localStorage.setItem('dirty', '1'); push(); };
 let banner = '';
-let tab = 'home', month = null;
+let tab = 'home', month = null, topic = 'expenses';
 let welcomeDismissed = false;
 
 // انتقال بین حساب‌های خودم
@@ -400,10 +400,42 @@ function render() {
 function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); }); }
 function _render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
   const el = $('#app');
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
+  if (tab === 'rem') { topic = 'reminders'; tab = 'home'; }
+  if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
+    if (topic === 'invoices' && tab !== 'add') {
+      const list = invoiceList(), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => item.payment?.method === 'unpaid');
+      el.innerHTML = tab === 'report' ? invoiceLedgerHtml() : `<div class="topic-summary"><div>فاکتورها</div><b>${list.length.toLocaleString('fa-IR')} فاکتور</b><div>${confirmed.length.toLocaleString('fa-IR')} تأییدشده · ${unpaid.length.toLocaleString('fa-IR')} نسیه</div></div><div class="card"><b>آخرین فاکتورها</b>${list.slice(0, 10).map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number || '')}</b><div class="mut">${esc(item.date || '')} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div></div>`).join('') || '<div class="mut">هنوز فاکتوری ثبت نشده است.</div>'}<button class="invoice-open-list" type="button">جست‌وجو و بررسی همه فاکتورها</button></div>`;
+      return;
+    }
+    if (topic === 'receipts') {
+      el.innerHTML = `${tab === 'add' ? '<div class="card"><b>ثبت رسید بانکی</b><textarea id="sms" rows="5" placeholder="متن پیامک رسید را اینجا بچسبان"></textarea><div class="topic-actions"><button id="go">ثبت رسید</button><button id="pst" class="sec">چسباندن</button></div><div id="msg" class="mut"></div></div>' : ''}${receiptArchiveHtml()}${tab === 'home' ? rcReviewHtml() : ''}`;
+      receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
+      if (tab === 'add') {
+        $('#pst').onclick = async () => { try { $('#sms').value = await navigator.clipboard.readText(); } catch (_) { $('#msg').textContent = 'متن رسید را داخل کادر بچسبان.'; } };
+        $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; receiptArchiveRender(''); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
+      }
+      return;
+    }
+    if (topic === 'work' || topic === 'loans') {
+      const relevant = tx.filter(item => item.loan && LOAN[item.loan] && (topic === 'work' ? isWage(item) : !isWage(item)));
+      const title = topic === 'work' ? 'حساب دستیاران و کارکردها' : 'حساب اشخاص و قرض‌ها';
+      const summary = tab === 'report' ? `<div class="topic-summary"><div>گزارش ${title}</div><b>${relevant.length.toLocaleString('fa-IR')} ردیف</b><div>جزئیات و مانده هر شخص جداگانه در حساب او نمایش داده می‌شود.</div></div>` : '';
+      el.innerHTML = summary + `<div class="topic-heading">${title} · برای ثبت یا مشاهده جزئیات، حساب شخص را باز کن.</div>` + loansHtml();
+      return;
+    }
+    if (topic === 'reminders') {
+      el.innerHTML = remHtml(); accordion(el, 'rem'); remBind();
+      const form = $('#rt').closest('.card');
+      if (tab === 'add') { [...el.children].forEach(child => { if (child !== form) child.hidden = true; }); form.open = true; }
+      else form.hidden = true;
+      return;
+    }
+  }
   if (tab === 'home' || tab === 'report') {
-    el.innerHTML = tab === 'home' ? homeHtml() : reportHtml();
+    el.innerHTML = tab === 'home' ? homeHtml() : reportHtml().replace(invoiceLedgerHtml(), '');
     $('#m') && ($('#m').onchange = e => { month = e.target.value; render(); });
   } else if (tab === 'rem') {
     el.innerHTML = receiptArchiveHtml() + remHtml(); accordion(el, 'rem'); remBind(); receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
@@ -427,6 +459,8 @@ function _render() {
         <button id="mg">ثبت</button></div>`;
     accordion(el, 'add');
     invoiceBind();
+    if (topic === 'invoices') { [...el.children].forEach(child => { if (child.id !== 'invoice-card') child.hidden = true; }); document.getElementById('invoice-card').open = true; }
+    else document.getElementById('invoice-card').hidden = true;
     $('#pst').onclick = async () => { try { const t = await navigator.clipboard.readText(); if (!t) { $('#msg').textContent = 'کلیپ‌بورد خالی است'; return; } $('#sms').value = t; $('#msg').textContent = 'چسبانده شد'; } catch (e) { $('#sms').focus(); $('#msg').textContent = 'اجازهٔ دسترسی به کلیپ‌بورد داده نشد؛ داخل کادر نگه دار و «Paste» بزن.'; } };
     $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
@@ -618,7 +652,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -723,7 +757,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-10T13:37:35.921Z';
+const BUILD = '2026-11-10T17:30:00Z';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -935,14 +969,14 @@ document.addEventListener('click', async e => {
     const c = cols(), j = pjobs(); if (!nw && (jb !== (j[nm] || '') || on !== (c[nm] !== undefined) || (on && pc !== Number(c[nm] || 0))) && !confirm('مشخصات دستیار تغییر کرده است. تغییرات ذخیره شود؟')) return; if (jb) j[nm] = jb; else delete j[nm]; if (on) c[nm] = pc; else delete c[nm];
     setCols(c); localStorage.setItem('pjobs', JSON.stringify(j)); localStorage.setItem('dirty', '1'); push(); if (nw) lp = nm; render(); return;
   }
-  const rb = e.target.closest('.rdn'); if (rb && tab !== 'rem') { const r = rem.find(x => x.id == rb.dataset.i); if (r) { r.done = !r.done; saveRem(); render(); } return; }
+  const rb = e.target.closest('.rdn'); if (rb && topic !== 'reminders' && tab !== 'rem') { const r = rem.find(x => x.id == rb.dataset.i); if (r) { r.done = !r.done; saveRem(); render(); } return; }
   const lpc = e.target.closest('.lp'); if (lpc) { lp = lpc.dataset.p; showAssistantTotal = false; render(); return; }
   if (e.target.id === 'pdfb') { $('#pdfchoices')?.classList.toggle('hide'); return; }
   if (e.target.id === 'pdfcancel') { $('#pdfchoices')?.classList.add('hide'); return; }
   if (e.target.id === 'pdftable' || e.target.id === 'pdflinear') { pdfPerson(lp, e.target.id === 'pdflinear' ? 'linear' : 'table'); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
-  const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; tab = 'add'; render(); const card = document.getElementById('invoice-card'); card.open = true; const search = card.querySelector('#inv-search'); search.closest('details').open = true; document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
+  const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; topic = 'invoices'; tab = 'add'; render(); const card = document.getElementById('invoice-card'); card.open = true; const search = card.querySelector('#inv-search'); search.closest('details').open = true; document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
   if (e.target.id === 'welcome-later') { welcomeDismissed = true; render(); return; }
   if (e.target.id === 'welcome-google' || e.target.id === 'home-direct-start') { if (!window.google?.accounts?.oauth2) { prepareGoogleTest(); directAutoShow('سرویس گوگل در حال آماده‌شدن است؛ چند لحظه بعد دوباره دکمه را بزن.'); return; } directAutoStart(e.target.id === 'welcome-google'); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
@@ -952,7 +986,8 @@ document.addEventListener('click', async e => {
   }
   const fa = e.target.closest('.fb [data-a]');
   if (fa) { const a = fa.dataset.a; if (a === '*') sel = null; else { sel = sel ? (sel.includes(a) ? sel.filter(x => x !== a) : [...sel, a]) : [a]; if (!sel.length) sel = null; } localStorage.setItem('sel', JSON.stringify(sel)); render(); return; }
-  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); return; }
+  const topicButton = e.target.closest('[data-topic]'); if (topicButton) { topic = topicButton.dataset.topic; if (tab === 'contacts' || tab === 'settings') tab = 'home'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
