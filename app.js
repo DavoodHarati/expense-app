@@ -617,7 +617,7 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۵)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۶)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -695,6 +695,7 @@ function statusCard() {
    <div class="mut" style="margin-top:6px">آخرین پیامک رسیده: ${l ? fmt(l.at) + ' · ' + (l.ok ? '✅ ' : '⚠️ ') + esc(l.msg) : 'هنوز نیامده'}</div>
    <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? fmt(lt.id) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
    <div class="mut" id="home-sync-status">${esc(homeSyncStatus())}</div>
+   ${load('directSyncState', null)?.id ? `<button type="button" id="home-direct-start" style="margin-top:8px" ${directAutoSession ? 'hidden' : ''}>اتصال خودکار به گوگل</button>` : ''}
    <div class="mut">${esc(syncMsg)}</div></div>`; }
 function workPayments(p, L) {
   const mine = L.filter(t => t.person === p);
@@ -721,7 +722,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-10T08:19:29+03:30';
+const BUILD = '2026-11-10T13:06:18+03:30';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -940,6 +941,7 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'pdftable' || e.target.id === 'pdflinear') { pdfPerson(lp, e.target.id === 'pdflinear' ? 'linear' : 'table'); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
+  if (e.target.id === 'home-direct-start') { if (!window.google?.accounts?.oauth2) { prepareGoogleTest(); directAutoShow('سرویس گوگل در حال آماده‌شدن است؛ چند لحظه بعد دوباره دکمه را بزن.'); return; } directAutoStart(); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
   if (e.target.id === 'clip') {
     try { const t = await navigator.clipboard.readText(); const r = addSms(t); banner = r.ok ? '✅ ثبت شد' : '⚠️ ' + r.msg; } catch { banner = '⚠️ دسترسی به کلیپ‌بورد نشد؛ از تب افزودن Paste کن.'; }
@@ -1383,7 +1385,7 @@ function directReceiveRefreshView() {
   render();
 }
 async function refresh() { if (!SYNC()) return; await pull(); if (!busyTyping() && tab !== 'add') render(); }
-document.addEventListener('visibilitychange', async () => { if (document.visibilityState !== 'visible') return; if (!pulled || Date.now() - lastPull > 15000) refresh(); else if (localStorage.getItem('dirty')) push(); });
+document.addEventListener('visibilitychange', async () => { if (document.visibilityState !== 'visible') return; if (localStorage.getItem('legacyInboxAuto') === '1') legacyInboxCheck(false); if (!pulled || Date.now() - lastPull > 15000) refresh(); else if (localStorage.getItem('dirty')) push(); });
 setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 60000);
 addEventListener('online', () => { if (!pulled) pull().then(() => { if (!busyTyping()) render(); }); else push(); });
 navigator.storage?.persist?.();
@@ -1404,6 +1406,8 @@ function autoDedupe() {
 }
 autoDedupe(); rcTryPending();
 render();
+if (load('directSyncState', null)?.id) prepareGoogleTest();
+if (localStorage.getItem('legacyInboxAuto') === '1') setTimeout(() => legacyInboxCheck(false), 0);
 pull().then(() => { autoDedupe(); rcTryPending(); if (!busyTyping()) render(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 

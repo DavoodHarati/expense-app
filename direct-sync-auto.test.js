@@ -117,6 +117,17 @@ function fixture() {
   assert.equal(confirmations, 0); assert.equal(vm.runInContext('directAutoSession.receive', resumed.context), true);
   assert.equal(resumed.context.sessionStorage.getItem('directAutoResume'), null);
   resumed.context.directAutoStop();
+  const home = fixture(); let homeCallback;
+  const originalLoad = home.context.load;
+  home.context.load = (key, fallback) => key === 'directAutoReceiveEnabled' ? true : originalLoad(key, fallback);
+  home.context.confirm = () => true; home.context.GOOGLE_TEST_CLIENT = 'client';
+  home.context.fetch = async () => ({ ok: true, json: async () => ({ email: 'test@example.invalid' }) });
+  home.context.google = { accounts: { oauth2: { initTokenClient: options => ({ requestAccessToken() { homeCallback = options.callback({ access_token: 'home-token', expires_in: 3600 }); } }) } } };
+  home.context.directAutoTick = () => {};
+  home.context.directAutoStart(); await homeCallback;
+  assert.equal(vm.runInContext('directAutoSession.receive', home.context), true);
+  assert.ok(home.writes.every(write => !write.value.includes('home-token')));
+  home.context.directAutoStop();
   const incoming = fixture(); incoming.rows.push(['other', 'root', 'time', '1', JSON.stringify(incoming.newer)]); incoming.setSnapshot(incoming.base);
   let applied = 0, reloaded = 0, refreshed = 0; incoming.context.DIRECT_RECEIVE_JOURNAL = 'journal';
   incoming.context.directReceiveApply = (backup, value, state, head) => { applied++; assert.equal(head, 'other'); assert.equal(backup.data.tx, incoming.newer.data.tx); incoming.setSnapshot(backup); incoming.context.localStorage.setItem('directSyncState', JSON.stringify({ ...state, base: head })); };
