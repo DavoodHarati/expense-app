@@ -40,6 +40,7 @@ let log = load('log', []);
 const saveLog = () => { localStorage.setItem('log', JSON.stringify(log.slice(0, 100))); localStorage.setItem('dirty', '1'); push(); };
 let banner = '';
 let tab = 'home', month = null;
+let welcomeDismissed = false;
 
 // انتقال بین حساب‌های خودم
 const toMin = d => { d = String(d).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)); const m = d.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/); if (!m) return 1e12; return ((+m[1] * 372 + +m[2] * 31 + +m[3]) * 24 + (+m[4] || 0)) * 60 + (+m[5] || 0); };
@@ -617,12 +618,12 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۶)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۷)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
-const DEF_ORD = { settings: ['آخرین تغییر', 'همگام', 'شغل', 'نام حساب', 'برچسب', 'کد راه', 'راهنما', 'پیامک', 'پشتیبان'], add: [] };
+const DEF_ORD = { settings: ['اتصال مستقیم', 'نسخه پشتیبان', 'پشتیبان‌گیری', 'پیامک‌های شورتکات', 'نام حساب', 'برچسب', 'شغل', 'پیامک‌های دریافتی', 'آزمایش ورود', 'همگام‌سازی با Google Sheets', 'کد راه', 'راهنما'], add: [] };
 const openSt = {};
 document.addEventListener('toggle', e => { const d = e.target; if (d.classList && d.classList.contains('acc')) { const t = d.querySelector('summary').textContent.replace(/[▲▼]/g, '').trim(); openSt[t] = d.open; } }, true);
 function accordion(el, key) {
@@ -722,7 +723,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-10T13:06:18+03:30';
+const BUILD = '2026-11-10T13:37:35.921Z';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -766,7 +767,7 @@ function loansHtml() {
     <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
-  return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined, w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${co ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
+  return `${invoiceCreditHtml()}${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined, w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${co ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
 }
 function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
@@ -791,7 +792,7 @@ function homeHtml0() {
   const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const pend = tx.filter(t => t.pending);
-  return `${banner ? `<div class="card">${banner}</div>` : ''}
+  return `${!welcomeDismissed && load('directSyncState', null)?.id && !directAutoSession ? `<div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">با ورود، ارسال و دریافت خودکار تا وقتی برنامه باز است فعال می‌شود. دریافت هنگام وجود تغییر ارسال‌نشده متوقف می‌ماند.</div><button type="button" id="welcome-google">ورود به گوگل و فعال‌کردن همگام‌سازی</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>` : ''}${banner ? `<div class="card">${banner}</div>` : ''}
   ${xsugHtml()}
   ${rcReviewHtml()}
   ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
@@ -857,8 +858,8 @@ function reportHtml() {
     const l = list.filter(t => t.account === a && !t.ghost);
     return { a, o: sum(l.filter(t => t.type === 'debit' && !t.xfer)), i: sum(l.filter(t => t.type === 'credit' && !t.xfer)), xo: sum(l.filter(t => t.type === 'debit' && t.xfer)), xi: sum(l.filter(t => t.type === 'credit' && t.xfer)) };
   }).filter(r => r.o || r.i || r.xo || r.xi);
-  if (!months.length) return filterBar() + '<div class="card mut">داده‌ای نیست.</div>';
-  return `${filterBar()}${nameSugHtml()}
+  if (!months.length) return filterBar() + invoiceLedgerHtml() + '<div class="card mut">تراکنشی نیست.</div>';
+  return `${filterBar()}${invoiceLedgerHtml()}${nameSugHtml()}
   <select id="m">${months.map(m => `<option ${m === month ? 'selected' : ''}>${m}</option>`).join('')}</select>
   <div class="hero"><div style="opacity:.8">خرج این ماه</div><div class="big">${toman(sum(out))} <small>تومان</small></div>
     <div class="row" style="margin-top:12px"><span>واریز: <b>${toman(sum(inn))}</b></span><span>مانده: <b>${toman(sum(inn) - sum(out))}</b><div style="font-size:11px;opacity:.75">درآمد منهای خرج</div></span></div></div>
@@ -941,7 +942,9 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'pdftable' || e.target.id === 'pdflinear') { pdfPerson(lp, e.target.id === 'pdflinear' ? 'linear' : 'table'); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
-  if (e.target.id === 'home-direct-start') { if (!window.google?.accounts?.oauth2) { prepareGoogleTest(); directAutoShow('سرویس گوگل در حال آماده‌شدن است؛ چند لحظه بعد دوباره دکمه را بزن.'); return; } directAutoStart(); return; }
+  const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; tab = 'add'; render(); const card = document.getElementById('invoice-card'); card.open = true; const search = card.querySelector('#inv-search'); search.closest('details').open = true; document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
+  if (e.target.id === 'welcome-later') { welcomeDismissed = true; render(); return; }
+  if (e.target.id === 'welcome-google' || e.target.id === 'home-direct-start') { if (!window.google?.accounts?.oauth2) { prepareGoogleTest(); directAutoShow('سرویس گوگل در حال آماده‌شدن است؛ چند لحظه بعد دوباره دکمه را بزن.'); return; } directAutoStart(e.target.id === 'welcome-google'); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
   if (e.target.id === 'clip') {
     try { const t = await navigator.clipboard.readText(); const r = addSms(t); banner = r.ok ? '✅ ثبت شد' : '⚠️ ' + r.msg; } catch { banner = '⚠️ دسترسی به کلیپ‌بورد نشد؛ از تب افزودن Paste کن.'; }

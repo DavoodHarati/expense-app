@@ -45,8 +45,10 @@ function directAutoShow(message) {
   const receive = document.getElementById('direct-auto-receive');
   const homeStatus = document.getElementById('home-sync-status');
   const homeStart = document.getElementById('home-direct-start');
+  const welcome = document.getElementById('welcome-sync');
   if (homeStatus && typeof homeSyncStatus === 'function') homeStatus.textContent = homeSyncStatus();
   if (homeStart) { homeStart.hidden = !!directAutoSession; homeStart.disabled = directAutoRunning || googleTestBusy; }
+  if (welcome) welcome.hidden = !!directAutoSession;
   if (status) status.textContent = message;
   if (start) { start.disabled = !!directAutoSession || directAutoRunning; start.textContent = directAutoResumePending(load('directSyncState', null)) ? 'ادامه اتصال خودکار' : 'فعال‌کردن ارسال خودکار'; }
   if (stop) stop.disabled = !directAutoSession;
@@ -61,14 +63,14 @@ function directAutoStop(message = 'ارسال خودکار متوقف شد.') {
   directAutoShow(message);
 }
 
-function directAutoStart() {
+function directAutoStart(fromWelcome = false) {
   if (googleTestBusy || directAutoRunning || directAutoSession) { directAutoShow('عملیات دیگری در جریان است.'); return; }
   const state = load('directSyncState', null);
   if (!state || !state.id || !state.base || !state.email) { directAutoShow('ابتدا شیت اتصال مستقیم را بساز و یک بار همگام‌سازی دستی را کامل کن.'); return; }
   const receiveControl = document.getElementById('direct-auto-receive');
-  const receive = receiveControl ? !!receiveControl.checked : load('directAutoReceiveEnabled', false) === true;
+  const receive = fromWelcome === true || (receiveControl ? !!receiveControl.checked : load('directAutoReceiveEnabled', false) === true);
   const resume = receive && directAutoResumePending(state);
-  if (!resume && !confirm(receive ? 'تا وقتی صفحه باز است، تغییرات این دستگاه ارسال و نسخه جدید شیت در صورت نبود تغییر ارسال‌نشده دریافت شود؟ برای دریافت خودکار به صفحه خانه برو و فرم‌های باز را ببند.' : 'تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
+  if (fromWelcome !== true && !resume && !confirm(receive ? 'تا وقتی صفحه باز است، تغییرات این دستگاه ارسال و نسخه جدید شیت در صورت نبود تغییر ارسال‌نشده دریافت شود؟ برای دریافت خودکار به صفحه خانه برو و فرم‌های باز را ببند.' : 'تا زمانی که این صفحه باز است، تغییرات این دستگاه هر دقیقه به شیت اتصال مستقیم افزوده شود؟ در صورت تغییر شیت از دستگاه دیگر، ارسال متوقف می‌شود.')) return;
   directAutoResumeClear();
   try {
     const requestedScope = directSyncScope();
@@ -89,6 +91,7 @@ function directAutoStart() {
           if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('تنظیمات اتصال تغییر کرده؛ دوباره تلاش کن');
           if (!user.email || user.email !== state.email) throw new Error('حساب گوگل با حساب شیت یکسان نیست');
           directAutoSession = { token: response.access_token, expires: Date.now() + (lifetime - 60) * 1000, id: state.id, email: state.email, receive };
+          if (fromWelcome === true) localStorage.setItem('directAutoReceiveEnabled', 'true');
           directAutoTimer = setInterval(() => { if (document.visibilityState === 'visible') directAutoTick(); }, 60000);
           directAutoShow('در حال بررسی شیت برای ارسال خودکار…');
         } catch (error) { directAutoStop('⚠️ ' + (error.message || 'فعال‌سازی انجام نشد')); }
