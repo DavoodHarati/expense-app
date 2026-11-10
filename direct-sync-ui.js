@@ -204,6 +204,7 @@ async function directSyncReceiptArchive(sheetId, headers, items) {
 }
 function directSyncAuthorize(action, requestConsent = false) {
   if (googleTestBusy) { directSyncMessage('عملیات دیگری در حال انجام است؛ پس از پایان آن دوباره تلاش کن.'); return; }
+  if (['create', 'run', 'receive'].includes(action) && localStorage.getItem('directAutoPending')) { directSyncMessage('⚠️ نتیجه ارسال قبلی هنوز بررسی نشده است؛ اتصال خودکار را فعال کن تا ابتدا همان ارسال بررسی شود.'); return; }
   if (action === 'create' && localStorage.getItem('directSyncCreatePending') && !confirm('ممکن است شیت قبلی ساخته شده باشد. ابتدا گوگل درایو را بررسی کن. شیت دیگری ساخته شود؟')) return;
   if (action === 'create' && load('directSyncState', null) && !confirm('یک شیت اتصال مستقیم روی این دستگاه ثبت شده است. شیت جداگانه دیگری ساخته شود؟')) return;
   try {

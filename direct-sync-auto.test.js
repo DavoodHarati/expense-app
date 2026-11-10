@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
+const { TextEncoder } = require('node:util');
 const core = require('./direct-sync-core.js');
 
 function fixture() {
@@ -11,14 +12,15 @@ function fixture() {
   const rows = [['expense-direct-sync', '1'], ['root', 'ROOT', 'time', '1', JSON.stringify(base)]];
   let state = { id: 'sheet', email: 'test@example.invalid', base: 'root' }, snapshot = newer, posts = 0, race = false, fail = false, uncertain = false, uncertainMissing = false, failReadAfterPost = false;
   const writes = [];
+  const localValues = new Map();
   const sessionValues = new Map();
   const context = vm.createContext({
     console, URL, Date, JSON, Number, String, Math, Array, Object, Error, Set, Map, Uint8Array, Uint32Array,
-    crypto: webcrypto, DirectSyncCore: core, googleTestBusy: false,
+    crypto: webcrypto, TextEncoder, DirectSyncCore: core, googleTestBusy: false,
     document: { visibilityState: 'visible', getElementById: () => null, addEventListener() {} },
     addEventListener() {}, setInterval() { return 1; }, clearInterval() {},
     load: (key, fallback) => key === 'directSyncState' ? { ...state } : fallback,
-    localStorage: { getItem() { return null; }, setItem(key, value) { writes.push({ key, value }); if (key === 'directSyncState') state = JSON.parse(value); } },
+    localStorage: { getItem(key) { return localValues.get(key) || null; }, setItem(key, value) { writes.push({ key, value }); localValues.set(key, value); if (key === 'directSyncState') state = JSON.parse(value); }, removeItem(key) { localValues.delete(key); } },
     sessionStorage: { getItem: key => sessionValues.get(key) || null, setItem: (key, value) => sessionValues.set(key, value), removeItem: key => sessionValues.delete(key) },
     makeFullBackup: () => snapshot, validateFullBackup() {}, googleTestButton() {},
     fetch: async (url, options = {}) => {
@@ -69,12 +71,23 @@ function fixture() {
 
   const g = fixture(); g.start(); g.setUncertain(); await g.context.directAutoTick();
   assert.equal(g.state().base, 'root'); assert.match(vm.runInContext('directAutoStatus', g.context), /نامشخص/);
-  await g.context.directAutoTick(); assert.equal(g.posts(), 1); assert.notEqual(g.state().base, 'root'); assert.ok(vm.runInContext('directAutoSession', g.context));
+  const persisted = JSON.parse(g.context.localStorage.getItem('directAutoPending'));
+  assert.equal(persisted.hash.length, 64); assert.ok(!JSON.stringify(persisted).includes('secret-token')); assert.ok(!JSON.stringify(persisted).includes('amount'));
+  g.context.directAutoStop();
+  const restarted = vm.createContext({ ...g.context });
+  vm.runInContext(fs.readFileSync('direct-sync-auto.js', 'utf8'), restarted);
+  vm.runInContext("directAutoSession = { token: 'new-token', expires: Date.now() + 600000, id: 'sheet', email: 'test@example.invalid' }", restarted);
+  await restarted.directAutoTick(); assert.equal(g.posts(), 1); assert.notEqual(g.state().base, 'root'); assert.ok(vm.runInContext('directAutoSession', restarted));
+  assert.equal(g.context.localStorage.getItem('directAutoPending'), null);
 
   const missing = fixture(); missing.start(); missing.setUncertainMissing(); await missing.context.directAutoTick();
   await missing.context.directAutoTick(); await missing.context.directAutoTick();
   assert.equal(missing.posts(), 1); assert.equal(missing.state().base, 'root');
   assert.match(vm.runInContext('directAutoStatus', missing.context), /بدون ارسال تکراری/);
+  let manualMessage = ''; missing.context.directSyncMessage = message => { manualMessage = message; };
+  missing.context.directSyncAuthorize('run'); assert.match(manualMessage, /ارسال قبلی/);
+  const invalid = fixture(); invalid.context.localStorage.setItem('directAutoPending', '{invalid'); invalid.start();
+  await invalid.context.directAutoTick(); assert.equal(invalid.posts(), 0); assert.match(vm.runInContext('directAutoStatus', invalid.context), /معتبر نیست/);
 
   const interrupted = fixture(); interrupted.start(); interrupted.setFailReadAfterPost();
   await interrupted.context.directAutoTick();
@@ -127,7 +140,7 @@ function fixture() {
   assert.equal(recovery.context.directAutoResumePending({ id: 'sheet', email: 'test@example.invalid', base: 'other' }), false);
 
   const blocked = fixture(); blocked.rows.push(['other', 'root', 'time', '1', JSON.stringify(blocked.newer)]); blocked.setSnapshot(blocked.base);
-  blocked.context.DIRECT_RECEIVE_JOURNAL = 'journal'; blocked.context.localStorage.getItem = () => 'previous backup';
+  blocked.context.DIRECT_RECEIVE_JOURNAL = 'journal'; blocked.context.localStorage.getItem = key => key === 'journal' ? 'previous backup' : null;
   blocked.context.directReceiveArchivePrevious = async () => { throw Error('پشتیبان بایگانی نشد'); };
   blocked.context.directReceiveApply = () => { throw Error('must not apply'); };
   blocked.start(); vm.runInContext('directAutoSession.receive = true', blocked.context); await blocked.context.directAutoTick();

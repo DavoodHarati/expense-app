@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
+const { TextEncoder } = require('node:util');
 const core = require('./direct-sync-core.js');
 
 function setup() {
@@ -14,7 +15,7 @@ function setup() {
     const storage = { getItem: key => values.has(key) ? values.get(key) : null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
     const context = vm.createContext({
       console, URL, Date, JSON, Number, String, Math, Array, Object, Error, Set, Map, Uint8Array, Uint32Array,
-      crypto: webcrypto, DirectSyncCore: core, localStorage: storage, BACKUP_KEYS: ['tx', 'accounts'],
+      crypto: webcrypto, TextEncoder, DirectSyncCore: core, localStorage: storage, BACKUP_KEYS: ['tx', 'accounts'],
       googleTestBusy: false, GOOGLE_TEST_CLIENT: 'client', directReceiveLegacyAtBoot: false,
       google: { accounts: { oauth2: { initTokenClient: opts => ({ requestAccessToken() { callback = opts.callback({ access_token: 'token' }); } }) } } },
       document: { visibilityState: 'visible', getElementById: () => ({ value: '' }), addEventListener() {} },
@@ -57,6 +58,35 @@ function setup() {
   assert.equal(race.b.values.get('tx'), '[{"id":1},{"id":3}]');
   assert.equal(race.rows.length, 4);
 
+  const automatic = setup();
+  const archived = [];
+  for (const device of [automatic.a, automatic.b]) {
+    device.context.directReceiveRefreshView = () => {};
+    device.context.directReceiveArchivePrevious = async () => { archived.push(device.values.get('directReceiveJournal')); device.values.delete('directReceiveJournal'); };
+    device.start(); vm.runInContext('directAutoSession.receive = true', device.context);
+  }
+  automatic.a.values.set('tx', '[{"id":1},{"id":2}]');
+  await automatic.a.context.directAutoTick(); await automatic.b.context.directAutoTick();
+  assert.equal(automatic.b.values.get('tx'), automatic.a.values.get('tx'));
+  assert.ok(vm.runInContext('directAutoSession', automatic.b.context));
+  automatic.b.values.set('tx', '[{"id":1},{"id":2},{"id":3}]');
+  await automatic.b.context.directAutoTick(); await automatic.a.context.directAutoTick();
+  assert.equal(automatic.a.values.get('tx'), automatic.b.values.get('tx'));
+  assert.ok(vm.runInContext('directAutoSession', automatic.a.context));
+  automatic.a.values.set('tx', '[{"id":1},{"id":2},{"id":3},{"id":4}]');
+  await automatic.a.context.directAutoTick(); await automatic.b.context.directAutoTick();
+  assert.equal(automatic.b.values.get('tx'), automatic.a.values.get('tx'));
+  assert.equal(archived.length, 1); assert.equal(JSON.parse(archived[0]).phase, 'committed');
+  assert.equal(automatic.a.reloads() + automatic.b.reloads(), 0);
+
+  const simultaneous = setup();
+  for (const device of [simultaneous.a, simultaneous.b]) { device.start(); vm.runInContext('directAutoSession.receive = true', device.context); }
+  simultaneous.a.values.set('tx', '[{"id":1},{"id":2}]');
+  simultaneous.b.values.set('tx', '[{"id":1},{"id":3}]');
+  await simultaneous.a.context.directAutoTick(); await simultaneous.b.context.directAutoTick();
+  assert.equal(simultaneous.b.values.get('tx'), '[{"id":1},{"id":3}]');
+  assert.match(vm.runInContext('directAutoStatus', simultaneous.b.context), /هم این گوشی و هم شیت/);
+
   const reminders = setup();
   reminders.a.values.set('tx', '[{"id":1},{"id":9}]');
   reminders.b.values.set('rem', '[{"id":42,"title":"test"}]');
@@ -70,5 +100,23 @@ function setup() {
   assert.equal(reminders.a.reloads(), 1);
   assert.equal(reminders.rows.length, 3);
   assert.equal(JSON.parse(reminders.a.values.get('directReceiveJournal')).phase, 'committed');
+  // Publish the merged device state and receive it on the other device.
+  await reminders.a.run();
+  assert.equal(reminders.rows.length, 4);
+  await reminders.b.receive();
+  assert.equal(reminders.b.values.get('tx'), '[{"id":1},{"id":9}]');
+  assert.equal(reminders.b.values.get('rem'), '[{"id":42,"title":"test"}]');
+  assert.equal(reminders.b.reloads(), 1);
+
+  const both = setup();
+  both.a.context.BACKUP_KEYS.push('rem'); both.b.context.BACKUP_KEYS.push('rem');
+  for (const device of [both.a, both.b]) device.context.directSyncSnapshot = () => ({ format: 'expense-app-backup', version: 1, data: { tx: device.values.get('tx'), accounts: device.values.get('accounts'), ...(device.values.has('rem') ? { rem: device.values.get('rem') } : {}) } });
+  both.a.values.set('rem', '[{"id":41,"title":"phone A"}]');
+  both.b.values.set('rem', '[{"id":42,"title":"phone B"}]');
+  both.b.start(); await both.b.context.directAutoTick();
+  await both.a.run();
+  assert.deepEqual(JSON.parse(both.a.values.get('rem')).map(x => x.id), [41, 42]);
+  await both.a.run(); await both.b.receive();
+  assert.deepEqual(JSON.parse(both.b.values.get('rem')).map(x => x.id), [41, 42]);
   console.log('Two-device direct sync tests passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

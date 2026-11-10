@@ -5,6 +5,26 @@ let directAutoSession = null;
 let directAutoTimer = null;
 let directAutoRunning = false;
 let directAutoStatus = 'ارسال خودکار غیرفعال است.';
+const DIRECT_AUTO_PENDING = 'directAutoPending';
+
+async function directAutoFingerprint(value) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function directAutoPendingRead() {
+  const raw = localStorage.getItem(DIRECT_AUTO_PENDING);
+  if (!raw) return null;
+  let pending;
+  try { pending = JSON.parse(raw); } catch (_) { throw new Error('اطلاعات بررسی ارسال قبلی معتبر نیست؛ ارسال متوقف شد'); }
+  if (!pending || pending.version !== 1 || !/^[a-f0-9]{32}$/.test(pending.id) || !/^[A-Za-z0-9_-]{1,128}$/.test(pending.base) || typeof pending.sheet !== 'string' || typeof pending.email !== 'string' || !/^[a-f0-9]{64}$/.test(pending.hash)) throw new Error('اطلاعات بررسی ارسال قبلی معتبر نیست؛ ارسال متوقف شد');
+  return { ...pending, raw };
+}
+
+function directAutoPendingClear(raw) {
+  if (localStorage.getItem(DIRECT_AUTO_PENDING) !== raw) throw new Error('وضعیت ارسال قبلی تغییر کرده است؛ بررسی دوباره لازم است');
+  localStorage.removeItem(DIRECT_AUTO_PENDING);
+}
 
 function directAutoResumePending(state) {
   try {
@@ -88,6 +108,8 @@ async function directAutoTick() {
   try {
     const state = load('directSyncState', null);
     if (!state || state.id !== session.id || state.email !== session.email || !state.base) throw new Error('اتصال این دستگاه تغییر کرده است');
+    const pending = directAutoPendingRead();
+    if (pending && (pending.sheet !== state.id || pending.email !== state.email)) throw new Error('ارسال بررسی‌نشده مربوط به اتصال دیگری است؛ ابتدا همان اتصال را بررسی کن');
     const headers = { Authorization: 'Bearer ' + session.token };
     const api = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/';
     const read = async () => {
@@ -101,14 +123,15 @@ async function directAutoTick() {
     if (directAutoSession !== session) return;
     let graph = DirectSyncCore.inspectHistory(records);
     if (graph.state !== 'linear') throw new Error('سابقه شیت چند شاخه شده است؛ نسخه‌ها حفظ شده‌اند');
-    if (session.pending) {
-      const pending = session.pending, saved = records.find(record => record.id === pending.id);
+    if (pending) {
+      const saved = records.find(record => record.id === pending.id);
       if (!saved) { directAutoShow('⚠️ نتیجه ارسال قبلی هنوز روشن نیست؛ برنامه بدون ارسال تکراری دوباره بررسی می‌کند.'); return; }
-      if (state.base !== pending.base || saved.parent !== pending.base || DirectSyncCore.canonicalData(saved.backup.data) !== pending.value) throw new Error('نسخه ارسال‌شده با انتظار دستگاه مطابقت ندارد؛ بررسی دستی لازم است');
+      if ((state.base !== pending.base && state.base !== pending.id) || saved.parent !== pending.base || await directAutoFingerprint(DirectSyncCore.canonicalData(saved.backup.data)) !== pending.hash) throw new Error('نسخه ارسال‌شده با انتظار دستگاه مطابقت ندارد؛ بررسی دستی لازم است');
+      if (directAutoSession !== session) return;
       const current = load('directSyncState', null);
       if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال هنگام بررسی تغییر کرده است');
       state.base = pending.id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
-      session.pending = null;
+      directAutoPendingClear(pending.raw);
       directAutoShow('✅ ارسال قبلی در شیت پیدا و تأیید شد؛ اتصال خودکار فعال است.');
       return;
     }
@@ -152,12 +175,15 @@ async function directAutoTick() {
     if (parts.length > 196) throw new Error('اطلاعات برای شیت بیش از حد بزرگ است');
     const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
     const id = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+    const hash = await directAutoFingerprint(value);
     if (directAutoSession !== session) return;
     const beforeSend = load('directSyncState', null);
     if (!beforeSend || beforeSend.id !== state.id || beforeSend.base !== state.base || beforeSend.email !== state.email) throw new Error('اتصال هنگام بررسی تغییر کرده است');
+    if (directAutoPendingRead()) throw new Error('ارسال دیگری در حال بررسی است');
+    const pendingRaw = JSON.stringify({ version: 1, id, base: state.base, sheet: state.id, email: state.email, hash });
+    localStorage.setItem(DIRECT_AUTO_PENDING, pendingRaw);
     directAutoShow('در حال ارسال نسخه و بررسی مجدد…');
     appendStarted = true;
-    session.pending = { id, base: state.base, value };
     let sent;
     try { sent = await fetch(api + encodeURIComponent("'DirectSync'!A:A") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [[id, head.id, new Date().toISOString(), String(parts.length), ...parts]] }) }); }
     catch (_) { const error = new Error('پاسخ ارسال نرسید'); error.directAutoPostNetwork = true; throw error; }
@@ -170,7 +196,7 @@ async function directAutoTick() {
     const current = load('directSyncState', null);
     if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال هنگام ارسال تغییر کرده است؛ شیت را بررسی کن');
     state.base = id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
-    session.pending = null;
+    directAutoPendingClear(pendingRaw);
     directAutoShow('✅ نسخه این دستگاه خودکار ارسال و دوباره خوانده شد.');
   } catch (error) {
     if (directAutoSession === session) {
