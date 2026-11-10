@@ -91,7 +91,9 @@ async function directAutoTick() {
     const headers = { Authorization: 'Bearer ' + session.token };
     const api = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/';
     const read = async () => {
-      const response = await fetch(api + encodeURIComponent("'DirectSync'!A:GR"), { headers });
+      let response;
+      try { response = await fetch(api + encodeURIComponent("'DirectSync'!A:GR"), { headers }); }
+      catch (_) { const error = new Error('ارتباط با شیت برقرار نشد'); error.directAutoReadNetwork = true; throw error; }
       if (!response.ok) throw new Error(await directSyncReadError(response, session.email));
       return directSyncParse((await response.json()).values);
     };
@@ -155,7 +157,12 @@ async function directAutoTick() {
     if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال هنگام ارسال تغییر کرده است؛ شیت را بررسی کن');
     state.base = id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
     directAutoShow('✅ نسخه این دستگاه خودکار ارسال و دوباره خوانده شد.');
-  } catch (error) { if (directAutoSession === session) directAutoStop('⚠️ ارسال خودکار متوقف شد: ' + (error.message || error) + (appendStarted ? '؛ ممکن است نسخه به شیت اضافه شده باشد، پیش از تلاش دوباره آن را بررسی کن.' : '')); }
+  } catch (error) {
+    if (directAutoSession === session) {
+      if (error.directAutoReadNetwork && !appendStarted) directAutoShow('⚠️ ارتباط با شیت قطع است؛ با برگشت اینترنت دوباره بررسی می‌شود. اطلاعات دستگاه تغییر نکرده است.');
+      else directAutoStop('⚠️ ارسال خودکار متوقف شد: ' + (error.message || error) + (appendStarted ? '؛ ممکن است نسخه به شیت اضافه شده باشد، پیش از تلاش دوباره آن را بررسی کن.' : ''));
+    }
+  }
   finally { directAutoRunning = false; googleTestBusy = false; directSyncButtons(false); googleTestButton(); directAutoShow(directAutoStatus); }
 }
 

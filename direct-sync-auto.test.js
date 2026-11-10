@@ -37,7 +37,7 @@ function fixture() {
   context.directSyncButtons = () => {}; context.directSyncLink = () => {};
   vm.runInContext(fs.readFileSync('direct-sync-auto.js', 'utf8'), context);
   const start = () => vm.runInContext("directAutoSession = { token: 'secret-token', expires: Date.now() + 600000, id: 'sheet', email: 'test@example.invalid' }", context);
-  return { context, rows, writes, start, state: () => state, posts: () => posts, setRace: () => { race = true; }, setFail: () => { fail = true; }, setUncertain: () => { uncertain = true; }, setFailReadAfterPost: () => { failReadAfterPost = true; }, setSnapshot: value => { snapshot = value; }, base, newer };
+  return { context, rows, writes, start, state: () => state, posts: () => posts, setRace: () => { race = true; }, setFail: () => { fail = true; }, restoreNetwork: () => { fail = false; }, setUncertain: () => { uncertain = true; }, setFailReadAfterPost: () => { failReadAfterPost = true; }, setSnapshot: value => { snapshot = value; }, base, newer };
 }
 
 (async () => {
@@ -56,7 +56,9 @@ function fixture() {
   assert.match(vm.runInContext('directAutoStatus', c.context), /انتخاب نشده بود/);
 
   const d = fixture(); d.start(); d.setFail(); await d.context.directAutoTick();
-  assert.equal(d.posts(), 0); assert.equal(d.state().base, 'root'); assert.equal(vm.runInContext('directAutoSession', d.context), null);
+  assert.equal(d.posts(), 0); assert.equal(d.state().base, 'root'); assert.ok(vm.runInContext('directAutoSession', d.context));
+  assert.match(vm.runInContext('directAutoStatus', d.context), /برگشت اینترنت/);
+  d.restoreNetwork(); await d.context.directAutoTick(); assert.equal(d.posts(), 1); assert.ok(vm.runInContext('directAutoSession', d.context));
 
   const e = fixture(); e.start(); vm.runInContext('directAutoSession.expires = Date.now() - 1', e.context); await e.context.directAutoTick();
   assert.equal(e.posts(), 0); assert.equal(e.state().base, 'root'); assert.match(vm.runInContext('directAutoStatus', e.context), /منقضی/);
