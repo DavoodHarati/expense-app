@@ -59,7 +59,7 @@ function invoiceList() { const list = load('invoices', []); return Array.isArray
 function invoiceCatalog() { const list = load('invoiceCatalog', []); return Array.isArray(list) ? list : []; }
 function invoiceOptions(items) { return [...new Set(items.filter(item => typeof item === 'string' && item.trim()))].map(item => `<option value="${esc(item)}">`).join(''); }
 function invoiceSelectOptions(items) { return [...new Set(items.filter(item => typeof item === 'string' && item.trim()))].map(item => `<option value="${esc(item)}">${esc(item)}</option>`).join(''); }
-function invoiceSaveData(key, value) { localStorage.setItem(key, JSON.stringify(value)); localStorage.setItem('dirty', '1'); }
+function invoiceSaveData(key, value) { localStorage.setItem(key, JSON.stringify(value)); localStorage.setItem('dirty', '1'); if (key === 'invoices' && typeof invoiceRefreshReport === 'function') invoiceRefreshReport(); }
 function invoiceLineHtml() {
   return `<div class="invoice-line" style="border-top:1px solid #e5e7eb;padding-top:8px"><select class="inv-service-choice"><option value="">انتخاب خدمت یا کالا از فهرست</option>${invoiceSelectOptions([...load('svq', []), ...invoiceCatalog().map(item => item.name)])}</select><input class="inv-item" list="invoice-items" placeholder="نام خدمت یا کالا"><div class="row"><label style="flex:0 0 75px">تعداد<input class="inv-qty" inputmode="numeric" value="1" aria-label="تعداد"></label><label style="flex:1">مبلغ واحد (تومان)<input class="inv-price" inputmode="numeric" placeholder="مبلغ به تومان"></label></div><div class="row"><button type="button" class="sec inv-save-item">ذخیره نام و قیمت در فهرست</button><button type="button" class="sec inv-remove-item">حذف ردیف</button></div></div>`;
 }
@@ -67,7 +67,7 @@ function invoicePaymentLabel(method) { return ({unpaid:'نسیه / پرداخت 
 function invoiceHtml() {
   const contacts = load('ppl', []), peopleList = Array.isArray(contacts) ? contacts : [], assistants = Object.keys(cols());
   return `<details class="card" id="invoice-card"><summary><b>🧾 ثبت و جست‌وجوی فاکتور</b></summary>
-    <div class="mut">ثبت فاکتور به‌تنهایی پرداخت بانکی یا کارکرد دستیار ثبت نمی‌کند.</div>
+    <div id="invoice-form-fields"><div class="mut">ثبت فاکتور به‌تنهایی پرداخت بانکی یا کارکرد دستیار ثبت نمی‌کند.</div>
     <div class="row"><input id="inv-number" placeholder="شماره فاکتور (اختیاری)"><input id="inv-date" inputmode="numeric" value="${invoiceDate()}" placeholder="تاریخ 1405/08/17"></div>
     <div class="mut">انتخاب تاریخ شمسی:</div><div class="row" dir="rtl"><select id="inv-jday" aria-label="روز شمسی"></select><select id="inv-jmonth" aria-label="ماه شمسی"></select><select id="inv-jyear" aria-label="سال شمسی"></select></div>
     <div class="row"><button type="button" class="sec inv-day" data-days="0">امروز</button><button type="button" class="sec inv-day" data-days="1">دیروز</button><button type="button" class="sec inv-day" data-days="2">پریروز</button></div>
@@ -83,8 +83,8 @@ function invoiceHtml() {
     <select id="inv-assistant"><option value="">بدون دستیار</option>${assistants.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select>
     <select id="inv-share-mode"><option value="percent">سهم درصدی</option><option value="fixed">مبلغ ثابت به تومان</option></select><input id="inv-share" inputmode="decimal" placeholder="درصد یا مبلغ سهم دستیار"><div id="inv-share-result" class="mut"></div>
     <div class="invoice-account-box"><b>حساب فاکتور</b><div class="mut">ابتدا هزینه لوازم کم می‌شود؛ سهم تو از باقی‌مانده حساب و سهم دستیار از آن کم می‌شود.</div><label>هزینه لوازم (تومان)<input id="inv-materials" inputmode="numeric" placeholder="۰"></label><label>درصد سهم من<input id="inv-owner-percent" inputmode="decimal" value="100" placeholder="درصد سهم من"></label><div id="inv-account-result" class="mut" aria-live="polite"></div></div>
-    <div class="row"><button type="button" id="inv-save">ذخیره فاکتور</button><button type="button" class="sec" id="inv-cancel">انصراف و بستن فرم</button></div><div id="inv-message" class="mut" aria-live="polite"></div>
-    <details><summary><b>🔎 جست‌وجو و بررسی فاکتورها</b></summary><input id="inv-search" placeholder="جست‌وجوی نام، خدمت، پلاک یا شماره فاکتور"><select id="inv-filter" aria-label="وضعیت تأیید فاکتور"><option value="all">همه فاکتورها</option><option value="pending">تأییدنشده‌ها</option><option value="confirmed">تأییدشده‌ها</option><option value="unpaid">نسیه‌ها</option></select><label style="display:flex;align-items:center;gap:8px"><input id="inv-show-all" type="checkbox" style="width:auto"> نمایش همه نتایج</label><div id="inv-results"></div></details></details>`;
+    <div class="row"><button type="button" id="inv-save">ذخیره فاکتور</button><button type="button" class="sec" id="inv-cancel">انصراف و بستن فرم</button></div></div><div id="inv-message" class="mut" aria-live="polite"></div>
+    <details id="invoice-search-panel"><summary><b>🔎 جست‌وجو و بررسی فاکتورها</b></summary><input id="inv-search" placeholder="جست‌وجوی نام، خدمت، پلاک یا شماره فاکتور"><select id="inv-filter" aria-label="وضعیت تأیید فاکتور"><option value="all">همه فاکتورها</option><option value="pending">تأییدنشده‌ها</option><option value="confirmed">تأییدشده‌ها</option><option value="unpaid">نسیه‌ها</option></select><label style="display:flex;align-items:center;gap:8px"><input id="inv-show-all" type="checkbox" style="width:auto"> نمایش همه نتایج</label><div id="inv-results"></div></details></details>`;
 }
 function invoiceAccount(total, materialInput, percentInput, share) {
   const materials = materialInput === '' ? 0 : invoiceDigits(materialInput);
@@ -95,8 +95,8 @@ function invoiceAccount(total, materialInput, percentInput, share) {
   if (!Number.isSafeInteger(ownerGross) || !Number.isSafeInteger(ownerNet) || ownerNet < 0) throw new Error('سهم دستیار از سهم محاسبه‌شده تو بیشتر است');
   return { materials, ownerPercent, ownerGross, ownerNet };
 }
-function invoiceLedgerHtml() {
-  const list = invoiceList(), confirmed = list.filter(item => item.accounting?.status === 'confirmed');
+function invoiceLedgerHtml(list = invoiceList()) {
+  const confirmed = list.filter(item => item.accounting?.status === 'confirmed');
   const unpaid = list.filter(item => item.payment?.method === 'unpaid');
   const sum = (items, pick) => items.reduce((total, item) => total + (Number(pick(item)) || 0), 0).toLocaleString('fa-IR');
   const customers = new Map(), services = new Map();
@@ -149,7 +149,7 @@ function invoiceShowList(query = '') {
   const box = document.getElementById('inv-results'); if (!box) return;
   const term = nrm(pfa(query));
   const filter = document.getElementById('inv-filter')?.value || 'all';
-  const matches = invoiceList().filter(item => (!term || [item.number, item.customer, item.phone, item.plate, item.model, item.date, ...(item.lines || []).map(line => line.name)].some(value => nrm(pfa(value || '')).includes(term))) && (filter === 'all' || (filter === 'unpaid' ? item.payment?.method === 'unpaid' : filter === 'confirmed' ? item.accounting?.status === 'confirmed' : item.accounting?.status !== 'confirmed')));
+  const matches = invoiceList().filter(item => (typeof topic === 'undefined' || topic !== 'sales' || item.kind === 'فروش') && (!term || [item.number, item.customer, item.phone, item.plate, item.model, item.date, ...(item.lines || []).map(line => line.name)].some(value => nrm(pfa(value || '')).includes(term))) && (filter === 'all' || (filter === 'unpaid' ? item.payment?.method === 'unpaid' : filter === 'confirmed' ? item.accounting?.status === 'confirmed' : item.accounting?.status !== 'confirmed')));
   const list = term || document.getElementById('inv-show-all')?.checked ? matches : matches.slice(0, 10);
   const summary = `<div class="mut">${matches.length.toLocaleString('fa-IR')} فاکتور · جمع کل ${matches.reduce((sum,item)=>sum+(Number(item.total)||0),0).toLocaleString('fa-IR')} تومان${list.length < matches.length ? ' · ۱۰ مورد اخیر نمایش داده می‌شود' : ''}</div>`;
   box.innerHTML = summary + (list.length ? list.map(item => {
@@ -211,6 +211,7 @@ function invoiceBind() {
     const edit = event.target.closest('.invoice-edit'); if (edit) {
       const item = invoiceList().find(entry => String(entry.id) === edit.dataset.id); if (!item) return;
       if (editingInvoiceId && !confirm('فرم ویرایش فعلی کنار گذاشته و این فاکتور باز شود؟')) return;
+      if (typeof invoiceStartEditing === 'function') invoiceStartEditing();
       editingInvoiceId = item.id;
       for (const [id, value] of Object.entries({ 'inv-number':item.number, 'inv-date':item.date, 'inv-customer':item.customer, 'inv-phone':item.phone, 'inv-plate':item.plate, 'inv-model':item.model, 'inv-color':item.color, 'inv-car-type':item.carType, 'inv-pay-name':item.payment?.recipient, 'inv-pay-card':item.payment?.account, 'inv-pay-note':item.payment?.note })) get(id).value = value || '';
       for (const id of ['inv-plate-left','inv-plate-mid','inv-plate-iran']) get(id).value = ''; get('inv-plate-letter').value = 'ع';

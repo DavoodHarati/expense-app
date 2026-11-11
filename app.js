@@ -405,9 +405,15 @@ function _render() {
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
   if (tab === 'rem') { topic = 'reminders'; tab = 'home'; }
   if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
-    if (topic === 'invoices' && tab !== 'add') {
-      const list = invoiceList(), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => item.payment?.method === 'unpaid');
-      el.innerHTML = tab === 'report' ? invoiceLedgerHtml() : `<div class="topic-summary"><div>فاکتورها</div><b>${list.length.toLocaleString('fa-IR')} فاکتور</b><div>${confirmed.length.toLocaleString('fa-IR')} تأییدشده · ${unpaid.length.toLocaleString('fa-IR')} نسیه</div></div><div class="card"><b>آخرین فاکتورها</b>${list.slice(0, 10).map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number || '')}</b><div class="mut">${esc(item.date || '')} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div></div>`).join('') || '<div class="mut">هنوز فاکتوری ثبت نشده است.</div>'}<button class="invoice-open-list" type="button">جست‌وجو و بررسی همه فاکتورها</button></div>`;
+    if ((topic === 'invoices' || topic === 'sales') && tab !== 'add') {
+      const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => item.payment?.method === 'unpaid');
+      el.innerHTML = tab === 'report' ? invoiceLedgerHtml(list) + invoiceHtml() : `<div class="topic-summary"><div>${salesOnly ? 'فروش کالا' : 'فاکتورها'}</div><b>${list.length.toLocaleString('fa-IR')} فاکتور</b><div>${confirmed.length.toLocaleString('fa-IR')} تأییدشده · ${unpaid.length.toLocaleString('fa-IR')} نسیه</div></div><div class="card"><b>آخرین ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</b>${list.slice(0, 10).map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number || '')}</b><div class="mut">${esc(item.date || '')} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div></div>`).join('') || '<div class="mut">هنوز موردی ثبت نشده است.</div>'}<button class="invoice-open-list" type="button">جست‌وجو و گزارش ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</button></div>`;
+      if (tab === 'report') {
+        invoiceBind(); document.getElementById('invoice-card').open = true;
+        document.getElementById('invoice-form-fields').hidden = true;
+        document.getElementById('invoice-search-panel').open = true;
+        document.querySelector('#invoice-card > summary b').textContent = salesOnly ? '🔎 جست‌وجوی فروش‌ها' : '🔎 جست‌وجوی فاکتورها';
+      }
       return;
     }
     if (topic === 'receipts') {
@@ -419,9 +425,9 @@ function _render() {
       }
       return;
     }
-    if (topic === 'work' || topic === 'loans') {
-      const relevant = tx.filter(item => item.loan && LOAN[item.loan] && (topic === 'work' ? isWage(item) : !isWage(item)));
-      const title = topic === 'work' ? 'حساب دستیاران و کارکردها' : 'حساب اشخاص و قرض‌ها';
+    if (topic === 'work') {
+      const relevant = tx.filter(item => item.loan && LOAN[item.loan] && isWage(item));
+      const title = 'حساب دستیاران و کارکردها';
       const summary = tab === 'report' ? `<div class="topic-summary"><div>گزارش ${title}</div><b>${relevant.length.toLocaleString('fa-IR')} ردیف</b><div>جزئیات و مانده هر شخص جداگانه در حساب او نمایش داده می‌شود.</div></div>` : '';
       el.innerHTML = summary + `<div class="topic-heading">${title} · برای ثبت یا مشاهده جزئیات، حساب شخص را باز کن.</div>` + loansHtml();
       return;
@@ -459,7 +465,7 @@ function _render() {
         <button id="mg">ثبت</button></div>`;
     accordion(el, 'add');
     invoiceBind();
-    if (topic === 'invoices') { [...el.children].forEach(child => { if (child.id !== 'invoice-card') child.hidden = true; }); document.getElementById('invoice-card').open = true; }
+    if (topic === 'invoices' || topic === 'sales') { [...el.children].forEach(child => { if (child.id !== 'invoice-card') child.hidden = true; }); document.getElementById('invoice-card').open = true; if (topic === 'sales') document.getElementById('inv-kind').value = 'فروش'; }
     else document.getElementById('invoice-card').hidden = true;
     $('#pst').onclick = async () => { try { const t = await navigator.clipboard.readText(); if (!t) { $('#msg').textContent = 'کلیپ‌بورد خالی است'; return; } $('#sms').value = t; $('#msg').textContent = 'چسبانده شد'; } catch (e) { $('#sms').focus(); $('#msg').textContent = 'اجازهٔ دسترسی به کلیپ‌بورد داده نشد؛ داخل کادر نگه دار و «Paste» بزن.'; } };
     $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
@@ -652,11 +658,28 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۸)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ۱۳۹)<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
+function invoiceStartEditing() {
+  if (tab !== 'report' || (topic !== 'invoices' && topic !== 'sales')) return;
+  tab = 'add';
+  document.querySelectorAll('nav button').forEach(button => button.classList.toggle('on', button.dataset.t === tab));
+  document.getElementById('invoice-form-fields').hidden = false;
+  const ledger = document.querySelector('.invoice-ledger'); if (ledger) ledger.hidden = true;
+  document.querySelector('#invoice-card > summary b').textContent = '🧾 ویرایش فاکتور';
+}
+function invoiceRefreshReport() {
+  if (tab !== 'report' || (topic !== 'invoices' && topic !== 'sales')) return;
+  const ledger = document.querySelector('.invoice-ledger');
+  if (ledger) {
+    const wasOpen = ledger.open;
+    ledger.outerHTML = invoiceLedgerHtml(invoiceList().filter(item => topic !== 'sales' || item.kind === 'فروش'));
+    document.querySelector('.invoice-ledger').open = wasOpen;
+  }
+}
 const DEF_ORD = { settings: ['اتصال مستقیم', 'نسخه پشتیبان', 'پشتیبان‌گیری', 'پیامک‌های شورتکات', 'نام حساب', 'برچسب', 'شغل', 'پیامک‌های دریافتی', 'آزمایش ورود', 'همگام‌سازی با Google Sheets', 'کد راه', 'راهنما'], add: [] };
 const openSt = {};
 document.addEventListener('toggle', e => { const d = e.target; if (d.classList && d.classList.contains('acc')) { const t = d.querySelector('summary').textContent.replace(/[▲▼]/g, '').trim(); openSt[t] = d.open; } }, true);
@@ -757,7 +780,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-10T17:30:00Z';
+const BUILD = '2026-11-10T20:39:00Z';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -976,7 +999,7 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'pdftable' || e.target.id === 'pdflinear') { pdfPerson(lp, e.target.id === 'pdflinear' ? 'linear' : 'table'); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
-  const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; topic = 'invoices'; tab = 'add'; render(); const card = document.getElementById('invoice-card'); card.open = true; const search = card.querySelector('#inv-search'); search.closest('details').open = true; document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
+  const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; if (topic !== 'sales') topic = 'invoices'; tab = 'report'; render(); const card = document.getElementById('invoice-card'); document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
   if (e.target.id === 'welcome-later') { welcomeDismissed = true; render(); return; }
   if (e.target.id === 'welcome-google' || e.target.id === 'home-direct-start') { if (!window.google?.accounts?.oauth2) { prepareGoogleTest(); directAutoShow('سرویس گوگل در حال آماده‌شدن است؛ چند لحظه بعد دوباره دکمه را بزن.'); return; } directAutoStart(e.target.id === 'welcome-google'); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
