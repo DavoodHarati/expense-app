@@ -12,14 +12,36 @@ function easyLinks() {
     if (!url) continue; const a = document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent=label; e.appendChild(a); e.appendChild(document.createElement('br'));
   }
 }
+function easyApiStage(url, method) {
+  if (url.includes('openidconnect.googleapis.com')) return 'شناسایی حساب';
+  if (url.includes('sheets.googleapis.com')) return method === 'POST' ? 'ساخت شیت آزمایشی' : 'بررسی شیت آزمایشی';
+  if (url.endsWith('/projects')) return 'ساخت اسکریپت آزمایشی';
+  if (url.endsWith('/content')) return 'ثبت محتوای اسکریپت';
+  if (url.endsWith('/versions')) return 'ساخت نسخه اسکریپت';
+  if (url.includes('/deployments')) return 'انتشار یا بررسی اسکریپت';
+  return 'ارتباط با گوگل';
+}
+function easyGoogleError(data, response, stage) {
+  const payload = data && data.error || {};
+  const details = Array.isArray(payload.details) ? payload.details : [];
+  const errors = Array.isArray(payload.errors) ? payload.errors : [];
+  const reason = [...details, ...errors].map(x => x && x.reason).find(x => typeof x === 'string' && /^[A-Za-z0-9_]{1,80}$/.test(x)) || '';
+  const status = typeof payload.status === 'string' && /^[A-Z_]{1,80}$/.test(payload.status) ? payload.status : '';
+  let message = typeof payload.message === 'string' ? payload.message : '';
+  message = message.replace(/https?:\/\/\S+/gi, '[نشانی حذف شد]').replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[حساب حذف شد]').replace(/\b[A-Za-z0-9_-]{30,}\b/g, '[شناسه حذف شد]').replace(/[\r\n\t]+/g, ' ').slice(0, 350);
+  let hint = '';
+  if (reason === 'SERVICE_DISABLED' || /has not been used|is disabled/i.test(message)) hint = ' سرویس گوگل برای پروژه فعال نیست یا هنوز تغییرش اعمال نشده؛ چند دقیقه صبر کن و دوباره امتحان کن.';
+  else if (/Apps Script API.*(disabled|turned off)|API.*not enabled/i.test(message)) hint = ' دسترسی مدیریت اسکریپت در تنظیمات همان حساب باید روشن باشد.';
+  else if (/insufficient.*(permission|scope)|insufficient authentication scopes/i.test(message)) hint = ' اجازه‌های درخواست‌شده را هنگام ورود گوگل بررسی و تأیید کن.';
+  return 'مرحله: ' + stage + '؛ کد: ' + response.status + (reason ? '؛ دلیل: ' + reason : '') + (status ? '؛ وضعیت: ' + status : '') + '.' + hint + (message ? ' پیام گوگل: ' + message : ' گوگل توضیح بیشتری نفرستاد.');
+}
 async function easyApi(token, url, method, body) {
-  let response;
+  let response; const stage = easyApiStage(url, method);
   try { response = await fetch(url, { method: method || 'GET', headers: { Authorization: 'Bearer ' + token, ...(body ? {'Content-Type':'application/json'} : {}) }, ...(body ? {body:JSON.stringify(body)} : {}) }); }
-  catch (_) { throw new Error('ارتباط قطع شد؛ نتیجه مرحله ممکن است ثبت شده باشد. پیش از تکرار، شیت‌ها و پروژه‌های آزمایشی گوگل را بررسی کن.'); }
+  catch (_) { throw new Error('مرحله «' + stage + '»: ارتباط قطع شد؛ نتیجه مرحله ممکن است ثبت شده باشد. پیش از تکرار، شیت‌ها و پروژه‌های آزمایشی گوگل را بررسی کن.'); }
   let data = {}; try { data = await response.json(); } catch (_) {}
   if (!response.ok) {
-    const reason = data.error && Array.isArray(data.error.details) ? data.error.details.map(x=>x.reason).find(Boolean) : '';
-    const error = new Error('گوگل مرحله را نپذیرفت (کد ' + response.status + (reason ? '، دلیل ' + String(reason).replace(/[^A-Z0-9_]/gi,'').slice(0,70) : '') + '). دسترسی مدیریت اسکریپت و فعال‌بودن Apps Script API در پروژه برنامه را بررسی کن.');
+    const error = new Error(easyGoogleError(data, response, stage));
     error.definite = response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429; throw error;
   }
   return data;
