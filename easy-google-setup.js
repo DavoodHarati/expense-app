@@ -47,7 +47,7 @@ async function easyApi(token, url, method, body) {
   }
   return data;
 }
-function easyPing(url) {
+function easyPingOnce(url) {
   const u = new URL(url); if (u.protocol !== 'https:' || u.hostname !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.pathname)) return Promise.reject(new Error('نشانی استقرار قابل تأیید نیست.'));
   return new Promise((resolve, reject) => {
     const bytes = new Uint32Array(2); crypto.getRandomValues(bytes); const cb = 'easyPing' + bytes[0] + '_' + bytes[1];
@@ -57,6 +57,23 @@ function easyPing(url) {
     tag.onerror = () => finish(false); timer = setTimeout(() => finish(false), 20000);
     u.searchParams.set('callback', cb); tag.src = u.href; document.head.appendChild(tag);
   });
+}
+
+async function easyPingFetch(url) {
+  const u = new URL(url); u.searchParams.set('callback', 'easyPing1_1');
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), 20000);
+  try { const r = await fetch(u.href, { signal: c.signal, cache: 'no-store' }); const x = await r.text(); if (r.ok && x.includes('expense-easy-setup-test')) return; throw new Error('پاسخ نادرست (' + r.status + ')'); }
+  finally { clearTimeout(t); }
+}
+async function easyPing(url) {
+  let last = '';
+  for (let i = 0; i < 3; i++) {
+    easyMessage('در حال بررسی پاسخ اسکریپت… تلاش ' + (i + 1) + ' از ۳');
+    try { await easyPingFetch(url); return; } catch (e) { last = 'fetch: ' + (e.message || e); }
+    try { await easyPingOnce(url); return; } catch (e) { last += ' | jsonp: ' + (e.message || e).slice(0, 20); }
+    await new Promise(r => setTimeout(r, 4000));
+  }
+  throw new Error('آزمون پاسخ اسکریپت کامل نشد. جزئیات: ' + last + ' — نشانی: ' + url);
 }
 async function easyRun(token, email) {
   const state=easyState();
