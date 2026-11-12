@@ -9,7 +9,7 @@ function easyLinks() {
   const e = document.getElementById('easy-setup-links'); if (!e) return; e.replaceChildren();
   const s = easyState();
   if (s.email && typeof s.email === 'string') { const account = document.createElement('div'); account.className = 'mut'; account.textContent = 'حساب انتخاب‌شده در برنامه: ' + s.email; e.appendChild(account); }
-  for (const [label, url] of [ ['شیت آزمایشی', /^[\w-]+$/.test(s.sheetId || '') ? 'https://docs.google.com/spreadsheets/d/' + s.sheetId + '/edit' : ''], ['پروژه اسکریپت آزمایشی', /^[\w-]+$/.test(s.scriptId || '') ? 'https://script.google.com/home/projects/' + s.scriptId + '/edit' : ''] ]) {
+  for (const [label, url] of [ ['شیت آزمایشی', /^[\w-]+$/.test(s.sheetId || '') ? 'https://docs.google.com/spreadsheets/d/' + s.sheetId + '/edit?authuser='+encodeURIComponent(s.email||'') : ''], ['پروژه اسکریپت آزمایشی', /^[\w-]+$/.test(s.scriptId || '') ? 'https://script.google.com/d/' + s.scriptId + '/edit?authuser='+encodeURIComponent(s.email||'') : ''] ]) {
     if (!url) continue; const a = document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent=label; e.appendChild(a); e.appendChild(document.createElement('br'));
   }
 }
