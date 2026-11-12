@@ -656,7 +656,7 @@ function _render() {
       const url = easyMainSyncUrl();
       if (!url) { alert('آدرس اصلی معتبر پیدا نشد؛ ابتدا ساخت اتصال آسان را کامل کن.'); return; }
       if (legacyInFlight || googleTestBusy || directAutoSession || directAutoRunning) { alert('ابتدا عملیات دیگر و ارسال خودکار اتصال مستقیم را متوقف کن.'); return; }
-      if (!confirm('همگام‌سازی با شیت آدرس اصلی جدید انجام شود؟ اطلاعات گوشی و شیت ممکن است تغییر کند و ردیف‌های شیت بازنویسی شوند. ابتدا از شیت و برنامه پشتیبان بگیر.')) return;
+      if (!confirm('دریافت از شیت آدرس اصلی انجام شود؟ اطلاعات این گوشی ممکن است با داده‌های شیت ترکیب و تغییر کند. ابتدا از شیت و برنامه پشتیبان بگیر. در این مرحله چیزی به شیت ارسال نمی‌شود.')) return;
       if (legacyInFlight || googleTestBusy || directAutoSession || directAutoRunning || easyMainSyncUrl() !== url || localStorage.getItem('legacySyncPaused') !== '1') { alert('وضعیت اتصال تغییر کرد؛ دوباره تلاش کن.'); return; }
       const button = $('#easy-main-sync'), status = $('#easy-main-sync-status');
       button.disabled = true; googleTestBusy = true;
@@ -808,7 +808,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-12T22:12:26.781Z'; const BUILD_VERSION = '۱۴۹';
+const BUILD = '2026-11-12T22:35:29.644Z'; const BUILD_VERSION = '۱۵۰';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1423,14 +1423,33 @@ async function doPush(manualUrl = null) {
     if (!manualUrl) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + (manualUrl ? '؛ نتیجه را پیش از تلاش مجدد بررسی کن.' : ' — بعداً دوباره تلاش می‌شود'); return false; } finally { legacyInFlight--; }
 }
+function manualJsonpRead(url) {
+  return new Promise((resolve, reject) => {
+    const bytes = new Uint32Array(2); crypto.getRandomValues(bytes);
+    const name = 'expenseRead' + bytes[0] + '_' + bytes[1];
+    const tag = document.createElement('script'); let done = false;
+    const finish = (error, data) => { if (done) return; done = true; clearTimeout(timer); delete window[name]; tag.remove(); error ? reject(error) : resolve(data); };
+    window[name] = data => finish(null, data);
+    tag.onerror = () => finish(new Error('بارگذاری پاسخ JSONP ناموفق بود؛ شبکه یا دسترسی انتشار را بررسی کن.'));
+    tag.onload = () => { if (!done) finish(new Error('اسکریپت اصلی پاسخ JSONP نداد؛ انتشار اصلی باید از JSONP پشتیبانی کند.')); };
+    const timer = setTimeout(() => finish(new Error('پاسخ JSONP تا ۲۰ ثانیه نرسید.')), 20000);
+    const target = new URL(url); target.searchParams.set('callback', name); tag.src = target.href; document.head.appendChild(tag);
+  });
+}
 async function pull(manualUrl = null) {
   const url = manualUrl || SYNC(); if (!url) return;
   const current = () => manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url;
   legacyInFlight++;
   try {
-    const rs = await fetch(url); const txt = await rs.text(); let d;
+    let rs, txt, d;
+    try { rs = await fetch(url); txt = await rs.text(); }
+    catch (fetchError) {
+      if (!manualUrl) throw fetchError;
+      try { d = await manualJsonpRead(url); }
+      catch (jsonpError) { throw new Error('دریافت معمولی: ' + (fetchError.message || fetchError) + '؛ دریافت جایگزین: ' + (jsonpError.message || jsonpError)); }
+    }
     if (!current()) throw new Error('وضعیت اتصال تغییر کرد');
-    try { d = JSON.parse(txt); } catch (_) { throw new Error(rs.status + ' ' + (/<title>(.*?)<\/title>/i.exec(txt)?.[1] || 'پاسخ JSON نیست (دسترسی Anyone نیست؟)')); }
+    if (d === undefined) { try { d = JSON.parse(txt); } catch (_) { throw new Error(rs.status + ' ' + (/<title>(.*?)<\/title>/i.exec(txt)?.[1] || 'پاسخ JSON نیست (دسترسی Anyone نیست؟)')); } }
     if (!d.ok) throw new Error(d.error || 'bad');
     if (!manualUrl && d.sheetUrl) localStorage.setItem('sheetUrl', d.sheetUrl);
     const dirty = localStorage.getItem('dirty');
@@ -1453,13 +1472,16 @@ async function pull(manualUrl = null) {
     if (!manualUrl) { pulled = true; lastPull = Date.now(); localStorage.setItem('sync_bak', SYNC()); localStorage.setItem('syncLock', '1'); }
     syncMsg = '✅ دریافت از شیت انجام شد';
     matchTransfers();
-    if (d.inbox && d.inbox.length) {
+    if (manualUrl) {
+      if (d.inbox && d.inbox.length) syncMsg += '؛ پیامک‌های صندوق روی شیت باقی ماندند و ارسالی انجام نشد.';
+      else syncMsg += '؛ ارسالی به شیت انجام نشد.';
+    } else if (d.inbox && d.inbox.length) {
       d.inbox.forEach(i => addSms(i.raw)); localStorage.setItem('dirty', '1');
       const sent = await doPush(manualUrl);
       if (manualUrl && !sent) return;
       if (current()) await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
     }
-    if (localStorage.getItem('dirty')) await doPush(manualUrl);
+    if (!manualUrl && localStorage.getItem('dirty')) await doPush();
   } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); } finally { legacyInFlight--; }
 }
 let lastPull = 0;
