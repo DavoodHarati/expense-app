@@ -8,6 +8,7 @@ function easyMessage(s) { const e = document.getElementById('easy-setup-status')
 function easyLinks() {
   const e = document.getElementById('easy-setup-links'); if (!e) return; e.replaceChildren();
   const s = easyState();
+  if (s.email && typeof s.email === 'string') { const account = document.createElement('div'); account.className = 'mut'; account.textContent = 'حساب انتخاب‌شده در برنامه: ' + s.email; e.appendChild(account); }
   for (const [label, url] of [ ['شیت آزمایشی', /^[\w-]+$/.test(s.sheetId || '') ? 'https://docs.google.com/spreadsheets/d/' + s.sheetId + '/edit' : ''], ['پروژه اسکریپت آزمایشی', /^[\w-]+$/.test(s.scriptId || '') ? 'https://script.google.com/home/projects/' + s.scriptId + '/edit' : ''] ]) {
     if (!url) continue; const a = document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent=label; e.appendChild(a); e.appendChild(document.createElement('br'));
   }
@@ -31,7 +32,7 @@ function easyGoogleError(data, response, stage) {
   message = message.replace(/https?:\/\/\S+/gi, '[نشانی حذف شد]').replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[حساب حذف شد]').replace(/\b[A-Za-z0-9_-]{30,}\b/g, '[شناسه حذف شد]').replace(/[\r\n\t]+/g, ' ').slice(0, 350);
   let hint = '';
   if (reason === 'SERVICE_DISABLED' || /has not been used|is disabled/i.test(message)) hint = ' سرویس گوگل برای پروژه فعال نیست یا هنوز تغییرش اعمال نشده؛ چند دقیقه صبر کن و دوباره امتحان کن.';
-  else if (/Apps Script API.*(disabled|turned off)|API.*not enabled/i.test(message)) hint = ' دسترسی مدیریت اسکریپت در تنظیمات همان حساب باید روشن باشد.';
+  else if (/user has not enabled|Apps Script API.*(disabled|turned off)|API.*not enabled/i.test(message)) hint = ' حساب انتخاب‌شده در برنامه را با حساب بالای صفحه تنظیمات Apps Script مقایسه کن؛ برای همان حساب گزینه Google Apps Script API باید On باشد. اگر تازه روشن کردی چند دقیقه صبر کن.';
   else if (/insufficient.*(permission|scope)|insufficient authentication scopes/i.test(message)) hint = ' اجازه‌های درخواست‌شده را هنگام ورود گوگل بررسی و تأیید کن.';
   return 'مرحله: ' + stage + '؛ کد: ' + response.status + (reason ? '؛ دلیل: ' + reason : '') + (status ? '؛ وضعیت: ' + status : '') + '.' + hint + (message ? ' پیام گوگل: ' + message : ' گوگل توضیح بیشتری نفرستاد.');
 }
@@ -61,7 +62,7 @@ async function easyRun(token, email) {
   const state=easyState();
   if (state.email && state.email !== email) throw new Error('آزمایش قبلی با حساب دیگری شروع شده است. همان حساب را انتخاب کن یا ابتدا وضعیت آزمایش را پاک کن.');
   if (state.pending) throw new Error('نتیجه مرحله «' + state.pending + '» مشخص نیست. پیش از شروع دوباره، موارد آزمایشی در Google Drive را بررسی کن؛ برای ساخت دوباره وضعیت آزمایش را پاک کن.');
-  state.email=email; easySave(state);
+  state.email=email; easySave(state); easyLinks();
   async function createStep(name, operation, onSuccess) {
     state.pending=name; easySave(state);
     try { const result=await operation(); onSuccess(result); state.pending=''; easySave(state); easyLinks(); }
