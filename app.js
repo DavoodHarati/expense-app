@@ -506,7 +506,7 @@ function navigationState163(currentTab, currentTopic, enabled) {
 function navigationRender163() {
   const state = navigationState163(tab, topic, featureOn); topic = state.topic;
   const topics = document.getElementById('topics'), chips = document.getElementById('diary-chips'), add = document.getElementById('add-sections');
-  if (topics) topics.hidden = !state.diary;
+  if (topics) { topics.hidden = !(state.diary || tab === 'home'); const first = topics.querySelector('[data-topic="expenses"]'); if (first) first.textContent = tab === 'home' ? 'هزینه‌ها' : 'تراکنش‌ها'; }
   if (chips) { chips.hidden = !state.diary; chips.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab)); }
   if (add) { add.hidden = !state.add; add.querySelectorAll('[data-add-topic]').forEach(b => { b.hidden = !state.visible(b.dataset.addTopic); b.classList.toggle('on', b.dataset.addTopic === topic); }); }
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === (state.diary ? 'diary' : tab)));
@@ -1024,7 +1024,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T16:41:02.162Z'; const BUILD_VERSION = '۱۶۵';
+const BUILD = '2026-11-13T17:13:12.290Z'; const BUILD_VERSION = '۱۶۶';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
