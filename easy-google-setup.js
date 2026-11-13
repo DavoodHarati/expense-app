@@ -84,6 +84,13 @@ function easyAuthUi(message) {
   const button = document.getElementById('easy-authorize-check');
   if (button) button.disabled = easyAuthChecking;
 }
+function easyAuthUrl(value, email) {
+  email = String(email || '').trim();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email)) throw new Error('ایمیل معتبر وارد کن.');
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'https:' || parsed.host !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname) || parsed.search || parsed.hash || parsed.username || parsed.password) throw new Error('نشانی اصلی معتبر نیست.');
+  return parsed.href + '?authuser=' + encodeURIComponent(email);
+}
 function easyMainProbe(url) {
   const u = new URL(url);
   if (u.protocol !== 'https:' || u.host !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.pathname) || u.search || u.hash || u.username || u.password) return Promise.reject(new Error('نشانی اصلی معتبر نیست'));
@@ -231,15 +238,28 @@ function easySetupPrepare() {
   const start=document.getElementById('easy-setup-start'), reset=document.getElementById('easy-setup-reset');
   easyAuthUi(easyState().pending === 'authorize' ? 'پاسخ معتبر هنوز دریافت نشده؛ صفحه مجوز را بررسی کن.' : undefined);
   const open = document.getElementById('easy-authorize-open'), check = document.getElementById('easy-authorize-check');
-  if (open) open.onclick = event => {
-    const url = easyState().mainUrl;
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'https:' || parsed.host !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname) || parsed.search || parsed.hash || parsed.username || parsed.password) throw new Error('bad url');
-      easyAuthReturn = true; open.href = parsed.href;
-      easyAuthUi('در صفحه گوگل با حساب سازنده، مجوز را بررسی کن؛ سپس به برنامه برگرد.');
-    } catch (_) { event.preventDefault(); easyAuthUi('نشانی اصلی معتبر پیدا نشد.'); }
-  };
+  const dialog = document.getElementById('easy-auth-dialog'), email = document.getElementById('easy-auth-email');
+  const proceed = document.getElementById('easy-auth-continue'), cancel = document.getElementById('easy-auth-cancel');
+  const error = document.getElementById('easy-auth-error'), fallback = document.getElementById('easy-auth-fallback');
+  if (open && dialog && email && proceed && cancel && error && fallback) {
+    const updateLabel = () => { proceed.textContent = 'ادامه با ' + (email.value.trim() || 'ایمیل'); };
+    open.onclick = () => {
+      email.value = localStorage.getItem('easy_auth_email') || easyState().email || 'erfan.hi19@gmail.com';
+      error.textContent = ''; fallback.hidden = true; updateLabel();
+      if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    };
+    email.oninput = updateLabel;
+    cancel.onclick = () => { if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open'); };
+    proceed.onclick = () => {
+      try {
+        const address = email.value.trim(), url = easyAuthUrl(easyState().mainUrl, address);
+        localStorage.setItem('easy_auth_email', address); easyAuthReturn = true;
+        fallback.href = url; fallback.hidden = false; error.textContent = 'اگر صفحه باز نشد، روی «باز کردن در همین صفحه» بزن.';
+        window.open(url, '_blank', 'noopener');
+        easyAuthUi('در صفحه گوگل با حساب سازنده، مجوز را بررسی کن؛ سپس به برنامه برگرد.');
+      } catch (err) { error.textContent = err.message || 'نشانی اصلی معتبر نیست.'; }
+    };
+  }
   if (check) check.onclick = () => { easyAuthReturn = false; void easyCheckAuthorization(); };
   if (easyState().pending && easyState().pending !== 'authorize') easyMessage('⚠️ نتیجه مرحله قبلی مشخص نیست؛ ابتدا شیت و اسکریپت آزمایشی را در گوگل بررسی کن.');
   reset.onclick=()=>{if(!confirm('فقط وضعیت آزمایش در این دستگاه پاک شود؟ فایل‌های ساخته‌شده در گوگل حذف نمی‌شوند.')) return; localStorage.removeItem(EASY_SETUP_KEY); easyLinks(); easyMessage('وضعیت آزمایش پاک شد؛ فایل‌های گوگل باقی مانده‌اند.');};
