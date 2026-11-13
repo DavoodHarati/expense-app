@@ -52,6 +52,8 @@ async function legacyReferenceRestore(file) {
   } catch (error) { directSyncMessage('⚠️ بازگردانی انجام نشد: ' + (error.message || error)); }
 }
 function legacyReferenceRead() {
+  if (localStorage.getItem('accountSwitchEpoch161')) { directSyncMessage('⚠️ شیت قدیمی برای حساب جدید غیرفعال است.'); return; }
+  try { accountOwnerAssert(); } catch (error) { directSyncMessage('⚠️ ' + error.message); return; }
   if (googleTestBusy) { directSyncMessage('عملیات دیگری در حال انجام است.'); return; }
   const scope = directSyncScope();
   try {
@@ -61,12 +63,13 @@ function legacyReferenceRead() {
           if (response.error || !response.access_token) throw new Error('اجازه گوگل صادر نشد');
           directSyncCheckGranted(response, scope);
           const headers = { Authorization: 'Bearer ' + response.access_token };
-          const ur = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
+          const ur = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
           if (!ur.ok) throw new Error('حساب گوگل بررسی نشد');
           const user = await ur.json();
+          accountOwnerIdentify(user.email);
           const ranges = ['Transactions!A:N','Accounts!A:B','Reminders!A:B','SMS!A:E','Profile!A:B'];
           const query = ranges.map(range => 'ranges=' + encodeURIComponent(range)).join('&');
-          const responseSheet = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + LEGACY_REFERENCE_SHEET + '/values:batchGet?' + query, { headers });
+          const responseSheet = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + LEGACY_REFERENCE_SHEET + '/values:batchGet?' + query, { headers });
           if (!responseSheet.ok) throw new Error(await directSyncReadError(responseSheet, user.email || 'نامشخص'));
           const legacy = legacyReferenceParse((await responseSheet.json()).valueRanges);
           const file = { format: 'expense-legacy-reference', version: 1, capturedAt: new Date().toISOString(), sheetId: LEGACY_REFERENCE_SHEET, data: legacy };

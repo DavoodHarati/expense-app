@@ -119,7 +119,7 @@ function directSyncPrepare() {
 }
 function directSyncSnapshot() {
   const backup = makeFullBackup();
-  for (const key of ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy']) delete backup.data[key];
+  for (const key of ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy', 'accountArchives']) delete backup.data[key];
   validateFullBackup(backup);
   return backup;
 }

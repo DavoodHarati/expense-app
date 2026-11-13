@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const source = fs.readFileSync('app.js','utf8'), start = source.indexOf('function noteSyncSuccess159()'), end = source.indexOf('function homeSyncStatus()',start);
 const values = new Map(); let state = null;
-const context = vm.createContext({ Date, localStorage: {getItem:k=>values.get(k) ?? null,setItem:(k,v)=>values.set(k,String(v))}, load:()=>state, easyState:()=>({}), directAutoSession:null, directAutoStatus:'', pulled:false, syncMsg:'', tx:[], accounts:{}, fmt:v=>'date:'+v, esc:v=>String(v), document:{getElementById:()=>null} });
+const context = vm.createContext({ Date, localStorage: {getItem:k=>values.get(k) ?? null,setItem:(k,v)=>values.set(k,String(v))}, load:()=>state, easyState:()=>({}), directAutoSession:null, directAutoStatus:'', pulled:false, syncMsg:'', tx:[], accounts:{}, fmt:v=>'date:'+v, esc:v=>String(v), document:{getElementById:()=>null,addEventListener(){}} });
 vm.runInContext(fs.readFileSync('account-owner-lock.js','utf8'),context);
 vm.runInContext(source.slice(start,end),context);
 assert.equal(context.infoStatus159().live,false);

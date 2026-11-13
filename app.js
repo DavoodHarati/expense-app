@@ -1,3 +1,4 @@
+if (!accountSwitchRecover()) throw new Error('Account switch recovery failed');
 if (!directReceiveRecover()) throw new Error('Pending direct receive recovery failed');
 if (directReceiveRecovered) setTimeout(() => alert('دریافت قبلی کامل نشده بود؛ اطلاعات قبلی این دستگاه برگردانده شد.'), 0);
 const $ = s => document.querySelector(s);
@@ -7,7 +8,7 @@ const DEFAULT_INC = ['فروش', 'مشتری', 'حقوق', 'سایر'];
 const CATS = lsj('cats', [...DEFAULT_CATS]);
 const INC = lsj('icats', [...DEFAULT_INC]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'bizMode', 'budgets', 'features', 'dataOwner', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'bizMode', 'budgets', 'features', 'dataOwner', 'accountArchives', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
 function makeFullBackup() {
   const data = {};
   BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
@@ -24,6 +25,7 @@ function validateFullBackup(backup) {
   const acc = parse('accounts'); if (!acc || typeof acc !== 'object' || Array.isArray(acc)) throw new Error('اطلاعات حساب‌ها معتبر نیست');
   for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add', 'legacyInboxImported']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
   for (const key of ['cols', 'pjobs', 'budgets', 'features']) if (key in backup.data) { const value = parse(key); if (!value || typeof value !== 'object' || Array.isArray(value) || (key === 'budgets' && Object.values(value).some(v => typeof v !== 'number' || !Number.isSafeInteger(v) || v < 0)) || (key === 'features' && Object.values(value).some(v => typeof v !== 'boolean'))) throw new Error('اطلاعات «' + key + '» معتبر نیست'); }
+  if ('accountArchives' in backup.data) { const archives = parse('accountArchives'); if (!Array.isArray(archives) || archives.some(a => !a || typeof a.id !== 'string' || typeof a.owner !== 'string' || !a.values || typeof a.values !== 'object' || Array.isArray(a.values) || Object.values(a.values).some(v => typeof v !== 'string') || !a.backup || !a.backup.data || 'accountArchives' in a.backup.data)) throw new Error('آرشیو حساب‌ها معتبر نیست'); for (const a of archives) validateFullBackup(a.backup); }
   if ('bizMode' in backup.data && !['0', '1'].includes(backup.data.bizMode)) throw new Error('حالت کسب‌وکار معتبر نیست');
   return backup.data;
 }
@@ -719,13 +721,16 @@ function _render() {
         const data = validateFullBackup(JSON.parse(await file.text())), count = JSON.parse(data.tx).length;
         if (!confirm('این فایل شامل ' + count.toLocaleString('fa-IR') + ' تراکنش است. بازیابی، اطلاعات فعلی این دستگاه را جایگزین می‌کند. ابتدا از اطلاعات فعلی پشتیبان گرفته‌ای؟')) return;
         if (!confirm('پس از بازیابی، اتصال شیت روی این دستگاه قطع می‌شود تا اطلاعات ناخواسته همگام نشوند. بازیابی انجام شود؟')) return;
-        const keys = [...new Set([...BACKUP_KEYS, 'dirty', 'lastSync', 'googleTestSheetPending'])], old = {};
+        if (googleTestBusy || directAutoRunning || legacyInFlight || localStorage.getItem('directAutoPending')) throw new Error('ابتدا عملیات اتصال قبلی و نتیجه ارسال بررسی‌نشده را تعیین تکلیف کن');
+        directAutoStop('اتصال برای بازیابی متوقف شد.');
+        const connectionKeys = ['directSyncState', 'legacyInboxAuto', 'legacyInboxUrl', 'easySetupExperimentV1', 'easy_wizard_api', 'easy_wizard_email', 'easy_wizard_verified', 'easy_auth_email', 'legacySyncPaused'];
+        const keys = [...new Set([...BACKUP_KEYS, ...connectionKeys, 'dirty', 'lastSync', 'googleTestSheetPending'])].filter(key => key !== 'accountArchives' || Object.prototype.hasOwnProperty.call(data, key)), old = {};
         keys.forEach(key => { old[key] = localStorage.getItem(key); });
         clearTimeout(pt); pulled = false;
         try {
           keys.forEach(key => localStorage.removeItem(key));
           Object.entries(data).forEach(([key, value]) => { if (!['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync'].includes(key)) localStorage.setItem(key, value); });
-          localStorage.setItem('noSync', '1'); localStorage.setItem('dirty', '1');
+          localStorage.setItem('noSync', '1'); localStorage.setItem('legacySyncPaused', '1'); localStorage.setItem('dirty', '1');
         } catch (err) {
           keys.forEach(key => { if (old[key] === null) localStorage.removeItem(key); else localStorage.setItem(key, old[key]); });
           throw err;
@@ -941,12 +946,13 @@ function settingsInfo159() {
     '<div class="mut">آخرین خطای فعلی: ' + esc(s.error || 'ندارد') + '</div>' +
     '<div class="mut">آخرین پشتیبان: ' + esc(backup) + '</div>' +
     '<div class="mut">تراکنش‌ها: ' + tx.length.toLocaleString('fa-IR') + ' · حساب‌ها: ' + Object.keys(accounts).length.toLocaleString('fa-IR') + '</div>' +
-    '<div class="mut">مالک داده‌ها: ' + esc(s.owner || 'مشخص نشده') + '</div>';
+    '<div class="mut">مالک داده‌ها: ' + esc(s.owner || 'مشخص نشده') + '</div>' + (accountOwnerLocked() ? '<button type="button" id="account-switch-open">حل مشکل حساب</button>' : '') + (localStorage.getItem('accountArchives') ? '<label>آرشیو حساب قبلی <select id="account-archive-select">' + accountSwitchArchives().map((a, i) => '<option value="' + i + '">' + esc(a.owner) + ' · ' + esc(fmt(a.createdAt)) + '</option>').join('') + '</select></label><button type="button" class="sec" id="account-archive-download">دانلود آرشیو انتخاب‌شده</button><div class="mut">برای بازگردانی از «بازیابی پشتیبان کامل» استفاده کن.</div>' : '');
 }
 function refreshInfo159() {
   const info = document.getElementById('settings-info-content'); if (info) info.innerHTML = settingsInfo159();
   const button = document.getElementById('welcome-google'); if (button) { const live = !!(directAutoSession && directAutoSession.expires > Date.now()); button.disabled = live; button.textContent = live ? 'ورود گوگل فعال است' : 'ورود به گوگل'; }
 }
+document.addEventListener('click', e => { if (e.target.id === 'account-switch-open') accountSwitchOpen(); if (e.target.id === 'account-archive-download') { try { accountSwitchDownloadArchive(Number(document.getElementById('account-archive-select').value)); } catch (error) { alert(error.message); } } });
 function homeSyncStatus() {
   if (accountOwnerLocked()) return '⚠️ ' + ACCOUNT_OWNER_LOCK_MESSAGE;
   const direct = load('directSyncState', null);
@@ -990,7 +996,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T12:52:43.488Z'; const BUILD_VERSION = '۱۶۰';
+const BUILD = '2026-11-13T14:09:53.429Z'; const BUILD_VERSION = '۱۶۱';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1541,7 +1547,7 @@ function googleCreateBackupCopy() {
           const user = await userResponse.json(); accountOwnerIdentify(user.email);
           if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
           const snapshot = makeFullBackup();
-          ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy'].forEach(key => delete snapshot.data[key]);
+          ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy', 'accountArchives'].forEach(key => delete snapshot.data[key]);
           validateFullBackup(snapshot);
           if (!confirm('یک نسخه از اطلاعات این دستگاه در یک شیت جدید در حساب ' + user.email + ' ذخیره شود؟ شیت فعلی تغییر نمی‌کند و همگام‌سازی خودکار فعال نمی‌شود.')) { googleCopyStatus('ساخت پشتیبان لغو شد.'); return; }
           const serialized = JSON.stringify(snapshot), chunks = [];

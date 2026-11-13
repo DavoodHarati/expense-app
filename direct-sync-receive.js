@@ -62,7 +62,7 @@ function directReceiveApply(backup, expectedLocal, state, headId) {
   if (DirectSyncCore.canonicalData(directSyncSnapshot().data) !== expectedLocal) throw new Error('اطلاعات دستگاه هنگام بررسی تغییر کرد؛ دوباره تلاش کن');
   const current = load('directSyncState', null);
   if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال دستگاه هنگام بررسی تغییر کرد');
-  const excluded = new Set(['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy']);
+  const excluded = new Set(['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy', 'accountArchives']);
   const targets = BACKUP_KEYS.filter(key => !excluded.has(key));
   const keys = [...new Set([...BACKUP_KEYS, 'directSyncState', 'dirty'])];
   const old = {};
