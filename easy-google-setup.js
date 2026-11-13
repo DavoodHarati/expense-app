@@ -75,6 +75,52 @@ async function easyPing(url) {
   }
   throw new Error('آزمون پاسخ اسکریپت کامل نشد. جزئیات: ' + last + ' — نشانی: ' + url);
 }
+let easyAuthChecking = false, easyAuthReturn = false;
+function easyAuthUi(message) {
+  const card = document.getElementById('easy-authorize');
+  if (card) card.hidden = !easyState().mainUrl;
+  const status = document.getElementById('easy-authorize-status');
+  if (status && message !== undefined) status.textContent = message;
+  const button = document.getElementById('easy-authorize-check');
+  if (button) button.disabled = easyAuthChecking;
+}
+function easyMainProbe(url) {
+  const u = new URL(url);
+  if (u.protocol !== 'https:' || u.host !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.pathname) || u.search || u.hash || u.username || u.password) return Promise.reject(new Error('نشانی اصلی معتبر نیست'));
+  return new Promise((resolve, reject) => {
+    const bytes = new Uint32Array(2); crypto.getRandomValues(bytes); const cb = 'easyMain' + bytes[0] + '_' + bytes[1];
+    const tag = document.createElement('script'); let done = false;
+    const finish = (error) => { if (done) return; done = true; clearTimeout(timer); delete window[cb]; tag.remove(); error ? reject(error) : resolve(); };
+    window[cb] = data => finish(data && data.ok === true && Array.isArray(data.tx) && Array.isArray(data.rem) && Array.isArray(data.log) ? null : new Error('پاسخ معتبر شیت دریافت نشد'));
+    tag.onerror = () => finish(new Error('بارگذاری پاسخ ناموفق بود'));
+    tag.onload = () => { if (!done) finish(new Error('اسکریپت پاسخ JSONP نداد')); };
+    const timer = setTimeout(() => finish(new Error('پاسخ تا ۲۰ ثانیه نرسید')), 20000);
+    u.searchParams.set('callback', cb); tag.src = u.href; document.head.appendChild(tag);
+  });
+}
+async function easyCheckAuthorization() {
+  if (easyAuthChecking) return false;
+  const state = easyState(), url = state.mainUrl;
+  if (!url) { easyAuthUi('ابتدا ساخت اتصال آسان را کامل کن.'); return false; }
+  if (state.pending && state.pending !== 'authorize') { easyAuthUi('نتیجه مرحله قبلی هنوز مشخص نیست؛ ابتدا آن را بررسی کن.'); return false; }
+  easyAuthChecking = true; easyAuthUi('در حال بررسی پاسخ اتصال اصلی…');
+  try {
+    await easyMainProbe(url);
+    const latest = easyState();
+    if (latest.mainUrl !== url || (latest.pending && latest.pending !== 'authorize')) throw new Error('وضعیت اتصال تغییر کرد');
+    if (latest.pending === 'authorize') { delete latest.pending; easySave(latest); }
+    easyAuthUi('✅ اتصال آماده است.'); return true;
+  } catch (error) {
+    const latest = easyState();
+    if (latest.mainUrl === url && (!latest.pending || latest.pending === 'authorize')) { latest.pending = 'authorize'; easySave(latest); }
+    easyAuthUi('⚠️ پاسخ معتبر نرسید؛ ممکن است مجوز، شبکه یا انتشار مشکل داشته باشد. ' + (error.message || ''));
+    return false;
+  } finally { easyAuthChecking = false; easyAuthUi(); }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !easyAuthReturn) return;
+  easyAuthReturn = false; void easyCheckAuthorization();
+});
 const EASY_CODE_GS_BASE = "// Google Apps Script: این کد را در Extensions ← Apps Script همان Google Sheet بچسبانید.\n// Deploy ← New deployment ← Web app ← Execute as: Me ← Who has access: Anyone\nconst TX_HEAD = ['id', 'date', 'account', 'type', 'amount', 'balance', 'cat', 'desc', 'pending', 'xfer', 'person', 'loan', 'raw', 'json'];\nconst LOG_HEAD = ['at', 'time', 'ok', 'msg', 'raw'];\n\nfunction sh_(name, head) {\n  const ss = SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));\n  let s = ss.getSheetByName(name);\n  if (!s) { s = ss.insertSheet(name); s.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold'); s.setFrozenRows(1); }\n  s.setRightToLeft(true);\n  return s;\n}\nfunction rows_(s, n) {\n  const last = s.getLastRow();\n  return last < 2 ? [] : s.getRange(2, 1, last - 1, n).getValues();\n}\nfunction put_(s, head, data) {\n  const last = s.getLastRow();\n  if (last > 1) s.getRange(2, 1, last - 1, head.length).clearContent();\n  if (!data.length) return;\n  const r = s.getRange(2, 1, data.length, head.length);\n  r.setNumberFormat('@');\n  r.setValues(data);\n}\nfunction out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }\n\nfunction doGet() {\n  try {\n  const tx = rows_(sh_('Transactions', TX_HEAD), TX_HEAD.length).map(r => { try { return JSON.parse(r[13]); } catch (e) { return null; } }).filter(Boolean);\n  const accounts = {};\n  rows_(sh_('Accounts', ['key', 'name']), 2).forEach(r => { if (r[0] !== '') accounts[String(r[0])] = String(r[1]); });\n  const log = rows_(sh_('SMS', LOG_HEAD), LOG_HEAD.length).map(r => ({ at: Number(r[0]), ok: r[2] === 'true' || r[2] === true, msg: String(r[3]), raw: String(r[4]) }));\n  const rem = rows_(sh_('Reminders', ['id', 'json']), 2).map(r => { try { return JSON.parse(r[1]); } catch (e) { return null; } }).filter(Boolean);\n  const pr = {}; rows_(sh_('Profile', ['key', 'value']), 2).forEach(r => pr[String(r[0])] = String(r[1]));\n  const inbox = rows_(sh_('Inbox', ['id', 'raw']), 2).map(r => ({ id: String(r[0]), raw: String(r[1]) }));\n  return out_({ ok: true, inbox, rem, tx, accounts, log, profile: { job: pr.job || '', work: pr.work || '', cols: pr.cols || '{}', lab: pr.lab || '{}' }, sheetUrl: (SpreadsheetApp.getActive() || SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'))).getUrl() });\n  } catch (err) { return out_({ ok: false, error: String(err) }); }\n}\n\nfunction doPost(e) {\n  const lock = LockService.getScriptLock(); lock.waitLock(20000);\n  try {\n    const d = JSON.parse(e.postData.contents);\n    if (d.inbox) { sh_('Inbox', ['id', 'raw']).appendRow([String(Date.now()) + Math.floor(Math.random() * 1000), String(d.inbox)]); return out_({ ok: true }); }\n    if (d.ack) {\n      const s = sh_('Inbox', ['id', 'raw']), keep = rows_(s, 2).filter(r => d.ack.indexOf(String(r[0])) < 0);\n      put_(s, ['id', 'raw'], keep); return out_({ ok: true });\n    }\n    if (d.tx) put_(sh_('Transactions', TX_HEAD), TX_HEAD, d.tx.map(t => [String(t.id), t.date || '', t.account || '', t.type || '', String(t.amount), t.balance == null ? '' : String(t.balance), t.cat || '', t.desc || '', String(!!t.pending), String(!!t.xfer), t.person || '', t.loan || '', t.raw || '', JSON.stringify(t)]));\n    if (d.profile) put_(sh_('Profile', ['key', 'value']), ['key', 'value'], [['job', d.profile.job || ''], ['work', d.profile.work || ''], ['cols', d.profile.cols || '{}'], ['lab', d.profile.lab || '{}']]);\n    if (Array.isArray(d.rem)) put_(sh_('Reminders', ['id', 'json']), ['id', 'json'], d.rem.map(r => [String(r.id), JSON.stringify(r)]));\n    if (d.accounts) put_(sh_('Accounts', ['key', 'name']), ['key', 'name'], Object.entries(d.accounts).map(([k, v]) => [k, v]));\n    if (d.log) {\n      const s = sh_('SMS', LOG_HEAD);\n      const old = {}; rows_(s, LOG_HEAD.length).forEach(r => old[String(r[0])] = r);\n      d.log.forEach(l => { old[String(l.at)] = [String(l.at), new Date(l.at).toLocaleString('fa-IR'), String(!!l.ok), l.msg || '', l.raw || '']; });\n      put_(s, LOG_HEAD, Object.values(old).sort((a, b) => Number(b[0]) - Number(a[0])));\n    }\n    return out_({ ok: true });\n  } catch (err) {\n    return out_({ ok: false, error: String(err) });\n  } finally { lock.releaseLock(); }\n}\n";
 // The JSONP branch only reads existing sheets. The ordinary endpoint stays unchanged.
 const EASY_JSONP_BRANCH = `
@@ -132,6 +178,7 @@ async function easyUpgradeMain(token, state) {
 async function easyRun(token, email) {
   const state=easyState();
   if (state.email && state.email !== email) throw new Error('آزمایش قبلی با حساب دیگری شروع شده است. همان حساب را انتخاب کن یا ابتدا وضعیت آزمایش را پاک کن.');
+  if (state.pending === 'authorize') { await easyCheckAuthorization(); return; }
   if (state.pending) throw new Error('نتیجه مرحله «' + state.pending + '» مشخص نیست. پیش از شروع دوباره، موارد آزمایشی در Google Drive را بررسی کن؛ برای ساخت دوباره وضعیت آزمایش را پاک کن.');
   state.email=email; easySave(state); easyLinks();
   async function createStep(name, operation, onSuccess) {
@@ -175,14 +222,29 @@ async function easyRun(token, email) {
     await createStep('انتشار اصلی',()=>easyApi(token,'https://script.googleapis.com/v1/projects/'+encodeURIComponent(state.scriptId)+'/deployments','POST',{versionNumber:state.mainVersion,manifestFileName:'appsscript',description:'کد اصلی برنامه'}),r=>{const entry=(r.entryPoints||[]).find(x=>x.webApp&&x.webApp.url); if(!entry) throw new Error('نشانی وب اصلی دریافت نشد'); state.mainUrl=entry.webApp.url; state.mainJsonpVersion=state.mainVersion;});
   }
   if (!state.mainJsonpVersion) await easyUpgradeMain(token, state);
-  easyMessage('✅ کد اصلی برنامه روی اسکریپت نصب و منتشر شد. نشانی ذخیره شد. اتصال همگام‌سازی هنوز وصل نشده است.'); easyLinks();
+  easyLinks(); easyAuthUi();
+  const ready = await easyCheckAuthorization();
+  easyMessage(ready ? '✅ اتصال اصلی پاسخ معتبر داد.' : 'انتشار ساخته شد؛ مجوز و پاسخ اتصال اصلی هنوز تأیید نشده است.');
 }
 function easySetupPrepare() {
   const card=document.getElementById('easy-setup'); if (!card) return; easyLinks();
   const start=document.getElementById('easy-setup-start'), reset=document.getElementById('easy-setup-reset');
-  if (easyState().pending) easyMessage('⚠️ نتیجه مرحله قبلی مشخص نیست؛ ابتدا شیت و اسکریپت آزمایشی را در گوگل بررسی کن.');
+  easyAuthUi(easyState().pending === 'authorize' ? 'پاسخ معتبر هنوز دریافت نشده؛ صفحه مجوز را بررسی کن.' : undefined);
+  const open = document.getElementById('easy-authorize-open'), check = document.getElementById('easy-authorize-check');
+  if (open) open.onclick = event => {
+    const url = easyState().mainUrl;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:' || parsed.host !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname) || parsed.search || parsed.hash || parsed.username || parsed.password) throw new Error('bad url');
+      easyAuthReturn = true; open.href = parsed.href;
+      easyAuthUi('در صفحه گوگل با حساب سازنده، مجوز را بررسی کن؛ سپس به برنامه برگرد.');
+    } catch (_) { event.preventDefault(); easyAuthUi('نشانی اصلی معتبر پیدا نشد.'); }
+  };
+  if (check) check.onclick = () => { easyAuthReturn = false; void easyCheckAuthorization(); };
+  if (easyState().pending && easyState().pending !== 'authorize') easyMessage('⚠️ نتیجه مرحله قبلی مشخص نیست؛ ابتدا شیت و اسکریپت آزمایشی را در گوگل بررسی کن.');
   reset.onclick=()=>{if(!confirm('فقط وضعیت آزمایش در این دستگاه پاک شود؟ فایل‌های ساخته‌شده در گوگل حذف نمی‌شوند.')) return; localStorage.removeItem(EASY_SETUP_KEY); easyLinks(); easyMessage('وضعیت آزمایش پاک شد؛ فایل‌های گوگل باقی مانده‌اند.');};
   start.onclick=()=>{
+    if(easyState().pending === 'authorize') { void easyCheckAuthorization(); return; }
     if(easyState().pending) {easyMessage('⚠️ نتیجه مرحله قبلی مشخص نیست. ابتدا فایل‌های آزمایشی در گوگل را بررسی کن.');return;}
     if (!window.google || !google.accounts || !google.accounts.oauth2) {easyMessage('سرویس ورود گوگل بارگذاری نشد؛ اینترنت را بررسی کن و تنظیمات را دوباره باز کن.');return;}
     const updating = !!easyState().mainUrl && !easyState().mainJsonpVersion;
