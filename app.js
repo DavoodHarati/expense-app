@@ -495,9 +495,9 @@ function dkeys() {
 function render() {
   const y = window.scrollY, was = new Set(dkeys().filter(([d]) => d.open).map(x => x[1])), t0 = tab;
   _render2();
-  if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k)) d.open = true; }); window.scrollTo(0, y); }
+  if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k) && !(tab === 'add' && d.id === 'manual-more-164')) d.open = true; }); window.scrollTo(0, y); }
 }
-function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); }
+function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); addPage164(); }
 const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
 function navigationState163(currentTab, currentTopic, enabled) {
   const diary = currentTab === 'report' || currentTab === 'contacts';
@@ -537,7 +537,7 @@ function _render() {
       receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
       if (tab === 'add') {
         $('#pst').onclick = async () => { try { $('#sms').value = await navigator.clipboard.readText(); } catch (_) { $('#msg').textContent = 'متن رسید را داخل کادر بچسبان.'; } };
-        $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; receiptArchiveRender(''); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
+        $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; addSaved164('receipt'); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
       }
       return;
     }
@@ -585,25 +585,26 @@ function _render() {
     else document.getElementById('invoice-card').hidden = true;
     $('#manual-open-159').onclick = () => { const card = document.getElementById('manual-entry-159'); if (!card) return; card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.getElementById('ma')?.focus({ preventScroll: true }); };
     $('#pst').onclick = async () => { try { const t = await navigator.clipboard.readText(); if (!t) { $('#msg').textContent = 'کلیپ‌بورد خالی است'; return; } $('#sms').value = t; $('#msg').textContent = 'چسبانده شد'; } catch (e) { $('#sms').focus(); $('#msg').textContent = 'اجازهٔ دسترسی به کلیپ‌بورد داده نشد؛ داخل کادر نگه دار و «Paste» بزن.'; } };
-    $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
+    $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; addSaved164('sms'); return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; addSaved164('sms'); } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
     $('#mg').onclick = () => {
       const a = invoiceDigits($('#ma').value); if (!a || !Number.isSafeInteger(a * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; }
+      const chosenDate = document.getElementById('manual-date-164')?.value.trim() || invoiceDate(); if (!persianToIso(chosenDate)) { alert('تاریخ شمسی معتبر وارد کن'); return; }
       const mv = $('#mt').value, lk = mv.startsWith('loan:') ? mv.slice(5) : '';
       if (lk && !$('#mp').value.trim()) { alert('نام شخص را بنویس'); return; }
       if ($('#mt').value === 'xfer') {
         const f = $('#xf').value, to = $('#xt').value; if (f === to) { alert('مبدأ و مقصد یکی است'); return; }
-        const d = nowStr(), base = { bank: '', balance: null, date: d, pending: false, amount: a * 10 };
+        const d = chosenDate + ' ' + nowStr().slice(11), base = { bank: '', balance: null, date: d, pending: false, amount: a * 10 };
         const D = { ...base, id: Date.now(), account: f, type: 'debit' }, C = { ...base, id: Date.now() + 1, account: to, type: 'credit' };
-        markX(D, C); tx.unshift(D, C); save(); tab = 'home'; render(); return;
+        markX(D, C); tx.unshift(D, C); save(); addSaved164('manual'); return;
       }
       const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
       const g = t => n.find(x => x.type === t).value;
       const acc = $('#mac').value || 'دستی';
       if (!Object.values(accounts).includes(acc)) accounts['manual:' + acc] = acc;
       const key = Object.keys(accounts).find(k => accounts[k] === acc);
-      tx.unshift({ id: Date.now(), bank: acc, account: key, type: lk ? (LOAN[lk][1] > 0 ? 'debit' : 'credit') : mv, amount: a * 10, balance: null, date: `${g('year')}/${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`, desc: $('#md').value, cat: lk ? lcat(lk) : $('#mc').value, pending: false, ...(lk ? { loan: lk, person: $('#mp').value.trim() } : {}) });
-      save(); tab = 'home'; render();
+      tx.unshift({ id: Date.now(), bank: acc, account: key, type: lk ? (LOAN[lk][1] > 0 ? 'debit' : 'credit') : mv, amount: a * 10, balance: null, date: `${chosenDate} ${g('hour')}:${g('minute')}`, desc: $('#md').value, note: document.getElementById('manual-note-164')?.value.trim() || '', link: document.getElementById('manual-link-164')?.value.trim() || '', cat: lk ? lcat(lk) : $('#mc').value, pending: false, ...(lk ? { loan: lk, person: $('#mp').value.trim() } : {}) });
+      save(); addSaved164('manual');
     };
   } else {
     el.innerHTML = `
@@ -869,7 +870,7 @@ function settingsLayout(el) {
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
 function invoiceStartEditing() {
   if (tab !== 'report' || (topic !== 'invoices' && topic !== 'sales')) return;
-  tab = 'add';
+  tab = 'add'; addMode164 = 'invoice';
   navigationRender163();
   document.getElementById('invoice-form-fields').hidden = false;
   const ledger = document.querySelector('.invoice-ledger'); if (ledger) ledger.hidden = true;
@@ -1023,7 +1024,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T15:49:38.391Z'; const BUILD_VERSION = '۱۶۳';
+const BUILD = '2026-11-13T16:12:27.343Z'; const BUILD_VERSION = '۱۶۴';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1255,9 +1256,12 @@ document.addEventListener('click', async e => {
   const fa = e.target.closest('.fb [data-a]');
   if (fa) { const a = fa.dataset.a; if (a === '*') sel = null; else { sel = sel ? (sel.includes(a) ? sel.filter(x => x !== a) : [...sel, a]) : [a]; if (!sel.length) sel = null; } localStorage.setItem('sel', JSON.stringify(sel)); render(); return; }
   const topicButton = e.target.closest('[data-topic]'); if (topicButton) { topic = topicButton.dataset.topic; if (tab === 'contacts') tab = 'report'; else if (tab === 'settings') tab = 'home'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const addModeButton = e.target.closest('[data-add-mode]'); if (addModeButton) { addOpen164(addModeButton.dataset.addMode); return; }
+  const addFilter = e.target.closest('[data-add-filter]'); if (addFilter) { addReceiptFilter164 = addFilter.dataset.addFilter; addMode164 = 'menu'; render(); return; }
+  const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
   const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; lp = null; render(); window.scrollTo(0, 0); return; }
   const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t === 'diary' ? 'report' : nb.dataset.t; if (tab === 'home' || tab === 'add') topic = 'expenses'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t === 'diary' ? 'report' : nb.dataset.t; if (tab === 'home' || tab === 'add') topic = 'expenses'; if (tab === 'add') { addMode164 = 'menu'; addReceiptFilter164 = 'all'; } lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }

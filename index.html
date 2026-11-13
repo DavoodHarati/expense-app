@@ -52,7 +52,7 @@ details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
 <style>
 .topic-nav{display:flex;gap:7px;overflow-x:auto;padding:10px 12px;background:#fff;border-bottom:1px solid #e5e7eb;scrollbar-width:none;position:sticky;top:0;z-index:4}.topic-nav::-webkit-scrollbar{display:none}.topic-nav button{flex:0 0 auto;background:#edf3f2;color:#405652;padding:9px 13px;font-size:13px;white-space:nowrap}.topic-nav button.on{background:#0f766e;color:#fff;font-weight:700}.topic-heading{color:#0f766e;font-size:13px;margin:2px 3px 12px}.topic-actions{display:flex;gap:8px;flex-wrap:wrap}.topic-actions button{flex:1;min-width:125px}.topic-summary{background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;border-radius:16px;padding:16px;margin-bottom:12px}.topic-summary b{font-size:22px}.topic-nav[hidden]{display:none}
 </style>
-<style>.invoice-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:10px 0}.invoice-category-grid button{font-size:13px;padding:10px 8px;line-height:1.6}#invoice-card{font-size:14px;line-height:1.7}#invoice-card .mut,.invoice-ledger .mut{font-size:12px;line-height:1.75}#invoice-card input,#invoice-card select{font-size:16px}#invoice-card summary b,#inv-total{font-size:16px;color:#0f766e}.invoice-result summary b,.invoice-ledger-grid b{font-size:15px}</style><style>.diary-chips,.add-sections{display:flex;gap:8px;overflow-x:auto;padding:8px 12px;background:#fff}.diary-chips[hidden],.add-sections[hidden]{display:none}.diary-chips button,.add-sections button,.topic-nav button,nav button{min-height:44px}.diary-chips button,.add-sections button{white-space:nowrap;border-radius:22px;background:#edf3f2;color:#405652}.diary-chips button.on,.add-sections button.on{background:#0f766e;color:white}.nav-add{font-size:19px!important;font-weight:700;color:#0f766e!important}</style></head>
+<style>.invoice-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:10px 0}.invoice-category-grid button{font-size:13px;padding:10px 8px;line-height:1.6}#invoice-card{font-size:14px;line-height:1.7}#invoice-card .mut,.invoice-ledger .mut{font-size:12px;line-height:1.75}#invoice-card input,#invoice-card select{font-size:16px}#invoice-card summary b,#inv-total{font-size:16px;color:#0f766e}.invoice-result summary b,.invoice-ledger-grid b{font-size:15px}</style><style>.diary-chips,.add-sections{display:flex;gap:8px;overflow-x:auto;padding:8px 12px;background:#fff}.diary-chips[hidden],.add-sections[hidden]{display:none}.diary-chips button,.add-sections button,.topic-nav button,nav button{min-height:44px}.diary-chips button,.add-sections button{white-space:nowrap;border-radius:22px;background:#edf3f2;color:#405652}.diary-chips button.on,.add-sections button.on{background:#0f766e;color:white}.nav-add{font-size:19px!important;font-weight:700;color:#0f766e!important}</style><style>.add-grid-164{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.add-grid-164[hidden]{display:none}.add-tile-164{display:flex;min-height:145px;align-items:flex-start;flex-direction:column;gap:10px;text-align:right;background:#fff;color:#15352f;border:1px solid #e1ece9;border-radius:18px;padding:15px;box-shadow:0 2px 8px #1231}.add-icon-164{width:72px;height:72px;border-radius:16px;background:color-mix(in srgb,var(--tile) 12%,white);color:var(--tile);display:grid;place-items:center}.add-icon-164 svg{width:36px;height:36px}.add-tile-164 b{display:block;font-size:17px;font-weight:800}.add-tile-164 small{display:block;font-size:12px;color:#64756f;margin-top:3px}.add-filter-164{display:flex;gap:8px}.add-filter-164 button,.add-back-164,.add-saved-164 button,.manual-more-164 summary{min-height:44px}.manual-more-164{padding:10px 0}.manual-more-164 summary{cursor:pointer;font-weight:bold;padding:10px 0}.add-saved-164 .row{margin-top:15px}.add-saved-164 button{flex:1}@supports not (background:color-mix(in srgb,red 12%,white)){.add-icon-164{background:#edf5f2}}</style></head>
 <body>
 <header id="title">هزینه‌ها</header>
 <div class="diary-chips" id="diary-chips" hidden aria-label="بخش دفتر"><button type="button" data-t="report">گزارش</button><button type="button" data-t="contacts">اشخاص</button></div>
@@ -73,19 +73,20 @@ details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
   <button data-t="settings">تنظیمات</button>
 </nav>
 <script src="xlsx.full.min.js"></script>
-<script src="account-owner-lock.js?v=163"></script>
-<script src="account-switch-backup.js?v=163"></script>
-<script src="account-switch.js?v=163"></script>
-<script src="parser.js?v=163"></script>
-<script src="direct-sync-core.js?v=163"></script>
-<script src="legacy-reference.js?v=163"></script>
-<script src="direct-sync-ui.js?v=163"></script>
-<script src="direct-sync-auto.js?v=163"></script>
-<script src="direct-sync-receive.js?v=163"></script>
-<script src="invoice.js?v=163"></script>
-<script src="legacy-inbox.js?v=163"></script>
-<script src="easy-google-setup.js?v=163"></script>
-<script src="features-157.js?v=163"></script>
-<script src="app.js?v=163"></script>
+<script src="account-owner-lock.js?v=164"></script>
+<script src="account-switch-backup.js?v=164"></script>
+<script src="account-switch.js?v=164"></script>
+<script src="parser.js?v=164"></script>
+<script src="direct-sync-core.js?v=164"></script>
+<script src="legacy-reference.js?v=164"></script>
+<script src="direct-sync-ui.js?v=164"></script>
+<script src="direct-sync-auto.js?v=164"></script>
+<script src="direct-sync-receive.js?v=164"></script>
+<script src="invoice.js?v=164"></script>
+<script src="legacy-inbox.js?v=164"></script>
+<script src="easy-google-setup.js?v=164"></script>
+<script src="features-157.js?v=164"></script>
+<script src="add-page-164.js?v=164"></script>
+<script src="app.js?v=164"></script>
 </body>
 </html>
