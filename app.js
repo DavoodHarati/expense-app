@@ -686,8 +686,45 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
+    settingsLayout(el);
     el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ${BUILD_VERSION})<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
+}
+
+// فقط جای کارت‌های موجود را عوض می‌کند؛ خود کارت‌ها و رویدادهایشان حفظ می‌شوند.
+function settingsLayout(el) {
+  const cards = [...el.children].filter(c => c.tagName === 'DETAILS');
+  const title = c => (c.querySelector('summary')?.textContent || '').trim();
+  const rank = c => {
+    const t = title(c);
+    if (t.includes('آخرین تغییر')) return 0;
+    if (t.includes('نام حساب')) return 1;
+    if (t.includes('پشتیبان‌گیری')) return 2;
+    if (c.id === 'google-copy') return 3;
+    if (t.includes('همگام‌سازی با Google Sheets')) return 4;
+    if (c.id === 'jbc') return 5;
+    if (c.id === 'lbc') return 6;
+    if (t.includes('کد راه‌اندازی')) return 7;
+    if (c.id === 'legacy-inbox' || t.includes('پیامک‌های دریافتی')) return 8;
+    if (c.id === 'dpc') return 9;
+    return 10;
+  };
+  const experimental = new Set(['google-test', 'easy-setup', 'direct-sync']);
+  cards.filter(c => !experimental.has(c.id))
+    .map((card, index) => ({ card, index }))
+    .sort((a, b) => rank(a.card) - rank(b.card) || a.index - b.index)
+    .forEach(({ card }) => el.appendChild(card));
+  const advanced = document.createElement('details');
+  advanced.className = 'card';
+  advanced.id = 'settings-advanced';
+  const summary = document.createElement('summary');
+  summary.textContent = 'پیشرفته';
+  advanced.appendChild(summary);
+  ['google-test', 'direct-sync', 'easy-setup'].forEach(id => {
+    const card = cards.find(c => c.id === id);
+    if (card) advanced.appendChild(card);
+  });
+  el.appendChild(advanced);
 }
 
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
@@ -808,7 +845,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T08:24:21.228Z'; const BUILD_VERSION = '۱۵۵';
+const BUILD = '2026-11-13T09:24:22.423Z'; const BUILD_VERSION = '۱۵۶';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
