@@ -13,6 +13,7 @@ async function run() {
     document: { getElementById: () => null, visibilityState: 'visible' }, setInterval() {},
     fetch: async () => ({ok:true,json:async()=>({ok:true,inbox})}),
     addSms: raw => { received.push(raw); return {ok:false,review:true}; }, confirm:()=>true,tab:'settings' });
+  vm.runInContext(fs.readFileSync('account-owner-lock.js','utf8'),context);
   vm.runInContext(fs.readFileSync('legacy-inbox.js','utf8'),context);
   await context.legacyInboxCheck(true); assert.equal(received.length,2);
   await context.legacyInboxCheck(true); assert.equal(received.length,2);

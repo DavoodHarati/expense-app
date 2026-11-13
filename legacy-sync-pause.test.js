@@ -13,6 +13,7 @@ function fixture() {
     job: () => '', work: () => '', matchTransfers() {}, addSms() {},
     fetch: () => { calls++; return new Promise(resolve => { resolveFetch = resolve; }); }
   });
+  vm.runInContext(fs.readFileSync('account-owner-lock.js','utf8'), context);
   const source = fs.readFileSync('app.js', 'utf8');
   vm.runInContext(source.slice(source.indexOf('const SYNC ='), source.indexOf('let lastPull =')), context);
   return { data, context, calls: () => calls, resolve: value => resolveFetch(value) };

@@ -85,9 +85,10 @@ function directAutoStart(fromWelcome = false) {
           const lifetime = Number(response.expires_in);
           if (!Number.isFinite(lifetime) || lifetime <= 60) throw new Error('زمان اعتبار دسترسی گوگل مشخص نیست');
           const headers = { Authorization: 'Bearer ' + response.access_token };
-          const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
+          const userResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
           if (!userResponse.ok) throw new Error('بررسی حساب گوگل ناموفق بود');
           const user = await userResponse.json();
+          accountOwnerIdentify(user.email);
           const current = load('directSyncState', null);
           if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('تنظیمات اتصال تغییر کرده؛ دوباره تلاش کن');
           if (!user.email || user.email !== state.email) throw new Error('حساب گوگل با حساب شیت یکسان نیست');
@@ -108,6 +109,7 @@ function directAutoStart(fromWelcome = false) {
 
 async function directAutoTick() {
   const session = directAutoSession;
+  if (accountOwnerLocked()) { directAutoStop('⚠️ ' + ACCOUNT_OWNER_LOCK_MESSAGE); return; }
   if (!session || directAutoRunning || googleTestBusy) return;
   if (Date.now() >= session.expires) { directAutoStop('دسترسی گوگل منقضی شد؛ برای ادامه دوباره فعال کن.'); return; }
   directAutoRunning = true; googleTestBusy = true; googleTestButton(); directSyncButtons(true);
@@ -121,7 +123,7 @@ async function directAutoTick() {
     const api = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/';
     const read = async () => {
       let response;
-      try { response = await fetch(api + encodeURIComponent("'DirectSync'!A:GR"), { headers }); }
+      try { response = await accountOwnerFetch(api + encodeURIComponent("'DirectSync'!A:GR"), { headers }); }
       catch (_) { const error = new Error('ارتباط با شیت برقرار نشد'); error.directAutoReadNetwork = true; throw error; }
       if (!response.ok) throw new Error(await directSyncReadError(response, session.email));
       return directSyncParse((await response.json()).values);
@@ -192,7 +194,7 @@ async function directAutoTick() {
     directAutoShow('در حال ارسال نسخه و بررسی مجدد…');
     appendStarted = true;
     let sent;
-    try { sent = await fetch(api + encodeURIComponent("'DirectSync'!A:A") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [[id, head.id, new Date().toISOString(), String(parts.length), ...parts]] }) }); }
+    try { sent = await accountOwnerFetch(api + encodeURIComponent("'DirectSync'!A:A") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [[id, head.id, new Date().toISOString(), String(parts.length), ...parts]] }) }); }
     catch (_) { const error = new Error('پاسخ ارسال نرسید'); error.directAutoPostNetwork = true; throw error; }
     if (!sent.ok) throw new Error('ارسال تأیید نشد (کد ' + sent.status + ')؛ پیش از تلاش مجدد شیت را بررسی کن');
     records = await read(); graph = DirectSyncCore.inspectHistory(records);

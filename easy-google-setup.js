@@ -40,7 +40,7 @@ function easyGoogleError(data, response, stage) {
 }
 async function easyApi(token, url, method, body) {
   let response; const stage = easyApiStage(url, method);
-  try { response = await fetch(url, { method: method || 'GET', headers: { Authorization: 'Bearer ' + token, ...(body ? {'Content-Type':'application/json'} : {}) }, ...(body ? {body:JSON.stringify(body)} : {}) }); }
+  try { response = await accountOwnerFetch(url, { method: method || 'GET', headers: { Authorization: 'Bearer ' + token, ...(body ? {'Content-Type':'application/json'} : {}) }, ...(body ? {body:JSON.stringify(body)} : {}) }); }
   catch (_) { throw new Error('مرحله «' + stage + '»: ارتباط قطع شد؛ نتیجه مرحله ممکن است ثبت شده باشد. پیش از تکرار، شیت‌ها و پروژه‌های آزمایشی گوگل را بررسی کن.'); }
   let data = {}; try { data = await response.json(); } catch (_) {}
   if (!response.ok) {
@@ -51,12 +51,13 @@ async function easyApi(token, url, method, body) {
   return data;
 }
 function easyPingOnce(url) {
+  accountOwnerAssert();
   const u = new URL(url); if (u.protocol !== 'https:' || u.hostname !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.pathname)) return Promise.reject(new Error('نشانی استقرار قابل تأیید نیست.'));
   return new Promise((resolve, reject) => {
     const bytes = new Uint32Array(2); crypto.getRandomValues(bytes); const cb = 'easyPing' + bytes[0] + '_' + bytes[1];
     const tag = document.createElement('script'); let timer;
     const finish = (ok) => { clearTimeout(timer); delete window[cb]; tag.remove(); ok ? resolve() : reject(new Error('آزمون پاسخ اسکریپت کامل نشد؛ ممکن است اجازه اسکریپت یا دسترسی شبکه لازم باشد.')); };
-    window[cb] = data => finish(!!data && data.ok === true && data.kind === 'expense-easy-setup-test');
+    window[cb] = data => finish(!accountOwnerLocked() && !!data && data.ok === true && data.kind === 'expense-easy-setup-test');
     tag.onerror = () => finish(false); timer = setTimeout(() => finish(false), 20000);
     u.searchParams.set('callback', cb); tag.src = u.href; document.head.appendChild(tag);
   });
@@ -65,7 +66,7 @@ function easyPingOnce(url) {
 async function easyPingFetch(url) {
   const u = new URL(url); u.searchParams.set('callback', 'easyPing1_1');
   const c = new AbortController(); const t = setTimeout(() => c.abort(), 20000);
-  try { const r = await fetch(u.href, { signal: c.signal, cache: 'no-store' }); const x = await r.text(); if (r.ok && x.includes('expense-easy-setup-test')) return; throw new Error('پاسخ نادرست (' + r.status + ')'); }
+  try { const r = await accountOwnerFetch(u.href, { signal: c.signal, cache: 'no-store' }); const x = await r.text(); if (r.ok && x.includes('expense-easy-setup-test')) return; throw new Error('پاسخ نادرست (' + r.status + ')'); }
   finally { clearTimeout(t); }
 }
 async function easyPing(url) {
@@ -133,7 +134,7 @@ function easyAdminPrepare() {
   const list = document.getElementById('easy-admin-list'), copy = document.getElementById('easy-admin-copy'), status = document.getElementById('easy-admin-status');
   if (!input || !add || !list || !copy || !status) return;
   const info = document.getElementById('easy-admin-info'), stamp = Number(localStorage.getItem('lastSync'));
-  if (info) info.textContent = 'نسخه: ۱۵۷ · کش: exp-v157 · اتصال آسان: ' + (easyWizardState().ready ? 'آماده' : 'آماده نیست') + ' · ارسال خودکار نشست: ' + (typeof directAutoSession !== 'undefined' && directAutoSession ? 'فعال' : 'غیرفعال') + ' · آخرین همگام‌سازی: ' + (stamp ? new Date(stamp).toLocaleString('fa-IR') : 'نامشخص') + ' · ادغام دسته‌ها: ' + (localStorage.getItem('categoryMerge155Done') === '1' ? 'انجام شد' : 'انجام نشده') + ' · پیامک ناشناخته: ' + (typeof log !== 'undefined' ? log.filter(x => String(x.msg || '').includes('نفهمیدم')).length : 0);
+  if (info) info.textContent = 'نسخه: ۱۶۰ · کش: exp-v160 · اتصال آسان: ' + (easyWizardState().ready ? 'آماده' : 'آماده نیست') + ' · ارسال خودکار نشست: ' + (typeof directAutoSession !== 'undefined' && directAutoSession ? 'فعال' : 'غیرفعال') + ' · آخرین همگام‌سازی: ' + (stamp ? new Date(stamp).toLocaleString('fa-IR') : 'نامشخص') + ' · ادغام دسته‌ها: ' + (localStorage.getItem('categoryMerge155Done') === '1' ? 'انجام شد' : 'انجام نشده') + ' · پیامک ناشناخته: ' + (typeof log !== 'undefined' ? log.filter(x => String(x.msg || '').includes('نفهمیدم')).length : 0);
   const reset = document.getElementById('easy-admin-reset'), backup = document.getElementById('easy-admin-backup');
   if (reset) reset.onclick = () => { if (easyWizardState().owner) document.getElementById('easy-setup-reset')?.click(); };
   if (backup) backup.onclick = () => { if (easyWizardState().owner) document.getElementById('category-download')?.click(); };
@@ -161,13 +162,14 @@ function easyAdminPrepare() {
   render();
 }
 function easyMainProbe(url) {
+  accountOwnerAssert();
   const u = new URL(url);
   if (u.protocol !== 'https:' || u.host !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.pathname) || u.search || u.hash || u.username || u.password) return Promise.reject(new Error('نشانی اصلی معتبر نیست'));
   return new Promise((resolve, reject) => {
     const bytes = new Uint32Array(2); crypto.getRandomValues(bytes); const cb = 'easyMain' + bytes[0] + '_' + bytes[1];
     const tag = document.createElement('script'); let done = false;
     const finish = (error) => { if (done) return; done = true; clearTimeout(timer); delete window[cb]; tag.remove(); error ? reject(error) : resolve(); };
-    window[cb] = data => finish(data && data.ok === true && Array.isArray(data.tx) && Array.isArray(data.rem) && Array.isArray(data.log) ? null : new Error('پاسخ معتبر شیت دریافت نشد'));
+    window[cb] = data => finish(!accountOwnerLocked() && data && data.ok === true && Array.isArray(data.tx) && Array.isArray(data.rem) && Array.isArray(data.log) ? null : new Error('پاسخ معتبر شیت دریافت نشد'));
     tag.onerror = () => finish(new Error('بارگذاری پاسخ ناموفق بود'));
     tag.onload = () => { if (!done) finish(new Error('اسکریپت پاسخ JSONP نداد')); };
     const timer = setTimeout(() => finish(new Error('پاسخ تا ۲۰ ثانیه نرسید')), 20000);
@@ -357,7 +359,7 @@ function easySetupPrepare() {
     try { const client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_TEST_CLIENT,scope:EASY_SETUP_SCOPE,callback:async response=>{
       if(response.error || !response.access_token){easyMessage('اجازه گوگل صادر نشد.');return;}
       start.disabled=true; start.dataset.busy='1'; reset.disabled=true;
-      try { easyMessage('در حال شناسایی حساب گوگل…'); const user=await easyApi(response.access_token,'https://openidconnect.googleapis.com/v1/userinfo'); if (!user.email) throw new Error('حساب گوگل مشخص نشد.'); if (user.email.toLowerCase() !== easyWizardState().email.toLowerCase()) throw new Error('حساب انتخاب‌شده در گوگل با ایمیل مرحله دوم یکی نیست.'); await easyRun(response.access_token,user.email); }
+      try { easyMessage('در حال شناسایی حساب گوگل…'); const user=await easyApi(response.access_token,'https://openidconnect.googleapis.com/v1/userinfo'); if (!user.email) throw new Error('حساب گوگل مشخص نشد.'); accountOwnerIdentify(user.email); if (user.email.toLowerCase() !== easyWizardState().email.toLowerCase()) throw new Error('حساب انتخاب‌شده در گوگل با ایمیل مرحله دوم یکی نیست.'); await easyRun(response.access_token,user.email); }
       catch(error){if(error.easyUserApiDisabled) localStorage.setItem('easy_wizard_api','0'); easyMessage('⚠️ '+(error.easyUserApiDisabled ? 'دسترسی Apps Script API برای این حساب خاموش است؛ مرحله اول را دوباره انجام بده. ' : '')+(error.message||'آزمایش کامل نشد.'));} finally {delete start.dataset.busy; reset.disabled=false; easyWizardRender();}
     },error_callback:()=>easyMessage('پنجره ورود بسته شد یا باز نشد؛ دوباره امتحان کن.')}); client.requestAccessToken({prompt:'consent'}); }
     catch(_) {easyMessage('پنجره ورود گوگل باز نشد؛ مرورگر و اینترنت را بررسی کن.');}

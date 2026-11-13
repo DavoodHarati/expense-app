@@ -150,7 +150,7 @@ async function directSyncReceiptArchive(sheetId, headers, items) {
   const name = 'ReceiptArchive';
   const header = ['شناسه رسید (expense-receipt-v1)', 'گیرنده', 'مبلغ تومان', 'تاریخ', 'حساب هنگام ارسال', 'وضعیت هنگام ارسال', 'متن رسید'];
   const metadata = async () => {
-    const response = await fetch(api + '?fields=sheets(properties(title))', { headers });
+    const response = await accountOwnerFetch(api + '?fields=sheets(properties(title))', { headers });
     if (!response.ok) throw new Error('فهرست برگه‌های شیت دریافت نشد (کد ' + response.status + ')');
     const result = await response.json();
     if (!Array.isArray(result.sheets)) throw new Error('فهرست برگه‌های شیت معتبر نیست');
@@ -163,12 +163,12 @@ async function directSyncReceiptArchive(sheetId, headers, items) {
       { addSheet: { properties: { sheetId: tabId, title: name, rightToLeft: true } } },
       { updateCells: { start: { sheetId: tabId, rowIndex: 0, columnIndex: 0 }, rows: [{ values: header.map(value => ({ userEnteredValue: { stringValue: value } })) }], fields: 'userEnteredValue' } }
     ];
-    const created = await fetch(api + ':batchUpdate', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) });
+    const created = await accountOwnerFetch(api + ':batchUpdate', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) });
     if (!created.ok && !(await metadata())) throw new Error('ساخت برگه رسیدها تأیید نشد (کد ' + created.status + ')');
   }
   const url = valuesApi + encodeURIComponent("'ReceiptArchive'!A:G");
   const read = async () => {
-    const response = await fetch(url, { headers });
+    const response = await accountOwnerFetch(url, { headers });
     if (!response.ok) throw new Error('خواندن برگه رسیدها ناموفق بود (کد ' + response.status + ')');
     const result = await response.json(), rows = result.values;
     if (!Array.isArray(rows) || JSON.stringify(rows[0]) !== JSON.stringify(header)) throw new Error('برگه ReceiptArchive قالب معتبر برنامه را ندارد؛ هیچ تغییری داده نشد');
@@ -196,7 +196,7 @@ async function directSyncReceiptArchive(sheetId, headers, items) {
     toSend.push(row); known.set(id, raw);
   }
   if (!toSend.length) return 0;
-  const appended = await fetch(valuesApi + encodeURIComponent("'ReceiptArchive'!A:G") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: toSend }) });
+  const appended = await accountOwnerFetch(valuesApi + encodeURIComponent("'ReceiptArchive'!A:G") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: toSend }) });
   if (!appended.ok) throw new Error('ارسال رسیدها تأیید نشد (کد ' + appended.status + ')؛ پیش از تلاش دوباره برگه رسیدها را بررسی کن');
   const confirmed = await read();
   for (const row of toSend) if (confirmed.get(row[0]) !== row[6]) throw new Error('بررسی رسیدهای ارسال‌شده کامل نشد؛ برگه را بررسی کن');
@@ -216,21 +216,21 @@ function directSyncAuthorize(action, requestConsent = false) {
           if (response.error || !response.access_token) throw new Error('اجازه گوگل صادر نشد');
           directSyncCheckGranted(response, requestedScope);
           const headers = { Authorization: 'Bearer ' + response.access_token };
-          const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
+          const userResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers });
           if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
-          const user = await userResponse.json(); if (!user.email) throw new Error('ایمیل حساب مشخص نشد');
+          const user = await userResponse.json(); if (!user.email) throw new Error('ایمیل حساب مشخص نشد'); accountOwnerIdentify(user.email);
           let state = load('directSyncState', null);
           if (action === 'create') {
             if (!confirm('شیت جدید و جدا در حساب ' + user.email + ' ساخته شود؟ شیت فعلی تغییر نمی‌کند.')) { directSyncMessage('ساخت لغو شد.'); return; }
             directSyncMessage('در حال ساخت شیت جدا…');
             localStorage.setItem('directSyncCreatePending', '1'); pending = true;
-            const result = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - اتصال مستقیم آزمایشی' }, sheets: [{ properties: { title: 'DirectSync', gridProperties: { columnCount: 200 } } }] }) });
+            const result = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - اتصال مستقیم آزمایشی' }, sheets: [{ properties: { title: 'DirectSync', gridProperties: { columnCount: 200 } } }] }) });
             if (!result.ok) { if (result.status < 500) { localStorage.removeItem('directSyncCreatePending'); pending = false; } throw new Error('ساخت شیت انجام نشد (کد ' + result.status + ')'); }
             const sheet = await result.json();
             if (!/^[A-Za-z0-9_-]+$/.test(sheet.spreadsheetId || '')) throw new Error('شناسه شیت دریافت نشد');
             state = { id: sheet.spreadsheetId, email: user.email, base: '' };
             localStorage.setItem('directSyncState', JSON.stringify(state)); localStorage.removeItem('directSyncCreatePending'); pending = false; directSyncLink(state);
-            const setup = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/' + encodeURIComponent("'DirectSync'!A1:B1") + '?valueInputOption=RAW', { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [['expense-direct-sync', '1']] }) });
+            const setup = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/' + encodeURIComponent("'DirectSync'!A1:B1") + '?valueInputOption=RAW', { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [['expense-direct-sync', '1']] }) });
             if (!setup.ok) throw new Error('شیت ساخته شد اما آماده‌سازی آن کامل نشد');
             directSyncMessage('✅ شیت جدا ساخته شد. برای ارسال اطلاعات، دکمه همگام‌سازی دستی را بزن.'); return;
           }
@@ -244,7 +244,7 @@ function directSyncAuthorize(action, requestConsent = false) {
           if (state.email && state.email !== user.email) throw new Error('حساب گوگل انتخاب‌شده با حساب شیت متفاوت است');
           const baseUrl = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/';
           const range = encodeURIComponent("'DirectSync'!A:GR");
-          const read = async () => { const r = await fetch(baseUrl + range, { headers }); if (!r.ok) throw new Error(await directSyncReadError(r, user.email)); return directSyncParse((await r.json()).values); };
+          const read = async () => { const r = await accountOwnerFetch(baseUrl + range, { headers }); if (!r.ok) throw new Error(await directSyncReadError(r, user.email)); return directSyncParse((await r.json()).values); };
           directSyncMessage('در حال بررسی نسخه‌های شیت…');
           let records = await read(), graph = DirectSyncCore.inspectHistory(records);
           if (graph.state === 'conflict') throw new Error('دو دستگاه نسخه‌های متفاوت ذخیره کرده‌اند. هر دو در شیت حفظ شده‌اند و همگام‌سازی متوقف است');
@@ -319,7 +319,7 @@ function directSyncAuthorize(action, requestConsent = false) {
           const bytes = new Uint8Array(16); crypto.getRandomValues(bytes); const id = Array.from(bytes, x => x.toString(16).padStart(2, '0')).join('');
           const row = [id, head ? head.id : 'ROOT', new Date().toISOString(), String(parts.length), ...parts];
           directSyncMessage('در حال ارسال نسخه و خواندن مجدد…');
-          const sent = await fetch(baseUrl + encodeURIComponent("'DirectSync'!A:A") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [row] }) });
+          const sent = await accountOwnerFetch(baseUrl + encodeURIComponent("'DirectSync'!A:A") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [row] }) });
           if (!sent.ok) throw new Error('ارسال تأیید نشد (کد ' + sent.status + ')؛ پیش از تلاش دوباره شیت را بررسی کن');
           records = await read(); graph = DirectSyncCore.inspectHistory(records);
           const saved = records.find(item => item.id === id);

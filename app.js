@@ -916,7 +916,7 @@ function infoStatus159() {
   const direct = load('directSyncState', null), easy = typeof easyState === 'function' ? easyState() : {};
   const directLive = !!(directAutoSession && directAutoSession.expires > Date.now() && /^✅/.test(directAutoStatus));
   const legacyLive = !directLive && !!(typeof pulled !== 'undefined' && pulled && /^✅/.test(syncMsg));
-  const live = directLive || legacyLive;
+  const live = !accountOwnerLocked() && (directLive || legacyLive);
   const stamp = Math.max(Number(localStorage.getItem('lastSyncOk')) || 0, Number(localStorage.getItem('lastSync')) || 0);
   const backup = Number(localStorage.getItem('lastBackupAt') || 0);
   const legacyUrl = localStorage.getItem('sheetUrl') || '';
@@ -927,7 +927,7 @@ function infoStatus159() {
   const validSheet = /^[A-Za-z0-9_-]+$/.test(sheetId) ? 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(sheetId) + '/edit' : '';
   const sheetUrl = validSheet || (/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+(?:\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/.test(legacyUrl) ? legacyUrl : '');
   const kind = direct && direct.id ? 'مستقیم' : localStorage.getItem('legacySyncPaused') === '1' ? 'اتصال قدیمی متوقف است' : legacyLive ? 'قدیمی' : 'قطع یا بررسی‌نشده';
-  const error = [directAutoStatus, syncMsg].find(x => typeof x === 'string' && /⚠️|ناموفق|قطع شد|قطع است/.test(x)) || '';
+  const error = accountOwnerLocked() ? ACCOUNT_OWNER_LOCK_MESSAGE : [directAutoStatus, syncMsg].find(x => typeof x === 'string' && /⚠️|ناموفق|قطع شد|قطع است/.test(x)) || '';
   return { live, stamp, backup, email, sheetId, sheetLabel, sheetUrl, kind, error, owner: localStorage.getItem('dataOwner') || '' };
 }
 function settingsInfo159() {
@@ -948,6 +948,7 @@ function refreshInfo159() {
   const button = document.getElementById('welcome-google'); if (button) { const live = !!(directAutoSession && directAutoSession.expires > Date.now()); button.disabled = live; button.textContent = live ? 'ورود گوگل فعال است' : 'ورود به گوگل'; }
 }
 function homeSyncStatus() {
+  if (accountOwnerLocked()) return '⚠️ ' + ACCOUNT_OWNER_LOCK_MESSAGE;
   const direct = load('directSyncState', null);
   if (direct && direct.id && direct.base) {
     if (directAutoSession && Date.now() < directAutoSession.expires) return 'اتصال مستقیم: ' + directAutoStatus;
@@ -989,7 +990,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T12:14:55.588Z'; const BUILD_VERSION = '۱۵۹';
+const BUILD = '2026-11-13T12:52:43.488Z'; const BUILD_VERSION = '۱۶۰';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1318,17 +1319,17 @@ function prepareGoogleTest() {
             try {
               if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
               const auth = { Authorization: 'Bearer ' + response.access_token };
-              const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+              const userResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
               if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
-              const user = await userResponse.json(); if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
+              const user = await userResponse.json(); accountOwnerIdentify(user.email); if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
               googleSheetStatus('در حال ساخت شیت خالی برای ' + user.email + '…');
               localStorage.setItem('googleTestSheetPending', '1'); attempted = true;
-              const created = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - شیت آزمایشی' } }) });
+              const created = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - شیت آزمایشی' } }) });
               if (!created.ok) { if (created.status < 500) { localStorage.removeItem('googleTestSheetPending'); attempted = false; } throw new Error('گوگل درخواست ساخت را نپذیرفت (کد ' + created.status + ')'); }
               const sheet = await created.json(); if (!sheet.spreadsheetId || !/^[a-zA-Z0-9_-]+$/.test(sheet.spreadsheetId)) throw new Error('شناسه شیت در پاسخ گوگل نبود');
               localStorage.setItem('googleTestSheet', JSON.stringify({ id: sheet.spreadsheetId, email: user.email }));
               localStorage.removeItem('googleTestSheetPending'); attempted = false;
-              const check = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.spreadsheetId) + '?fields=spreadsheetId,properties.title', { headers: auth }).catch(() => null);
+              const check = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.spreadsheetId) + '?fields=spreadsheetId,properties.title', { headers: auth }).catch(() => null);
               googleSheetStatus(check && check.ok ? '✅ شیت خالی ساخته شد و دسترسی به آن بررسی شد. هیچ اطلاعاتی منتقل نشده است.' : '✅ شیت خالی ساخته شد؛ بررسی خودکار دسترسی کامل نشد. لینک زیر را بررسی کن.');
               const card = document.getElementById('google-test'); if (card) { const old = card.querySelector('.google-sheet-link'); if (old) old.remove(); const holder = document.createElement('div'); holder.className = 'google-sheet-link'; holder.innerHTML = googleSheetLink(); card.appendChild(holder); }
             } catch (err) { googleSheetStatus('⚠️ ' + (err.message || 'ساخت شیت بررسی نشد') + (attempted ? '؛ ممکن است شیت ساخته شده باشد. پیش از تلاش دوباره Google Drive را بررسی کن.' : '')); }
@@ -1348,9 +1349,10 @@ function prepareGoogleTest() {
           callback: async response => {
             try {
               if (response.error || !response.access_token) throw new Error('اجازه ورود صادر نشد');
-              const r = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: 'Bearer ' + response.access_token } });
+              const r = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: 'Bearer ' + response.access_token } });
               if (!r.ok) throw new Error('دریافت اطلاعات حساب ناموفق بود');
               const info = await r.json();
+              accountOwnerIdentify(info.email);
               if (!info.email) throw new Error('ایمیل حساب دریافت نشد');
               googleTestStatus('✅ ورود آزمایشی موفق بود: ' + info.email + ' — اتصال شیت هنوز آماده نیست.');
             } catch (err) { googleTestStatus('⚠️ ' + (err.message || 'خطا در آزمایش ورود')); }
@@ -1378,25 +1380,26 @@ function googleWriteTest() {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const meRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          const meRes = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
           if (!meRes.ok) throw new Error('حساب گوگل مشخص نشد');
           const me = await meRes.json();
+          accountOwnerIdentify(me.email);
           if (!me.email || me.email.toLowerCase() !== sheet.email.toLowerCase()) throw new Error('حساب انتخاب‌شده با حساب سازنده شیت آزمایشی یکسان نیست');
           googleWriteStatus('در حال نوشتن و خواندن متن آزمایشی…');
           const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.id);
-          const meta = await fetch(base + '?fields=sheets.properties.title', { headers: auth });
+          const meta = await accountOwnerFetch(base + '?fields=sheets.properties.title', { headers: auth });
           if (!meta.ok) throw new Error('شیت آزمایشی در دسترس نیست (کد ' + meta.status + ')');
           const info = await meta.json(), title = info.sheets?.[0]?.properties?.title;
           if (!title) throw new Error('برگه‌ای در شیت آزمایشی پیدا نشد');
           const range = "'" + title.replace(/'/g, "''") + "'!A:B";
           const text = 'این یک آزمایش است؛ اطلاعات مالی نیست', id = 'آزمایش ' + Date.now();
           sent = true;
-          const appended = await fetch(base + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: [[id, text]] }) });
+          const appended = await accountOwnerFetch(base + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: [[id, text]] }) });
           if (!appended.ok) { if (appended.status < 500) sent = false; throw new Error('نوشتن در شیت انجام نشد (کد ' + appended.status + ')'); }
           written = true;
           const result = await appended.json(), updatedRange = result.updates?.updatedRange;
           if (!updatedRange) throw new Error('محدوده ردیف ثبت‌شده دریافت نشد');
-          const read = await fetch(base + '/values/' + encodeURIComponent(updatedRange), { headers: auth });
+          const read = await accountOwnerFetch(base + '/values/' + encodeURIComponent(updatedRange), { headers: auth });
           if (!read.ok) throw new Error('ردیف ثبت شد اما خواندن آن ناموفق بود (کد ' + read.status + ')');
           const values = (await read.json()).values;
           if (!values || !values[0] || values[0][0] !== id || values[0][1] !== text) throw new Error('متن خوانده‌شده با متن آزمایشی یکسان نبود');
@@ -1426,14 +1429,15 @@ function googleDataTest() {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          const userRes = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
           if (!userRes.ok) throw new Error('حساب گوگل مشخص نشد');
           const user = await userRes.json();
+          accountOwnerIdentify(user.email);
           if (!user.email || user.email.toLowerCase() !== sheet.email.toLowerCase()) throw new Error('حساب انتخاب‌شده با حساب سازنده شیت یکسان نیست');
           const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.id);
           googleDataStatus('در حال ساخت برگه و ثبت اطلاعات ساختگی…');
           started = true;
-          const create = await fetch(base + ':batchUpdate', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tabName, rightToLeft: true } } }] }) });
+          const create = await accountOwnerFetch(base + ':batchUpdate', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tabName, rightToLeft: true } } }] }) });
           if (!create.ok) { if (create.status < 500) started = false; throw new Error('ساخت برگه انجام نشد (کد ' + create.status + ')'); }
           tabMade = true;
           const records = [
@@ -1443,9 +1447,9 @@ function googleDataTest() {
           ];
           const rows = [['نوع', 'شناسه', 'اطلاعات ساختگی (مبلغ به ریال)'], ...records.map(r => [r.type, r.data.id, JSON.stringify(r.data)])];
           const range = "'" + tabName.replace(/'/g, "''") + "'!A1:C4";
-          const write = await fetch(base + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
+          const write = await accountOwnerFetch(base + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
           if (!write.ok) throw new Error('ثبت نمونه‌ها ناموفق بود (کد ' + write.status + ')');
-          const read = await fetch(base + '/values/' + encodeURIComponent(range), { headers: auth });
+          const read = await accountOwnerFetch(base + '/values/' + encodeURIComponent(range), { headers: auth });
           if (!read.ok) throw new Error('خواندن نمونه‌ها ناموفق بود (کد ' + read.status + ')');
           const actual = (await read.json()).values;
           if (JSON.stringify(actual) !== JSON.stringify(rows)) throw new Error('اطلاعات بازخوانی‌شده با نمونه‌ها یکسان نیست');
@@ -1500,7 +1504,10 @@ function googleDownloadBackup() {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           status('در حال خواندن و بررسی پشتیبان…');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const result = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(id) + '/values/' + encodeURIComponent("'Backup'!A:B"), { headers: auth });
+          const identityResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          if (!identityResponse.ok) throw new Error('حساب گوگل مشخص نشد');
+          accountOwnerIdentify((await identityResponse.json()).email);
+          const result = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(id) + '/values/' + encodeURIComponent("'Backup'!A:B"), { headers: auth });
           if (!result.ok) throw new Error('شیت خوانده نشد (کد ' + result.status + '). حساب سازنده شیت و لینک را بررسی کن');
           const backup = googleBackupFromRows((await result.json()).values);
           const count = JSON.parse(backup.data.tx).length;
@@ -1529,9 +1536,9 @@ function googleCreateBackupCopy() {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          const userResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
           if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
-          const user = await userResponse.json();
+          const user = await userResponse.json(); accountOwnerIdentify(user.email);
           if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
           const snapshot = makeFullBackup();
           ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy'].forEach(key => delete snapshot.data[key]);
@@ -1542,7 +1549,7 @@ function googleCreateBackupCopy() {
           const rows = [['format', 'expense-app-backup-v1'], ['chunks', String(chunks.length)], ...chunks.map((chunk, index) => [String(index + 1), chunk])];
           googleCopyStatus('در حال ساخت شیت پشتیبان جداگانه…');
           localStorage.setItem('googleBackupCopyPending', '1'); attempted = true;
-          const created = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - پشتیبان ' + new Date().toISOString() }, sheets: [{ properties: { title: 'Backup' } }] }) });
+          const created = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - پشتیبان ' + new Date().toISOString() }, sheets: [{ properties: { title: 'Backup' } }] }) });
           if (!created.ok) { if (created.status < 500) { localStorage.removeItem('googleBackupCopyPending'); attempted = false; } throw new Error('ساخت شیت پذیرفته نشد (کد ' + created.status + ')'); }
           const sheet = await created.json();
           if (!/^[a-zA-Z0-9_-]+$/.test(sheet.spreadsheetId || '')) throw new Error('شناسه شیت دریافت نشد');
@@ -1552,9 +1559,9 @@ function googleCreateBackupCopy() {
           const link = document.getElementById('google-copy-link'); if (link) link.innerHTML = googleCopyLink();
           const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(createdId) + '/values/' + encodeURIComponent("'Backup'!A1:B" + rows.length);
           googleCopyStatus('در حال نوشتن و بررسی نسخه پشتیبان…');
-          const written = await fetch(url + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
+          const written = await accountOwnerFetch(url + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
           if (!written.ok) throw new Error('نوشتن اطلاعات کامل نشد (کد ' + written.status + ')');
-          const checked = await fetch(url, { headers: auth });
+          const checked = await accountOwnerFetch(url, { headers: auth });
           if (!checked.ok) throw new Error('خواندن مجدد اطلاعات کامل نشد (کد ' + checked.status + ')');
           const result = await checked.json();
           if (JSON.stringify(result.values) !== JSON.stringify(rows)) throw new Error('اطلاعات خوانده‌شده با نسخه ارسالی یکسان نیست');
@@ -1596,22 +1603,23 @@ function push() {
 }
 async function doPush(manualUrl = null) {
   const url = manualUrl || SYNC(); if (!url) return false;
-  const current = () => manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url;
+  const current = () => !accountOwnerLocked() && (manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url);
   legacyInFlight++;
   try {
-    const r = await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
+    const r = await (await accountOwnerFetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
     if (!current()) return false;
     if (!r.ok) throw new Error(r.error);
     if (!manualUrl) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); noteSyncSuccess159(); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + (manualUrl ? '؛ نتیجه را پیش از تلاش مجدد بررسی کن.' : ' — بعداً دوباره تلاش می‌شود'); return false; } finally { legacyInFlight--; }
 }
 function manualJsonpRead(url) {
+  accountOwnerAssert();
   return new Promise((resolve, reject) => {
     const bytes = new Uint32Array(2); crypto.getRandomValues(bytes);
     const name = 'expenseRead' + bytes[0] + '_' + bytes[1];
     const tag = document.createElement('script'); let done = false;
     const finish = (error, data) => { if (done) return; done = true; clearTimeout(timer); delete window[name]; tag.remove(); error ? reject(error) : resolve(data); };
-    window[name] = data => finish(null, data);
+    window[name] = data => { try { accountOwnerAssert(); finish(null, data); } catch (error) { finish(error); } };
     tag.onerror = () => finish(new Error('بارگذاری پاسخ JSONP ناموفق بود؛ شبکه یا دسترسی انتشار را بررسی کن.'));
     tag.onload = () => { if (!done) finish(new Error('اسکریپت اصلی پاسخ JSONP نداد؛ انتشار اصلی باید از JSONP پشتیبانی کند.')); };
     const timer = setTimeout(() => finish(new Error('پاسخ JSONP تا ۲۰ ثانیه نرسید.')), 20000);
@@ -1620,11 +1628,11 @@ function manualJsonpRead(url) {
 }
 async function pull(manualUrl = null) {
   const url = manualUrl || SYNC(); if (!url) return;
-  const current = () => manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url;
+  const current = () => !accountOwnerLocked() && (manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url);
   legacyInFlight++;
   try {
     let rs, txt, d;
-    try { rs = await fetch(url); txt = await rs.text(); }
+    try { rs = await accountOwnerFetch(url); txt = await rs.text(); }
     catch (fetchError) {
       if (!manualUrl) throw fetchError;
       try { d = await manualJsonpRead(url); }
@@ -1662,7 +1670,7 @@ async function pull(manualUrl = null) {
       d.inbox.forEach(i => addSms(i.raw)); localStorage.setItem('dirty', '1');
       const sent = await doPush(manualUrl);
       if (manualUrl && !sent) return;
-      if (current()) await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
+      if (current()) await accountOwnerFetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
     }
     if (!manualUrl && localStorage.getItem('dirty')) await doPush();
   } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); } finally { legacyInFlight--; }

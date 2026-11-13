@@ -8,19 +8,20 @@ async function scenario({ localChanged = false, legacy = false, approve = true }
   const original = { tx: '[{"id":1}]', accounts: '{}' };
   const incoming = { tx: '[{"id":1},{"id":2}]', accounts: '{}' };
   const local = localChanged ? { tx: '[{"id":1},{"id":3}]', accounts: '{}' } : original;
-  const state = { id: 'sheet', email: 'a', base: 'root' };
+  const state = { id: 'sheet', email: 'a@example.com', base: 'root' };
   let callback, writes = 0, reloads = 0, message = '';
   const context = vm.createContext({
     JSON, Object, Array, Number, String, Math, Date, Error, Set, Map, URL, DirectSyncCore: core,
     googleTestBusy: false, GOOGLE_TEST_CLIENT: 'client', directReceiveLegacyAtBoot: legacy,
     google: { accounts: { oauth2: { initTokenClient: options => ({ requestAccessToken() { callback = options.callback({ access_token: 'token' }); } }) } } },
     document: { getElementById: () => ({ value: '' }) },
-    localStorage: { getItem: () => null, setItem() { throw new Error('unexpected write'); } },
+    localStorage: { getItem: k => k === 'dataOwner' ? 'a@example.com' : null, setItem() { throw new Error('unexpected write'); } },
     load: (key, fallback) => key === 'directSyncState' ? { ...state } : fallback,
-    fetch: async url => ({ ok: true, json: async () => url.includes('userinfo') ? { email: 'a' } : { values: [] } }),
+    fetch: async url => ({ ok: true, json: async () => url.includes('userinfo') ? { email: 'a@example.com' } : { values: [] } }),
     SYNC: () => null, googleTestButton() {}, confirm: () => approve, alert() {}, directAutoStop() {},
     directReceiveApply: () => { writes++; }, location: { reload: () => { reloads++; } }
   });
+  vm.runInContext(fs.readFileSync('account-owner-lock.js', 'utf8'), context);
   vm.runInContext(fs.readFileSync('direct-sync-ui.js', 'utf8'), context);
   context.directSyncButtons = () => {}; context.directSyncMessage = value => { message = value; };
   context.directSyncSnapshot = () => ({ data: local });

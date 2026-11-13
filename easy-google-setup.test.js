@@ -5,7 +5,8 @@ const vm = require('node:vm');
 async function run() {
  const storage=new Map(), calls=[], status={textContent:''}; let failAt='';
  const context=vm.createContext({URL,Date,JSON,Number,String,Error,Uint32Array,setTimeout,clearTimeout,crypto:{getRandomValues:a=>a.fill(12)},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},document:{addEventListener(){},getElementById:k=>k==='easy-setup-status'?status:null},fetch:async(url,options={})=>{calls.push(url);if(url.endsWith(failAt)&&failAt)throw Error('offline'); const data=url.endsWith('/spreadsheets')?{spreadsheetId:'sheet_123'}:url.endsWith('/projects')?{scriptId:'script_123'}:url.endsWith('/versions')?{versionNumber:1}:url.endsWith('/deployments')?{deploymentId:'deploy_123',entryPoints:[{webApp:{url:'https://script.google.com/macros/s/deploy_123/exec'}}]}:{};return{ok:true,status:200,json:async()=>data};}});
- vm.runInContext(fs.readFileSync('easy-google-setup.js','utf8'),context); vm.runInContext('easyPing=async()=>{}; easyMainProbe=async()=>{}',context);
+ vm.runInContext(fs.readFileSync('account-owner-lock.js','utf8'), context);
+  vm.runInContext(fs.readFileSync('easy-google-setup.js','utf8'),context); vm.runInContext('easyPing=async()=>{}; easyMainProbe=async()=>{}',context);
  const execUrl='https://script.google.com/macros/s/deploy_123/exec';
  assert.equal(context.easyAuthUrl(execUrl,'erfan.hi19@gmail.com'),execUrl+'?authuser=erfan.hi19%40gmail.com');
  assert.throws(()=>context.easyAuthUrl(execUrl,'bad address'),/ایمیل معتبر/);

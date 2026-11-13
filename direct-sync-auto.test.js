@@ -36,6 +36,7 @@ function fixture() {
       return { ok: true, json: async () => ({ values: rows }) };
     }
   });
+  vm.runInContext(fs.readFileSync('account-owner-lock.js','utf8'), context);
   vm.runInContext(fs.readFileSync('direct-sync-ui.js', 'utf8'), context);
   context.directSyncButtons = () => {}; context.directSyncLink = () => {};
   vm.runInContext(fs.readFileSync('direct-sync-auto.js', 'utf8'), context);

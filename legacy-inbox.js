@@ -23,9 +23,10 @@ async function legacyInboxCheck(manual) {
     const url = legacyInboxUrl(field ? field.value : localStorage.getItem('legacyInboxUrl') || localStorage.getItem('sync_bak') || localStorage.getItem('sync'));
     localStorage.setItem('legacyInboxUrl', url);
     if (manual) legacyInboxShow('در حال بررسی پیامک‌های شورتکات…');
-    const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+    const response = await accountOwnerFetch(url, { method: 'GET', cache: 'no-store' });
     if (!response.ok) throw new Error('دریافت صندوق پیامک ناموفق بود (کد ' + response.status + ').');
     const data = await response.json();
+    accountOwnerAssert();
     if (!data || data.ok !== true || !Array.isArray(data.inbox)) throw new Error('پاسخ اتصال قدیمی صندوق پیامک معتبر ندارد.');
     if (data.inbox.length > 5000) throw new Error('تعداد پیامک‌های صندوق زیاد است؛ بررسی دستی لازم است.');
     const seen = new Set(load('legacyInboxImported', []));

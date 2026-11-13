@@ -10,7 +10,7 @@ function setup() {
   const original = { format: 'expense-app-backup', version: 1, data: { tx: '[{"id":1}]', accounts: '{}' } };
   const rows = [['expense-direct-sync', '1'], ['root', 'ROOT', 'time', '1', JSON.stringify(original)]];
   function device() {
-    const values = new Map(Object.entries({ ...original.data, directSyncState: JSON.stringify({ id: 'sheet', email: 'a', base: 'root' }) }));
+    const values = new Map(Object.entries({ ...original.data, directSyncState: JSON.stringify({ id: 'sheet', email: 'a@example.com', base: 'root' }) }));
     let callback, message = '', reloads = 0, downloaded;
     const storage = { getItem: key => values.has(key) ? values.get(key) : null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
     const context = vm.createContext({
@@ -25,15 +25,15 @@ function setup() {
       validateFullBackup: backup => { if (!backup || !backup.data || !Array.isArray(JSON.parse(backup.data.tx))) throw Error('bad backup'); },
       googleTestButton() {}, SYNC: () => null, confirm: () => true, alert() {}, location: { reload: () => { reloads++; } },
       fetch: async (url, options = {}) => {
-        if (url.includes('userinfo')) return { ok: true, json: async () => ({ email: 'a' }) };
+        if (url.includes('userinfo')) return { ok: true, json: async () => ({ email: 'a@example.com' }) };
         if (options.method === 'POST') rows.push(...JSON.parse(options.body).values);
         return { ok: true, json: async () => ({ values: JSON.parse(JSON.stringify(rows)) }) };
       }
     });
-    for (const file of ['direct-sync-ui.js', 'direct-sync-auto.js', 'direct-sync-receive.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+    for (const file of ['account-owner-lock.js', 'direct-sync-ui.js', 'direct-sync-auto.js', 'direct-sync-receive.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
     context.directSyncButtons = () => {}; context.directSyncLink = () => {};
     context.directSyncMessage = value => { message = value; }; context.directSyncDownload = value => { downloaded = value; };
-    return { context, values, start: () => vm.runInContext("directAutoSession = { token:'token', expires:Date.now()+600000, id:'sheet', email:'a' }", context), receive: async () => { context.directSyncAuthorize('receive'); await callback; }, run: async () => { context.directSyncAuthorize('run'); await callback; }, message: () => message, reloads: () => reloads, downloaded: () => downloaded };
+    return { context, values, start: () => vm.runInContext("directAutoSession = { token:'token', expires:Date.now()+600000, id:'sheet', email:'a@example.com' }", context), receive: async () => { context.directSyncAuthorize('receive'); await callback; }, run: async () => { context.directSyncAuthorize('run'); await callback; }, message: () => message, reloads: () => reloads, downloaded: () => downloaded };
   }
   return { a: device(), b: device(), rows };
 }
