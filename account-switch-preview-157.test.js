@@ -1,0 +1,14 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { accountSwitchPreview157: preview } = require('./account-switch-preview-157.js');
+assert.equal(preview('A@example.com', ' a@example.com ', true, [], []).needsChoice, false);
+assert.equal(preview('a@example.com', 'b@example.com', true, [], []).needsChoice, true);
+assert.equal(preview('', 'b@example.com', true, [], []).needsChoice, true);
+assert.equal(preview('', 'b@example.com', false, [], []).needsChoice, false);
+const local = [{ id: 1, date: '1405/08/01', amount: 100, desc: 'الف' }, { id: 2, date: '1405/08/02', amount: 200, desc: 'ب' }, { id: 3, date: '1405/08/02', amount: 200, desc: 'ب' }];
+const remote = [{ id: 1, date: '1405/08/01', amount: 100, desc: 'الف' }];
+const before = JSON.stringify([local, remote]);
+assert.deepEqual(preview('a', 'b', true, local, remote), { sameOwner: false, needsChoice: true, added: 1, duplicates: 2 });
+assert.equal(JSON.stringify([local, remote]), before);
+assert.throws(() => preview('a', '', true, [], []));
+assert.throws(() => preview('a', 'b', true, null, []));

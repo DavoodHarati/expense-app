@@ -113,7 +113,7 @@ function easyWizardRender() {
   const start = document.getElementById('easy-setup-start'); if (start && !start.dataset.busy) start.disabled = !state.selected;
   const open = document.getElementById('easy-authorize-open'); if (open) open.disabled = !state.built;
   const check = document.getElementById('easy-authorize-check'); if (check) check.disabled = !state.built || easyAuthChecking;
-  const admin = document.getElementById('easy-admin'); if (admin) { admin.hidden = !state.owner; if (!state.owner) admin.replaceChildren(); }
+  const admin = document.getElementById('easy-admin'); if (admin) { admin.hidden = !state.owner; if (!state.owner) admin.replaceChildren(); const group = document.getElementById('settings-admin'); if (group) group.hidden = !state.owner; }
   return state;
 }
 function easyAuthUrl(value, email) {
