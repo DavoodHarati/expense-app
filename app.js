@@ -946,13 +946,13 @@ function settingsInfo159() {
     '<div class="mut">آخرین خطای فعلی: ' + esc(s.error || 'ندارد') + '</div>' +
     '<div class="mut">آخرین پشتیبان: ' + esc(backup) + '</div>' +
     '<div class="mut">تراکنش‌ها: ' + tx.length.toLocaleString('fa-IR') + ' · حساب‌ها: ' + Object.keys(accounts).length.toLocaleString('fa-IR') + '</div>' +
-    '<div class="mut">مالک داده‌ها: ' + esc(s.owner || 'مشخص نشده') + '</div>' + (accountOwnerLocked() ? '<button type="button" id="account-switch-open">حل مشکل حساب</button>' : '') + (localStorage.getItem('accountArchives') ? '<label>آرشیو حساب قبلی <select id="account-archive-select">' + accountSwitchArchives().map((a, i) => '<option value="' + i + '">' + esc(a.owner) + ' · ' + esc(fmt(a.createdAt)) + '</option>').join('') + '</select></label><button type="button" class="sec" id="account-archive-download">دانلود آرشیو انتخاب‌شده</button><div class="mut">برای بازگردانی از «بازیابی پشتیبان کامل» استفاده کن.</div>' : '');
+    '<div class="mut">مالک داده‌ها: ' + esc(s.owner || 'مشخص نشده') + '</div>' + (accountOwnerLocked() ? '<button type="button" id="account-switch-open">حل مشکل حساب</button>' : '') + (localStorage.getItem('accountArchives') ? '<label>آرشیو حساب قبلی <select id="account-archive-select">' + accountSwitchArchives().map((a, i) => '<option value="' + i + '">' + esc(a.owner) + ' · ' + esc(fmt(a.createdAt)) + '</option>').join('') + '</select></label><button type="button" class="sec" id="account-archive-download">دانلود آرشیو انتخاب‌شده</button><button type="button" class="sec" id="account-archive-restore">بازگرداندن این آرشیو</button><div class="mut">پیش از بازگردانی، از فضای فعلی پشتیبان گرفته می‌شود.</div>' : '');
 }
 function refreshInfo159() {
   const info = document.getElementById('settings-info-content'); if (info) info.innerHTML = settingsInfo159();
   const button = document.getElementById('welcome-google'); if (button) { const live = !!(directAutoSession && directAutoSession.expires > Date.now()); button.disabled = live; button.textContent = live ? 'ورود گوگل فعال است' : 'ورود به گوگل'; }
 }
-document.addEventListener('click', e => { if (e.target.id === 'account-switch-open') accountSwitchOpen(); if (e.target.id === 'account-archive-download') { try { accountSwitchDownloadArchive(Number(document.getElementById('account-archive-select').value)); } catch (error) { alert(error.message); } } });
+document.addEventListener('click', e => { if (e.target.id === 'account-switch-open') accountSwitchOpen(); if (e.target.id === 'account-archive-restore') accountSwitchRestoreClick(); if (e.target.id === 'account-archive-download') { try { accountSwitchDownloadArchive(Number(document.getElementById('account-archive-select').value)); } catch (error) { alert(error.message); } } });
 function homeSyncStatus() {
   if (accountOwnerLocked()) return '⚠️ ' + ACCOUNT_OWNER_LOCK_MESSAGE;
   const direct = load('directSyncState', null);
@@ -996,7 +996,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T14:09:53.429Z'; const BUILD_VERSION = '۱۶۱';
+const BUILD = '2026-11-13T14:48:00.254Z'; const BUILD_VERSION = '۱۶۲';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
