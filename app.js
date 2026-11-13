@@ -8,7 +8,7 @@ const DEFAULT_INC = ['فروش', 'مشتری', 'حقوق', 'سایر'];
 const CATS = lsj('cats', [...DEFAULT_CATS]);
 const INC = lsj('icats', [...DEFAULT_INC]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'bizMode', 'budgets', 'features', 'dataOwner', 'accountArchives', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'bizMode', 'budgets', 'features', 'dataOwner', 'layout', 'accountArchives', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
 function makeFullBackup() {
   const data = {};
   BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
@@ -498,12 +498,24 @@ function render() {
   if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k)) d.open = true; }); window.scrollTo(0, y); }
 }
 function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); }
+const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
+function navigationState163(currentTab, currentTopic, enabled) {
+  const diary = currentTab === 'report' || currentTab === 'contacts';
+  return { diary, add:currentTab === 'add', topic:TOPIC_FEATURE_163[currentTopic] && !enabled(TOPIC_FEATURE_163[currentTopic]) ? 'expenses' : currentTopic, visible:key => !TOPIC_FEATURE_163[key] || enabled(TOPIC_FEATURE_163[key]) };
+}
+function navigationRender163() {
+  const state = navigationState163(tab, topic, featureOn); topic = state.topic;
+  const topics = document.getElementById('topics'), chips = document.getElementById('diary-chips'), add = document.getElementById('add-sections');
+  if (topics) topics.hidden = !state.diary;
+  if (chips) { chips.hidden = !state.diary; chips.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab)); }
+  if (add) { add.hidden = !state.add; add.querySelectorAll('[data-add-topic]').forEach(b => { b.hidden = !state.visible(b.dataset.addTopic); b.classList.toggle('on', b.dataset.addTopic === topic); }); }
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === (state.diary ? 'diary' : tab)));
+}
 function _render() {
   const topicFeature = { invoices: 'invoice', sales: 'invoice', work: 'assistant', reminders: 'reminder', receipts: 'sms' };
   if (topicFeature[topic] && !featureOn(topicFeature[topic])) topic = 'expenses';
   document.querySelectorAll('[data-topic]').forEach(b => { b.hidden = !!topicFeature[b.dataset.topic] && !featureOn(topicFeature[b.dataset.topic]); });
-  const contactsNav = document.querySelector('nav [data-t="contacts"]'); if (contactsNav) contactsNav.hidden = false;
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  navigationRender163();
   document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
   const el = $('#app');
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
@@ -858,7 +870,7 @@ function settingsLayout(el) {
 function invoiceStartEditing() {
   if (tab !== 'report' || (topic !== 'invoices' && topic !== 'sales')) return;
   tab = 'add';
-  document.querySelectorAll('nav button').forEach(button => button.classList.toggle('on', button.dataset.t === tab));
+  navigationRender163();
   document.getElementById('invoice-form-fields').hidden = false;
   const ledger = document.querySelector('.invoice-ledger'); if (ledger) ledger.hidden = true;
   document.querySelector('#invoice-card > summary b').textContent = '🧾 ویرایش فاکتور';
@@ -1011,7 +1023,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T15:17:25.113Z'; const BUILD_VERSION = '۱۵۸';
+const BUILD = '2026-11-13T15:49:38.391Z'; const BUILD_VERSION = '۱۶۳';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1242,8 +1254,10 @@ document.addEventListener('click', async e => {
   }
   const fa = e.target.closest('.fb [data-a]');
   if (fa) { const a = fa.dataset.a; if (a === '*') sel = null; else { sel = sel ? (sel.includes(a) ? sel.filter(x => x !== a) : [...sel, a]) : [a]; if (!sel.length) sel = null; } localStorage.setItem('sel', JSON.stringify(sel)); render(); return; }
-  const topicButton = e.target.closest('[data-topic]'); if (topicButton) { topic = topicButton.dataset.topic; if (tab === 'contacts' || tab === 'settings') tab = 'home'; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
+  const topicButton = e.target.closest('[data-topic]'); if (topicButton) { topic = topicButton.dataset.topic; if (tab === 'contacts') tab = 'report'; else if (tab === 'settings') tab = 'home'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t === 'diary' ? 'report' : nb.dataset.t; if (tab === 'home' || tab === 'add') topic = 'expenses'; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
