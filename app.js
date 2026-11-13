@@ -839,6 +839,9 @@ function _render() {
     accordion(el, 'settings');
     settingsLayout(el);
     el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
+    el.insertAdjacentHTML('afterbegin', '<div class="card" id="connection-hub-168"></div>');
+    hubRender(document.getElementById('connection-hub-168'));
+    ['legacy-sync-settings', 'google-test', 'google-copy', 'direct-sync', 'easy-setup', 'welcome-sync'].forEach(id => { const card = document.getElementById(id); if (card) card.hidden = true; });
     refreshInfo159();
     const budgetCard = document.getElementById('budget-settings'); if (budgetCard) budgetCard.hidden = !featureOn('budget');
     const inboxCard = document.getElementById('legacy-inbox'); if (inboxCard) inboxCard.hidden = !featureOn('sms');
@@ -946,6 +949,10 @@ const fmt = ms => ms ? new Date(ms).toLocaleString('fa-IR') : '—';
 // اطلاعات نمایشی؛ ذخیره‌نشدن آن نباید روند اتصال را تغییر دهد.
 function noteSyncSuccess159() { try { localStorage.setItem('lastSyncOk', String(Date.now())); } catch (_) {} }
 function infoStatus159() {
+  if (typeof connectionStatus === 'function') {
+    const c = connectionStatus();
+    return { live:c.state === 'connected', state:c.state, stamp:c.checkedAt || 0, backup:Number(localStorage.getItem('lastBackupAt') || 0), email:c.email, sheetId:c.id, sheetLabel:'شیت', sheetUrl:c.id ? 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(c.id) + '/edit' : '', kind:c.label, error:c.reason, owner:localStorage.getItem('dataOwner') || '' };
+  }
   const direct = load('directSyncState', null), easy = typeof easyState === 'function' ? easyState() : {};
   const directLive = !!(directAutoSession && directAutoSession.expires > Date.now() && /^✅/.test(directAutoStatus));
   const legacyLive = !directLive && !!(typeof pulled !== 'undefined' && pulled && /^✅/.test(syncMsg));
@@ -967,7 +974,9 @@ function settingsInfo159() {
   const s = infoStatus159();
   const stamp = s.stamp ? fmt(s.stamp) : 'هنوز ثبت نشده';
   const backup = s.backup ? fmt(s.backup) + ' (آماده‌سازی فایل؛ ذخیره در گوشی را بررسی کن)' : 'هنوز بکاپی ثبت نشده';
-  return '<div><b>' + (s.live ? 'وصل ✅' : 'قطع یا بررسی‌نشده ❌') + '</b> · آخرین همگام‌سازی: ' + esc(stamp) + '</div>' +
+  const stateLabel = s.live ? 'وصل ✅' : s.state === 'error' ? 'قطع' : s.state === 'checking' ? 'در حال بررسی…' : 'بررسی‌نشده';
+  const stateColor = s.live ? '#087b52' : s.state === 'error' ? '#b42318' : '#667085';
+  return '<div style="color:' + stateColor + '"><b>' + stateLabel + '</b> · آخرین بررسی موفق: ' + esc(stamp) + (s.state === 'error' ? ' <button type="button" id="hub-fix">اصلاح اتصال</button>' : '') + '</div>' +
     '<div class="mut">حساب گوگل: ' + esc(s.email || 'وصل نیست') + '</div>' +
     '<div class="mut">' + esc(s.sheetLabel) + ': ' + (s.sheetUrl ? '<a target="_blank" rel="noopener noreferrer" href="' + esc(s.sheetUrl) + '">' + esc(s.sheetId ? 'باز کردن شیت (…' + s.sheetId.slice(-8) + ')' : 'باز کردن شیت') + '</a>' : 'وصل نیست') + '</div>' +
     '<div class="mut">نوع اتصال: ' + esc(s.kind) + '</div>' +
@@ -982,6 +991,11 @@ function refreshInfo159() {
 }
 document.addEventListener('click', e => { if (e.target.id === 'account-switch-open') accountSwitchOpen(); if (e.target.id === 'account-archive-restore') accountSwitchRestoreClick(); if (e.target.id === 'account-archive-download') { try { accountSwitchDownloadArchive(Number(document.getElementById('account-archive-select').value)); } catch (error) { alert(error.message); } } });
 function homeSyncStatus() {
+  if (typeof connectionStatus === 'function') {
+    const c = connectionStatus();
+    const label = c.state === 'connected' ? 'وصل ✅' : c.state === 'error' ? 'قطع' : c.state === 'checking' ? 'در حال بررسی…' : 'بررسی‌نشده';
+    return label + ' · ' + c.label + (c.reason ? ' · ' + c.reason : '');
+  }
   if (accountOwnerLocked()) return '⚠️ ' + ACCOUNT_OWNER_LOCK_MESSAGE;
   const direct = load('directSyncState', null);
   if (direct && direct.id && direct.base) {
