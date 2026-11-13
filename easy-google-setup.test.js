@@ -45,6 +45,17 @@ async function run() {
  for(const [k,v] of Object.entries({sync:'old',sync_bak:'backup',syncLock:'1',sheetUrl:'sheet'}))assert.equal(storage.get(k),v);
  storage.set('easySetupExperimentV1',JSON.stringify({...state,pending:'به‌روزرسانی انتشار اصلی'}));
  assert.equal(await context.easyCheckAuthorization(),false);assert.equal(JSON.parse(storage.get('easySetupExperimentV1')).pending,'به‌روزرسانی انتشار اصلی');
+ // New users advance in order; an existing connection remains usable.
+ storage.clear(); let wizard=context.easyWizardState();assert.equal(wizard.api,false);assert.equal(wizard.selected,false);assert.equal(wizard.built,false);
+ storage.set('easy_wizard_api','1');wizard=context.easyWizardState();assert.equal(wizard.api,true);assert.equal(wizard.selected,false);
+ storage.set('easy_wizard_email','user@example.com');wizard=context.easyWizardState();assert.equal(wizard.selected,true);assert.equal(wizard.built,false);assert.equal(wizard.owner,false);
+ storage.set('easySetupExperimentV1',JSON.stringify({email:'user@example.com',mainUrl:state.mainUrl}));wizard=context.easyWizardState();assert.equal(wizard.built,true);assert.equal(wizard.ready,false);
+ storage.set('easy_wizard_verified',state.mainUrl);wizard=context.easyWizardState();assert.equal(wizard.ready,true);
+ storage.set('easy_wizard_api','0');wizard=context.easyWizardState();assert.equal(wizard.api,false);assert.equal(wizard.selected,false);
+ storage.set('easy_wizard_api','1');storage.set('easy_wizard_email','erfan.hi19@gmail.com');assert.equal(context.easyWizardState().owner,true);
+ storage.set('easy_wizard_email','someone@example.com');assert.equal(context.easyWizardState().owner,false);
+ context.fetch=async()=>({ok:false,status:403,json:async()=>({error:{message:'User has not enabled the Apps Script API'}})});
+ await assert.rejects(context.easyApi('token','https://script.googleapis.com/v1/projects'),e=>e.easyUserApiDisabled===true);
  console.log('Easy Google setup tests passed.');
 }
 module.exports=run;

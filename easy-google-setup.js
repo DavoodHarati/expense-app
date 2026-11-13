@@ -2,6 +2,8 @@
 // Isolated setup proof: it never sends user data or switches either sync method.
 const EASY_SETUP_KEY = 'easySetupExperimentV1';
 const EASY_SETUP_SCOPE = 'openid email https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments';
+const EASY_OWNER_EMAIL = 'erfan.hi19@gmail.com';
+const EASY_TEST_USERS_KEY = 'easy_local_test_users';
 function easyState() { try { return JSON.parse(localStorage.getItem(EASY_SETUP_KEY) || '{}') || {}; } catch (_) { return {}; } }
 function easySave(s) { localStorage.setItem(EASY_SETUP_KEY, JSON.stringify(s)); }
 function easyMessage(s) { const e = document.getElementById('easy-setup-status'); if (e) e.textContent = s; }
@@ -43,6 +45,7 @@ async function easyApi(token, url, method, body) {
   let data = {}; try { data = await response.json(); } catch (_) {}
   if (!response.ok) {
     const error = new Error(easyGoogleError(data, response, stage));
+    error.easyUserApiDisabled = /user has not enabled|Apps Script API.*(disabled|turned off)|API.*not enabled/i.test(String(data && data.error && data.error.message || ''));
     error.definite = response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429; throw error;
   }
   return data;
@@ -82,14 +85,70 @@ function easyAuthUi(message) {
   const status = document.getElementById('easy-authorize-status');
   if (status && message !== undefined) status.textContent = message;
   const button = document.getElementById('easy-authorize-check');
-  if (button) button.disabled = easyAuthChecking;
+  if (button) button.disabled = easyAuthChecking || !easyWizardState().built;
+}
+function easyEmailValid(value) {
+  const email = String(value || '').trim();
+  return email.length <= 254 && /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email);
+}
+function easyWizardState() {
+  const state = easyState(), marker = localStorage.getItem('easy_wizard_api');
+  const api = marker === '1' || (marker !== '0' && !!state.mainUrl);
+  const email = localStorage.getItem('easy_wizard_email') || state.email || '';
+  const selected = api && easyEmailValid(email);
+  const built = selected && !!state.mainUrl && (!state.email || state.email.toLowerCase() === email.toLowerCase());
+  const ready = built && !state.pending && localStorage.getItem('easy_wizard_verified') === state.mainUrl;
+  return { api, email, selected, built, ready, owner: selected && email.toLowerCase() === EASY_OWNER_EMAIL };
+}
+function easyWizardRender() {
+  const state = easyWizardState();
+  const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  const setDisabled = (id, value) => { const el = document.getElementById(id); if (el) el.disabled = value; };
+  setText('easy-step-api', '۱. دسترسی Apps Script: ' + (state.api ? 'انجام شد' : 'در انتظار'));
+  setText('easy-step-email', '۲. حساب گوگل: ' + (state.selected ? state.email : 'در انتظار'));
+  setText('easy-step-build', '۳. ساخت اتصال: ' + (state.built ? 'انجام شد' : 'در انتظار'));
+  setText('easy-step-auth', '۴. اجازه گوگل: ' + (state.ready ? 'تأیید شد' : 'در انتظار'));
+  setText('easy-step-result', state.ready ? '✅ اتصال آماده است' : '۵. نتیجه: در انتظار');
+  setDisabled('easy-wizard-email-select', !state.api);
+  const start = document.getElementById('easy-setup-start'); if (start && !start.dataset.busy) start.disabled = !state.selected;
+  const open = document.getElementById('easy-authorize-open'); if (open) open.disabled = !state.built;
+  const check = document.getElementById('easy-authorize-check'); if (check) check.disabled = !state.built || easyAuthChecking;
+  const admin = document.getElementById('easy-admin'); if (admin) admin.hidden = !state.owner;
+  return state;
 }
 function easyAuthUrl(value, email) {
   email = String(email || '').trim();
-  if (email.length > 254 || !/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email)) throw new Error('ایمیل معتبر وارد کن.');
+  if (!easyEmailValid(email)) throw new Error('ایمیل معتبر وارد کن.');
   const parsed = new URL(value);
   if (parsed.protocol !== 'https:' || parsed.host !== 'script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname) || parsed.search || parsed.hash || parsed.username || parsed.password) throw new Error('نشانی اصلی معتبر نیست.');
   return parsed.href + '?authuser=' + encodeURIComponent(email);
+}
+function easyAdminPrepare() {
+  const input = document.getElementById('easy-admin-email'), add = document.getElementById('easy-admin-add');
+  const list = document.getElementById('easy-admin-list'), copy = document.getElementById('easy-admin-copy'), status = document.getElementById('easy-admin-status');
+  if (!input || !add || !list || !copy || !status) return;
+  const read = () => { try { const data = JSON.parse(localStorage.getItem(EASY_TEST_USERS_KEY) || '[]'); return Array.isArray(data) ? data.filter(e => typeof e === 'string' && easyEmailValid(e)) : []; } catch (_) { return []; } };
+  const render = () => {
+    list.replaceChildren();
+    read().forEach(address => {
+      const row = document.createElement('div'), label = document.createElement('span'), remove = document.createElement('button');
+      label.textContent = address; remove.type = 'button'; remove.className = 'sec'; remove.textContent = 'حذف';
+      remove.onclick = () => { if (!easyWizardState().owner) return; localStorage.setItem(EASY_TEST_USERS_KEY, JSON.stringify(read().filter(e => e !== address))); render(); };
+      row.appendChild(label); row.appendChild(remove); list.appendChild(row);
+    });
+  };
+  add.onclick = () => {
+    if (!easyWizardState().owner) return;
+    const address = input.value.trim(); if (!easyEmailValid(address)) { status.textContent = 'ایمیل معتبر وارد کن.'; return; }
+    const all = read(); if (!all.some(e => e.toLowerCase() === address.toLowerCase())) all.push(address);
+    localStorage.setItem(EASY_TEST_USERS_KEY, JSON.stringify(all)); input.value = ''; status.textContent = 'در یادداشت این دستگاه ذخیره شد.'; render();
+  };
+  copy.onclick = async () => {
+    if (!easyWizardState().owner) return;
+    try { await navigator.clipboard.writeText(read().join('\n')); status.textContent = 'فهرست کپی شد.'; }
+    catch (_) { status.textContent = 'کپی انجام نشد؛ فهرست را از همین صفحه بردار.'; }
+  };
+  render();
 }
 function easyMainProbe(url) {
   const u = new URL(url);
@@ -116,11 +175,12 @@ async function easyCheckAuthorization() {
     const latest = easyState();
     if (latest.mainUrl !== url || (latest.pending && latest.pending !== 'authorize')) throw new Error('وضعیت اتصال تغییر کرد');
     if (latest.pending === 'authorize') { delete latest.pending; easySave(latest); }
+    localStorage.setItem('easy_wizard_verified', url); easyWizardRender();
     easyAuthUi('✅ اتصال آماده است.'); return true;
   } catch (error) {
     const latest = easyState();
     if (latest.mainUrl === url && (!latest.pending || latest.pending === 'authorize')) { latest.pending = 'authorize'; easySave(latest); }
-    easyAuthUi('⚠️ پاسخ معتبر نرسید؛ ممکن است مجوز، شبکه یا انتشار مشکل داشته باشد. ' + (error.message || ''));
+    easyWizardRender(); easyAuthUi('⚠️ پاسخ معتبر نرسید؛ ممکن است مجوز، شبکه یا انتشار مشکل داشته باشد. ' + (error.message || ''));
     return false;
   } finally { easyAuthChecking = false; easyAuthUi(); }
 }
@@ -241,18 +301,31 @@ function easySetupPrepare() {
   const dialog = document.getElementById('easy-auth-dialog'), email = document.getElementById('easy-auth-email');
   const proceed = document.getElementById('easy-auth-continue'), cancel = document.getElementById('easy-auth-cancel');
   const error = document.getElementById('easy-auth-error'), fallback = document.getElementById('easy-auth-fallback');
+  const apiDone = document.getElementById('easy-wizard-api'), choose = document.getElementById('easy-wizard-email-select');
+  if (apiDone) apiDone.onclick = () => { localStorage.setItem('easy_wizard_api', '1'); easyWizardRender(); };
+  let choosingEmail = false;
   if (open && dialog && email && proceed && cancel && error && fallback) {
     const updateLabel = () => { proceed.textContent = 'ادامه با ' + (email.value.trim() || 'ایمیل'); };
-    open.onclick = () => {
-      email.value = localStorage.getItem('easy_auth_email') || easyState().email || 'erfan.hi19@gmail.com';
+    const showEmail = mode => {
+      choosingEmail = mode;
+      email.value = localStorage.getItem('easy_wizard_email') || localStorage.getItem('easy_auth_email') || easyState().email || '';
       error.textContent = ''; fallback.hidden = true; updateLabel();
       if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
     };
+    if (choose) choose.onclick = () => { if (easyWizardState().api) showEmail(true); };
+    open.onclick = () => { if (easyWizardState().built) showEmail(false); };
     email.oninput = updateLabel;
     cancel.onclick = () => { if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open'); };
     proceed.onclick = () => {
       try {
-        const address = email.value.trim(), url = easyAuthUrl(easyState().mainUrl, address);
+        const address = email.value.trim();
+        if (!easyEmailValid(address)) throw new Error('ایمیل معتبر وارد کن.');
+        if (choosingEmail) {
+          localStorage.setItem('easy_wizard_email', address); localStorage.setItem('easy_auth_email', address);
+          if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');
+          easyWizardRender(); easyAdminPrepare(); return;
+        }
+        const url = easyAuthUrl(easyState().mainUrl, address);
         localStorage.setItem('easy_auth_email', address); easyAuthReturn = true;
         fallback.href = url; fallback.hidden = false; error.textContent = 'اگر صفحه باز نشد، روی «باز کردن در همین صفحه» بزن.';
         window.open(url, '_blank', 'noopener');
@@ -261,9 +334,11 @@ function easySetupPrepare() {
     };
   }
   if (check) check.onclick = () => { easyAuthReturn = false; void easyCheckAuthorization(); };
+  easyWizardRender(); easyAdminPrepare();
   if (easyState().pending && easyState().pending !== 'authorize') easyMessage('⚠️ نتیجه مرحله قبلی مشخص نیست؛ ابتدا شیت و اسکریپت آزمایشی را در گوگل بررسی کن.');
   reset.onclick=()=>{if(!confirm('فقط وضعیت آزمایش در این دستگاه پاک شود؟ فایل‌های ساخته‌شده در گوگل حذف نمی‌شوند.')) return; localStorage.removeItem(EASY_SETUP_KEY); easyLinks(); easyMessage('وضعیت آزمایش پاک شد؛ فایل‌های گوگل باقی مانده‌اند.');};
   start.onclick=()=>{
+    if (!easyWizardState().selected) { easyMessage('ابتدا دسترسی Apps Script و ایمیل را مشخص کن.'); return; }
     if(easyState().pending === 'authorize') { void easyCheckAuthorization(); return; }
     if(easyState().pending) {easyMessage('⚠️ نتیجه مرحله قبلی مشخص نیست. ابتدا فایل‌های آزمایشی در گوگل را بررسی کن.');return;}
     if (!window.google || !google.accounts || !google.accounts.oauth2) {easyMessage('سرویس ورود گوگل بارگذاری نشد؛ اینترنت را بررسی کن و تنظیمات را دوباره باز کن.');return;}
@@ -271,9 +346,9 @@ function easySetupPrepare() {
     if (!confirm(updating ? 'کد خواندن انتشار اصلی موجود با همان نشانی به‌روز شود؟ هر کس نشانی انتشار عمومی را داشته باشد می‌تواند اطلاعات شیت را بخواند. پیش از ادامه از شیت پشتیبان بگیر.' : 'یک شیت و اسکریپت آزمایشی جدا در حساب گوگل ساخته می‌شود. هیچ اطلاعات مالی منتقل یا اتصال فعلی عوض نمی‌شود. ادامه می‌دهی؟')) return;
     try { const client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_TEST_CLIENT,scope:EASY_SETUP_SCOPE,callback:async response=>{
       if(response.error || !response.access_token){easyMessage('اجازه گوگل صادر نشد.');return;}
-      start.disabled=true; reset.disabled=true;
-      try { easyMessage('در حال شناسایی حساب گوگل…'); const user=await easyApi(response.access_token,'https://openidconnect.googleapis.com/v1/userinfo'); if (!user.email) throw new Error('حساب گوگل مشخص نشد.'); await easyRun(response.access_token,user.email); }
-      catch(error){easyMessage('⚠️ '+(error.message||'آزمایش کامل نشد.'));} finally {start.disabled=false;reset.disabled=false;}
+      start.disabled=true; start.dataset.busy='1'; reset.disabled=true;
+      try { easyMessage('در حال شناسایی حساب گوگل…'); const user=await easyApi(response.access_token,'https://openidconnect.googleapis.com/v1/userinfo'); if (!user.email) throw new Error('حساب گوگل مشخص نشد.'); if (user.email.toLowerCase() !== easyWizardState().email.toLowerCase()) throw new Error('حساب انتخاب‌شده در گوگل با ایمیل مرحله دوم یکی نیست.'); await easyRun(response.access_token,user.email); }
+      catch(error){if(error.easyUserApiDisabled) localStorage.setItem('easy_wizard_api','0'); easyMessage('⚠️ '+(error.easyUserApiDisabled ? 'دسترسی Apps Script API برای این حساب خاموش است؛ مرحله اول را دوباره انجام بده. ' : '')+(error.message||'آزمایش کامل نشد.'));} finally {delete start.dataset.busy; reset.disabled=false; easyWizardRender();}
     },error_callback:()=>easyMessage('پنجره ورود بسته شد یا باز نشد؛ دوباره امتحان کن.')}); client.requestAccessToken({prompt:'consent'}); }
     catch(_) {easyMessage('پنجره ورود گوگل باز نشد؛ مرورگر و اینترنت را بررسی کن.');}
   };
