@@ -1024,7 +1024,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T16:12:27.343Z'; const BUILD_VERSION = '۱۶۴';
+const BUILD = '2026-11-13T16:41:02.162Z'; const BUILD_VERSION = '۱۶۵';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1259,7 +1259,7 @@ document.addEventListener('click', async e => {
   const addModeButton = e.target.closest('[data-add-mode]'); if (addModeButton) { addOpen164(addModeButton.dataset.addMode); return; }
   const addFilter = e.target.closest('[data-add-filter]'); if (addFilter) { addReceiptFilter164 = addFilter.dataset.addFilter; addMode164 = 'menu'; render(); return; }
   const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
-  const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; lp = null; render(); window.scrollTo(0, 0); return; }
   const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
   const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t === 'diary' ? 'report' : nb.dataset.t; if (tab === 'home' || tab === 'add') topic = 'expenses'; if (tab === 'add') { addMode164 = 'menu'; addReceiptFilter164 = 'all'; } lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;

@@ -23,12 +23,12 @@ function addManualFields164(card) {
 }
 function addPage164() {
   if (tab !== 'add') return;
-  const bar = document.getElementById('add-sections'); if (bar) bar.hidden = true;
+  const bar = document.getElementById('add-sections'); if (bar) bar.hidden = false;
   const el = document.getElementById('app'); if (!el || (!document.getElementById('sms') && !document.getElementById('invoice-card'))) return;
   const children = [...el.children], invoice = document.getElementById('invoice-card'), manual = document.getElementById('manual-entry-159');
   const sms = document.getElementById('sms')?.closest('.card');
-  if (addMode164 === 'manual' && manual) addManualFields164(manual);
-  let chosen = addMode164 === 'manual' ? manual : addMode164 === 'sms' || addMode164 === 'receipt' ? sms : addMode164 === 'invoice' ? invoice : null;
+  if ((addMode164 === 'manual' || (addMode164 === 'menu' && addReceiptFilter164 === 'all')) && manual) addManualFields164(manual);
+  let chosen = addMode164 === 'menu' && addReceiptFilter164 === 'all' ? manual : addMode164 === 'manual' ? manual : addMode164 === 'sms' || addMode164 === 'receipt' ? sms : addMode164 === 'invoice' ? invoice : null;
   if (addMode164 === 'receipt') chosen = null;
   for (const child of children) child.hidden = !(chosen && (child === chosen || child.contains(chosen))) && addMode164 !== 'receipt';
   if (chosen && chosen.tagName === 'DETAILS') chosen.open = true;
@@ -36,7 +36,7 @@ function addPage164() {
   if (addMode164 === 'receipt') { for (const child of children) { child.hidden = child !== sms && !child.contains(sms); if (!child.hidden && child.tagName === 'DETAILS') child.open = true; } }
   if (addMode164 === 'menu') {
     const tiles = addTileDefinitions164().filter(t => addTileVisible164(t.id, featureOn)).map(t => '<button type="button" class="add-tile-164" data-add-mode="' + t.id + '"><span class="add-icon-164" style="--tile:' + t.color + '"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + t.icon + '</svg></span><span><b>' + t.title + '</b><small>' + t.description + '</small></span></button>').join('');
-    el.insertAdjacentHTML('afterbegin', '<div id="add-hub-164"><div class="add-filter-164"><button type="button" data-add-filter="all">همه</button>' + (featureOn('sms') ? '<button type="button" data-add-filter="receipt">رسید</button>' : '') + '</div><div class="add-grid-164">' + tiles + '</div></div>');
+    el.insertAdjacentHTML('afterbegin', '<div id="add-hub-164"><div class="add-grid-164">' + tiles + '</div></div>');
     if (addReceiptFilter164 === 'receipt' && featureOn('sms')) { const grid = el.querySelector('.add-grid-164'); grid.hidden = true; el.querySelector('#add-hub-164').insertAdjacentHTML('beforeend', receiptArchiveHtml()); const box = el.querySelector('#add-hub-164 details'); box.open = true; receiptArchiveRender(''); document.getElementById('receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); if (!receiptArchiveItems().length) document.getElementById('receipt-archive-results').innerHTML = '<div class="mut">هنوز چیزی ثبت نشده</div><button type="button" data-add-mode="receipt">شروع</button>'; }
   } else if (addMode164 === 'saved') {
     el.insertAdjacentHTML('afterbegin', '<div class="card add-saved-164" role="status"><b>ذخیره شد ✅</b><div class="row"><button type="button" data-add-action="again">یکی دیگر</button><button type="button" class="sec" data-add-action="back">بازگشت</button></div></div>');
