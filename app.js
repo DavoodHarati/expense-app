@@ -538,10 +538,10 @@ function _render() {
     el.innerHTML = loansHtml();
   } else if (tab === 'add') {
     el.innerHTML = `${invoiceHtml()}
-      <div class="card"><b>چسباندن پیامک</b>
+      <div class="card"><b>ثبت پیامک دستی <small>(کپی و پیست پیامک)</small></b>
         <textarea id="sms" rows="5" placeholder="متن پیامک بانکی را اینجا Paste کنید"></textarea>
-        <div class="row"><button id="go">تشخیص و افزودن</button><button id="pst" class="sec">📋 چسباندن</button></div><div id="msg" class="mut"></div></div>
-      <div class="card"><b>ثبت دستی (مثلاً بلو)</b>
+        <div class="row"><button id="go">ثبت پیامک دستی <small>(کپی و پیست پیامک)</small></button><button id="pst" class="sec">📋 چسباندن</button></div><div id="msg" class="mut"></div><button type="button" id="manual-open-159" style="background:#2563eb">ثبت تراکنش دستی</button></div>
+      <div class="card" id="manual-entry-159"><b>ثبت دستی (مثلاً بلو)</b>
         <input id="ma" type="text" inputmode="numeric" placeholder="مبلغ به تومان">
         <input id="md" placeholder="بابت چی؟">
         <select id="mc">${CATS.map(c => `<option>${c}</option>`).join('')}</select>
@@ -554,6 +554,7 @@ function _render() {
     invoiceBind();
     if (topic === 'invoices' || topic === 'sales') { [...el.children].forEach(child => { if (child.id !== 'invoice-card') child.hidden = true; }); document.getElementById('invoice-card').open = true; if (topic === 'sales') { document.getElementById('inv-kind').value = 'فروش'; document.getElementById('inv-owner-fields').hidden = true; } }
     else document.getElementById('invoice-card').hidden = true;
+    $('#manual-open-159').onclick = () => { const card = document.getElementById('manual-entry-159'); if (!card) return; card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.getElementById('ma')?.focus({ preventScroll: true }); };
     $('#pst').onclick = async () => { try { const t = await navigator.clipboard.readText(); if (!t) { $('#msg').textContent = 'کلیپ‌بورد خالی است'; return; } $('#sms').value = t; $('#msg').textContent = 'چسبانده شد'; } catch (e) { $('#sms').focus(); $('#msg').textContent = 'اجازهٔ دسترسی به کلیپ‌بورد داده نشد؛ داخل کادر نگه دار و «Paste» بزن.'; } };
     $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
@@ -693,6 +694,7 @@ function _render() {
         const url = URL.createObjectURL(blob), link = document.createElement('a');
         link.href = url; link.download = 'expense-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
         document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+        try { localStorage.setItem('lastBackupAt', String(Date.now())); } catch (_) {} refreshInfo159();
         $('#full-backup-msg').textContent = 'فایل آماده شد؛ در دانلودها یا فایل‌های گوشی ذخیره شدن آن را بررسی کن.';
       } catch (err) { $('#full-backup-msg').textContent = 'ساخت فایل ناموفق بود: ' + (err.message || err); }
     };
@@ -803,9 +805,11 @@ function _render() {
     }
     accordion(el, 'settings');
     settingsLayout(el);
+    el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
+    refreshInfo159();
     const budgetCard = document.getElementById('budget-settings'); if (budgetCard) budgetCard.hidden = !featureOn('budget');
     const inboxCard = document.getElementById('legacy-inbox'); if (inboxCard) inboxCard.hidden = !featureOn('sms');
-    document.getElementById('settings-simple').insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ${BUILD_VERSION})<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ${BUILD_VERSION})<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
@@ -906,6 +910,43 @@ let ord = localStorage.getItem('ord') || 'sms';
 function ordTx(l) { return [...l].sort(ord === 'sms' ? (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id) : (a, b) => b.id - a.id); }
 function ordBar() { return `<div class="chips"><span class="mut" style="align-self:center">مرتب‌سازی:</span><button class="chip ordb ${ord === 'sms' ? 'on' : 'sec'}" data-o="sms">تاریخ پیامک</button><button class="chip ordb ${ord === 'entry' ? 'on' : 'sec'}" data-o="entry">زمان ورود به برنامه</button></div>`; }
 const fmt = ms => ms ? new Date(ms).toLocaleString('fa-IR') : '—';
+// اطلاعات نمایشی؛ ذخیره‌نشدن آن نباید روند اتصال را تغییر دهد.
+function noteSyncSuccess159() { try { localStorage.setItem('lastSyncOk', String(Date.now())); } catch (_) {} }
+function infoStatus159() {
+  const direct = load('directSyncState', null), easy = typeof easyState === 'function' ? easyState() : {};
+  const directLive = !!(directAutoSession && directAutoSession.expires > Date.now() && /^✅/.test(directAutoStatus));
+  const legacyLive = !directLive && !!(typeof pulled !== 'undefined' && pulled && /^✅/.test(syncMsg));
+  const live = directLive || legacyLive;
+  const stamp = Math.max(Number(localStorage.getItem('lastSyncOk')) || 0, Number(localStorage.getItem('lastSync')) || 0);
+  const backup = Number(localStorage.getItem('lastBackupAt') || 0);
+  const legacyUrl = localStorage.getItem('sheetUrl') || '';
+  const hasDirect = !!(direct && direct.id), hasLegacy = !hasDirect && !!legacyUrl;
+  const email = hasDirect ? (direct.email || '') : hasLegacy ? '' : (easy.email || '');
+  const sheetId = hasDirect ? direct.id : hasLegacy ? '' : (easy.sheetId || '');
+  const sheetLabel = !hasDirect && !hasLegacy && sheetId ? 'شیت آزمایشی' : 'شیت';
+  const validSheet = /^[A-Za-z0-9_-]+$/.test(sheetId) ? 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(sheetId) + '/edit' : '';
+  const sheetUrl = validSheet || (/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+(?:\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/.test(legacyUrl) ? legacyUrl : '');
+  const kind = direct && direct.id ? 'مستقیم' : localStorage.getItem('legacySyncPaused') === '1' ? 'اتصال قدیمی متوقف است' : legacyLive ? 'قدیمی' : 'قطع یا بررسی‌نشده';
+  const error = [directAutoStatus, syncMsg].find(x => typeof x === 'string' && /⚠️|ناموفق|قطع شد|قطع است/.test(x)) || '';
+  return { live, stamp, backup, email, sheetId, sheetLabel, sheetUrl, kind, error, owner: localStorage.getItem('dataOwner') || '' };
+}
+function settingsInfo159() {
+  const s = infoStatus159();
+  const stamp = s.stamp ? fmt(s.stamp) : 'هنوز ثبت نشده';
+  const backup = s.backup ? fmt(s.backup) + ' (آماده‌سازی فایل؛ ذخیره در گوشی را بررسی کن)' : 'هنوز بکاپی ثبت نشده';
+  return '<div><b>' + (s.live ? 'وصل ✅' : 'قطع یا بررسی‌نشده ❌') + '</b> · آخرین همگام‌سازی: ' + esc(stamp) + '</div>' +
+    '<div class="mut">حساب گوگل: ' + esc(s.email || 'وصل نیست') + '</div>' +
+    '<div class="mut">' + esc(s.sheetLabel) + ': ' + (s.sheetUrl ? '<a target="_blank" rel="noopener noreferrer" href="' + esc(s.sheetUrl) + '">' + esc(s.sheetId ? 'باز کردن شیت (…' + s.sheetId.slice(-8) + ')' : 'باز کردن شیت') + '</a>' : 'وصل نیست') + '</div>' +
+    '<div class="mut">نوع اتصال: ' + esc(s.kind) + '</div>' +
+    '<div class="mut">آخرین خطای فعلی: ' + esc(s.error || 'ندارد') + '</div>' +
+    '<div class="mut">آخرین پشتیبان: ' + esc(backup) + '</div>' +
+    '<div class="mut">تراکنش‌ها: ' + tx.length.toLocaleString('fa-IR') + ' · حساب‌ها: ' + Object.keys(accounts).length.toLocaleString('fa-IR') + '</div>' +
+    '<div class="mut">مالک داده‌ها: ' + esc(s.owner || 'مشخص نشده') + '</div>';
+}
+function refreshInfo159() {
+  const info = document.getElementById('settings-info-content'); if (info) info.innerHTML = settingsInfo159();
+  const button = document.getElementById('welcome-google'); if (button) { const live = !!(directAutoSession && directAutoSession.expires > Date.now()); button.disabled = live; button.textContent = live ? 'ورود گوگل فعال است' : 'ورود به گوگل'; }
+}
 function homeSyncStatus() {
   const direct = load('directSyncState', null);
   if (direct && direct.id && direct.base) {
@@ -948,7 +989,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T11:29:18.994Z'; const BUILD_VERSION = '۱۵۸';
+const BUILD = '2026-11-13T12:14:55.588Z'; const BUILD_VERSION = '۱۵۹';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1017,7 +1058,7 @@ function homeHtml0() {
   const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const pend = tx.filter(t => t.pending);
-  return `${!welcomeDismissed && load('directSyncState', null)?.id && !directAutoSession ? `<div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">با ورود، ارسال و دریافت خودکار تا وقتی برنامه باز است فعال می‌شود. دریافت هنگام وجود تغییر ارسال‌نشده متوقف می‌ماند.</div><button type="button" id="welcome-google">ورود به گوگل و فعال‌کردن همگام‌سازی</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>` : ''}${banner ? `<div class="card">${banner}</div>` : ''}
+  return `${banner ? `<div class="card">${banner}</div>` : ''}
   ${xsugHtml()}
   ${featureOn('sms') ? rcReviewHtml() : ''}
   ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
@@ -1168,7 +1209,8 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
   const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; if (topic !== 'sales') topic = 'invoices'; tab = 'report'; render(); const card = document.getElementById('invoice-card'); document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
-  if (e.target.id === 'welcome-later') { welcomeDismissed = true; render(); return; }
+  if (e.target.id === 'welcome-later') { welcomeDismissed = true; const card = document.getElementById('welcome-sync'); if (card) card.hidden = true; return; }
+  if (e.target.id === 'welcome-google' && !(load('directSyncState', null)?.id && load('directSyncState', null)?.base && load('directSyncState', null)?.email)) { const group = document.getElementById('settings-advanced'), card = document.getElementById('easy-setup'); if (group && card) { group.open = true; card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
   if (e.target.id === 'welcome-google' || e.target.id === 'home-direct-start') { if (!window.google?.accounts?.oauth2) { prepareGoogleTest(); directAutoShow('سرویس گوگل در حال آماده‌شدن است؛ چند لحظه بعد دوباره دکمه را بزن.'); return; } directAutoStart(e.target.id === 'welcome-google'); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
   if (e.target.id === 'clip') {
@@ -1560,7 +1602,7 @@ async function doPush(manualUrl = null) {
     const r = await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
     if (!current()) return false;
     if (!r.ok) throw new Error(r.error);
-    if (!manualUrl) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
+    if (!manualUrl) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); noteSyncSuccess159(); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + (manualUrl ? '؛ نتیجه را پیش از تلاش مجدد بررسی کن.' : ' — بعداً دوباره تلاش می‌شود'); return false; } finally { legacyInFlight--; }
 }
 function manualJsonpRead(url) {
@@ -1612,6 +1654,7 @@ async function pull(manualUrl = null) {
     if (!manualUrl) { pulled = true; lastPull = Date.now(); localStorage.setItem('sync_bak', SYNC()); localStorage.setItem('syncLock', '1'); }
     syncMsg = '✅ دریافت از شیت انجام شد';
     matchTransfers();
+    noteSyncSuccess159();
     if (manualUrl) {
       if (d.inbox && d.inbox.length) syncMsg += '؛ پیامک‌های صندوق روی شیت باقی ماندند و ارسالی انجام نشد.';
       else syncMsg += '؛ ارسالی به شیت انجام نشد.';

@@ -326,6 +326,7 @@ function directSyncAuthorize(action, requestConsent = false) {
           if (!saved || DirectSyncCore.canonicalData(saved.backup.data) !== localValue) throw new Error('نسخه ارسالی با داده خوانده‌شده یکسان نیست');
           if (graph.state !== 'linear' || graph.heads[0] !== id) throw new Error('تغییر هم‌زمان تشخیص داده شد؛ نسخه‌ها در شیت باقی مانده‌اند');
           state.base = id; state.email = user.email; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
+          if (typeof noteSyncSuccess159 === 'function') noteSyncSuccess159();
           directSyncMessage('✅ اطلاعات به شیت جدا ارسال و دوباره خوانده و بررسی شد. این اتصال دستی است.');
         } catch (err) { directSyncMessage('⚠️ ' + (err.message || 'عملیات کامل نشد') + (pending ? '؛ ممکن است شیت ساخته شده باشد. پیش از تلاش مجدد گوگل درایو را بررسی کن.' : '')); }
         finally { googleTestBusy = false; directSyncButtons(false); googleTestButton(); }

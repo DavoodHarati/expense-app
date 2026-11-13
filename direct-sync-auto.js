@@ -48,7 +48,8 @@ function directAutoShow(message) {
   const welcome = document.getElementById('welcome-sync');
   if (homeStatus && typeof homeSyncStatus === 'function') homeStatus.textContent = homeSyncStatus();
   if (homeStart) { homeStart.hidden = !!directAutoSession; homeStart.disabled = directAutoRunning || googleTestBusy; }
-  if (welcome) welcome.hidden = !!directAutoSession;
+  if (welcome) welcome.hidden = false;
+  if (typeof refreshInfo159 === 'function') refreshInfo159();
   if (status) status.textContent = message;
   if (start) { start.disabled = !!directAutoSession || directAutoRunning; start.textContent = directAutoResumePending(load('directSyncState', null)) ? 'ادامه اتصال خودکار' : 'فعال‌کردن ارسال خودکار'; }
   if (stop) stop.disabled = !directAutoSession;
@@ -138,7 +139,7 @@ async function directAutoTick() {
       if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال هنگام بررسی تغییر کرده است');
       state.base = pending.id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
       directAutoPendingClear(pending.raw);
-      directAutoShow('✅ ارسال قبلی در شیت پیدا و تأیید شد؛ اتصال خودکار فعال است.');
+      if (typeof noteSyncSuccess159 === 'function') noteSyncSuccess159(); directAutoShow('✅ ارسال قبلی در شیت پیدا و تأیید شد؛ اتصال خودکار فعال است.');
       return;
     }
     const head = records.find(record => record.id === graph.heads[0]);
@@ -163,7 +164,7 @@ async function directAutoTick() {
       directReceiveApply(head.backup, value, state, head.id);
       try {
         directReceiveRefreshView();
-        directAutoShow('✅ نسخه جدید دریافت شد؛ همگام‌سازی خودکار همچنان فعال است.');
+        if (typeof noteSyncSuccess159 === 'function') noteSyncSuccess159(); directAutoShow('✅ نسخه جدید دریافت شد؛ همگام‌سازی خودکار همچنان فعال است.');
       } catch (_) {
         directAutoStop('نسخه جدید دریافت شد؛ برنامه برای نمایش درست دوباره باز می‌شود.');
         try { sessionStorage.setItem('directAutoResume', JSON.stringify({ id: state.id, email: state.email, base: head.id, until: Date.now() + 300000 })); } catch (_) {}
@@ -174,7 +175,7 @@ async function directAutoTick() {
     }
     if (decision === 'unchanged') {
       if (state.base !== head.id) { state.base = head.id; localStorage.setItem('directSyncState', JSON.stringify(state)); }
-      directAutoShow('✅ ارسال خودکار فعال است؛ اطلاعات این دستگاه و شیت یکسان‌اند.'); return;
+      if (typeof noteSyncSuccess159 === 'function') noteSyncSuccess159(); directAutoShow('✅ ارسال خودکار فعال است؛ اطلاعات این دستگاه و شیت یکسان‌اند.'); return;
     }
     const serialized = JSON.stringify(local), parts = [];
     for (let i = 0; i < serialized.length; i += 12000) parts.push(serialized.slice(i, i + 12000));
@@ -203,7 +204,7 @@ async function directAutoTick() {
     if (!current || current.id !== state.id || current.base !== state.base || current.email !== state.email) throw new Error('اتصال هنگام ارسال تغییر کرده است؛ شیت را بررسی کن');
     state.base = id; localStorage.setItem('directSyncState', JSON.stringify(state)); directSyncLink(state);
     directAutoPendingClear(pendingRaw);
-    directAutoShow('✅ نسخه این دستگاه خودکار ارسال و دوباره خوانده شد.');
+    if (typeof noteSyncSuccess159 === 'function') noteSyncSuccess159(); directAutoShow('✅ نسخه این دستگاه خودکار ارسال و دوباره خوانده شد.');
   } catch (error) {
     if (directAutoSession === session) {
       if (appendStarted && (error.directAutoPostNetwork || error.directAutoReadNetwork)) directAutoShow('⚠️ نتیجه ارسال نامشخص است؛ با برگشت ارتباط نسخه ارسالی بررسی می‌شود و ارسال تکراری انجام نمی‌شود.');
