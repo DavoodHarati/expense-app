@@ -113,7 +113,7 @@ function easyWizardRender() {
   const start = document.getElementById('easy-setup-start'); if (start && !start.dataset.busy) start.disabled = !state.selected;
   const open = document.getElementById('easy-authorize-open'); if (open) open.disabled = !state.built;
   const check = document.getElementById('easy-authorize-check'); if (check) check.disabled = !state.built || easyAuthChecking;
-  const admin = document.getElementById('easy-admin'); if (admin) admin.hidden = !state.owner;
+  const admin = document.getElementById('easy-admin'); if (admin) { admin.hidden = !state.owner; if (!state.owner) admin.replaceChildren(); }
   return state;
 }
 function easyAuthUrl(value, email) {
@@ -124,9 +124,19 @@ function easyAuthUrl(value, email) {
   return parsed.href + '?authuser=' + encodeURIComponent(email);
 }
 function easyAdminPrepare() {
+  const area = document.getElementById('easy-admin');
+  if (!area || !easyWizardState().owner) { if (area) area.replaceChildren(); return; }
+  if (!document.getElementById('easy-admin-email')) {
+    area.innerHTML = `<hr><b>مدیریت — یادداشت محلی</b><div class="mut">این فقط یادداشت است؛ اضافه‌کردن واقعی باید در Cloud Console انجام شود. نمایش این بخش احراز هویت نیست.</div><div id="easy-admin-info" class="mut"></div><input type="email" id="easy-admin-email" dir="ltr" placeholder="ایمیل کاربر آزمایشی"><button type="button" id="easy-admin-add">افزودن</button><div id="easy-admin-list"></div><button type="button" class="sec" id="easy-admin-copy">کپی فهرست</button><p><a href="https://console.cloud.google.com/auth/audience" target="_blank" rel="noopener noreferrer">باز کردن Test users در Google Cloud</a></p><button type="button" class="sec" id="easy-admin-reset">پاک‌کردن وضعیت آزمایش</button><button type="button" class="sec" id="easy-admin-backup">دانلود پشتیبان پیش از ادغام</button><div id="easy-admin-status" class="mut" aria-live="polite"></div>`;
+  }
   const input = document.getElementById('easy-admin-email'), add = document.getElementById('easy-admin-add');
   const list = document.getElementById('easy-admin-list'), copy = document.getElementById('easy-admin-copy'), status = document.getElementById('easy-admin-status');
   if (!input || !add || !list || !copy || !status) return;
+  const info = document.getElementById('easy-admin-info'), stamp = Number(localStorage.getItem('lastSync'));
+  if (info) info.textContent = 'نسخه: ۱۵۷ · کش: exp-v157 · اتصال آسان: ' + (easyWizardState().ready ? 'آماده' : 'آماده نیست') + ' · ارسال خودکار نشست: ' + (typeof directAutoSession !== 'undefined' && directAutoSession ? 'فعال' : 'غیرفعال') + ' · آخرین همگام‌سازی: ' + (stamp ? new Date(stamp).toLocaleString('fa-IR') : 'نامشخص') + ' · ادغام دسته‌ها: ' + (localStorage.getItem('categoryMerge155Done') === '1' ? 'انجام شد' : 'انجام نشده') + ' · پیامک ناشناخته: ' + (typeof log !== 'undefined' ? log.filter(x => String(x.msg || '').includes('نفهمیدم')).length : 0);
+  const reset = document.getElementById('easy-admin-reset'), backup = document.getElementById('easy-admin-backup');
+  if (reset) reset.onclick = () => { if (easyWizardState().owner) document.getElementById('easy-setup-reset')?.click(); };
+  if (backup) backup.onclick = () => { if (easyWizardState().owner) document.getElementById('category-download')?.click(); };
   const read = () => { try { const data = JSON.parse(localStorage.getItem(EASY_TEST_USERS_KEY) || '[]'); return Array.isArray(data) ? data.filter(e => typeof e === 'string' && easyEmailValid(e)) : []; } catch (_) { return []; } };
   const render = () => {
     list.replaceChildren();

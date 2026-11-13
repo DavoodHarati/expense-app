@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const store=new Map([['easy_wizard_api','1'],['easy_wizard_email','afsaneh.barhagh43@gmail.com']]);
+const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
+let content='owner-only content', cleared=0;
+const area={hidden:false,replaceChildren(){content='';cleared++},set innerHTML(value){content=value},get innerHTML(){return content}};
+const document={getElementById:id=>id==='easy-admin'?area:null,addEventListener(){}};
+const c=vm.createContext({localStorage,document,URL,Date,JSON,Number,String,Error,Uint32Array,setTimeout,clearTimeout});
+vm.runInContext(fs.readFileSync('easy-google-setup.js','utf8'),c);
+c.easyWizardRender(); assert.equal(area.hidden,true);assert.equal(content,'');
+c.easyAdminPrepare();assert.equal(content,'');assert.ok(cleared>=2);
+store.set('easy_wizard_email','erfan.hi19@gmail.com');c.easyWizardRender();c.easyAdminPrepare();
+assert.equal(area.hidden,false);assert.match(content,/easy-admin-info/);assert.match(content,/Cloud Console/);
+console.log('admin visibility tests passed');

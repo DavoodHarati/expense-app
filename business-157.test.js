@@ -1,0 +1,16 @@
+'use strict';
+const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+const source=fs.readFileSync('app.js','utf8');
+const fragment=source.slice(source.indexOf('function bizEnabled()'),source.indexOf('\nlet welcomeDismissed'));
+const values=new Map(), localStorage={getItem:k=>values.get(k) ?? null};
+const c=vm.createContext({localStorage}); vm.runInContext(fragment,c);
+assert.equal(c.bizEnabled(),false); values.set('job','راننده'); assert.equal(c.bizEnabled(),true);
+values.set('bizMode','0'); assert.equal(c.bizEnabled(),false); values.delete('job');
+values.set('bizMode','1'); assert.equal(c.bizEnabled(),true);
+assert.match(source,/customer: keep \? original\.customer/); assert.match(source,/service: keep \? original\.service/);
+const start=source.indexOf('function setDesc('),end=source.indexOf('\nconst drafts',start);
+const record={id:1,type:'credit',cat:'فروش',customer:'مشتری',service:'خدمت',ctype:'driver',cphone:'123'};
+const edit=vm.createContext({tx:[record],save(){},render(){}});vm.runInContext(source.slice(start,end),edit);
+edit.setDesc(1,'شرح','فروش',{preserveBiz:true});
+assert.equal(record.customer,'مشتری');assert.equal(record.service,'خدمت');assert.equal(record.cphone,'123');assert.equal(record.ctype,'driver');
+console.log('business mode tests passed');

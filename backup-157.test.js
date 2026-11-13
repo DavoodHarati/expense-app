@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('app.js','utf8');
+const code=source.slice(source.indexOf('const BACKUP_KEYS'),source.indexOf('let tx ='));
+const c=vm.createContext({});vm.runInContext(code,c);
+const old={format:'expense-app-backup',version:1,data:{tx:'[]',accounts:'{}'}};
+assert.ok(c.validateFullBackup(old));
+assert.ok(c.validateFullBackup({...old,data:{...old.data,bizMode:'1',budgets:'{"خرید":100}'}}));
+assert.throws(()=>c.validateFullBackup({...old,data:{...old.data,budgets:'[]'}}));
+assert.throws(()=>c.validateFullBackup({...old,data:{...old.data,bizMode:'yes'}}));
+console.log('backup compatibility tests passed');
