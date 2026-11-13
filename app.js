@@ -180,10 +180,10 @@ function receiptArchiveItems() {
 function receiptArchiveRender(query) {
   const box = document.getElementById('receipt-archive-results'); if (!box) return;
   const term = nrm(pfa(query || ''));
-  const items = receiptArchiveItems().map(item => {
+  const items = receiptArchiveItems().map((item, index) => {
     const match = tx.find(entry => entry.receipt === item.raw.slice(0, 1000));
     const parsed = parseReceipt(item.raw);
-    return { ...item, match, parsed };
+    return { ...item, index, match, parsed };
   }).filter(item => {
     const t = item.match, parsed = item.parsed;
     const fields = [item.raw, parsed && parsed.name, parsed && parsed.date, parsed && String(parsed.amount), parsed && String(Math.round(parsed.amount / 10)), t && t.date, t && t.account, t && accName(t.account), t && t.person, t && t.seller, t && t.desc, t && String(t.amount), t && String(Math.round(t.amount / 10))];
@@ -194,12 +194,27 @@ function receiptArchiveRender(query) {
     const name = rc && rc.name || t && (t.person || t.seller) || 'رسید';
     const amount = rc && rc.amount || t && t.amount;
     const date = rc && rc.date || t && t.date || '';
-    return `<details style="border-top:1px solid #e5e7eb;padding:10px 0"><summary><b>${esc(name)}</b>${amount ? ' · ' + toman(amount) + ' تومان' : ''}<span class="mut"> · ${t ? 'وصل‌شده به تراکنش' : 'بدون تراکنش متصل'}</span></summary><div class="mut">${esc(date)}${t ? ' · حساب: ' + esc(accName(t.account)) : ''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.raw)}</div></details>`;
+    return `<details style="border-top:1px solid #e5e7eb;padding:10px 0"><summary><b>${esc(name)}</b>${amount ? ' · ' + toman(amount) + ' تومان' : ''}<span class="mut"> · ${t ? 'وصل‌شده به تراکنش' : 'بدون تراکنش متصل'}</span></summary><div class="mut">${esc(date)}${t ? ' · حساب: ' + esc(accName(t.account)) : ''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.raw)}</div>${!t && rc ? `<label>حساب<select class="receipt-create-account"><option value="">انتخاب حساب</option>${Object.keys(accounts).map(key => `<option value="${esc(key)}">${esc(accName(key))}</option>`).join('')}</select></label><button type="button" class="receipt-create-tx" data-index="${item.index}">ثبت به‌عنوان تراکنش</button>` : ''}</details>`;
   }).join('') : '<div class="mut">رسیدی پیدا نشد.</div>';
 }
 function receiptArchiveHtml() {
   return `<details class="card"><summary><b>🧾 آرشیو رسیدها</b></summary><div class="mut">رسیدهای موجود و رسیدهای جدید در این دستگاه نگهداری می‌شوند. جست‌وجو با نام، شماره حساب، مبلغ، تاریخ یا متن رسید است.</div><input id="receipt-archive-search" placeholder="جست‌وجوی رسید"><div id="receipt-archive-results"></div></details>`;
 }
+function receiptCreateTransaction(raw, account, approved) {
+  if (!approved) return false;
+  const rc = parseReceipt(raw), key = String(raw || '').trim().slice(0, 1000);
+  if (!rc || !account || !Object.prototype.hasOwnProperty.call(accounts, account)) throw new Error('رسید یا حساب معتبر نیست.');
+  if (tx.some(t => t.receipt === key)) throw new Error('این رسید قبلاً به تراکنش وصل شده است.');
+  if (tx.some(t => !t.ghost && t.type === 'debit' && t.account === account && t.amount === rc.amount && t.date === rc.date)) throw new Error('تراکنش مشابه وجود دارد؛ ابتدا آن را بررسی کن.');
+  tx.unshift({ id: Date.now() + Math.random(), bank: accName(account), account, type:'debit', amount:rc.amount, balance:null, date:rc.date, seller:rc.name, desc:'ثبت با تأیید از رسید', cat:'', pending:true, receipt:key });
+  save(); return true;
+}
+document.addEventListener('click', event => {
+  const button = event.target.closest('.receipt-create-tx'); if (!button) return;
+  const item = receiptArchiveItems()[Number(button.dataset.index)], select = button.parentElement.querySelector('.receipt-create-account');
+  if (!item || !select || !select.value) { alert('ابتدا حساب را انتخاب کن.'); return; }
+  try { if (receiptCreateTransaction(item.raw, select.value, confirm('این رسید به‌عنوان تراکنش برداشت ثبت شود؟'))) { receiptArchiveRender(document.getElementById('receipt-archive-search')?.value || ''); alert('تراکنش ثبت شد.'); } } catch (error) { alert(error.message); }
+});
 function rcCands(rc) {
   const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
   return tx.filter(t => t.type === 'debit' && !t.ghost && !t.xfer && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 1000000 && dist(t) <= 4320).sort((p, q) => dist(p) - dist(q));
@@ -996,7 +1011,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T14:48:00.254Z'; const BUILD_VERSION = '۱۶۲';
+const BUILD = '2026-11-13T15:17:25.113Z'; const BUILD_VERSION = '۱۵۸';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1047,6 +1062,7 @@ function rowHtml(t, statusMap) {
   const work = statusMap instanceof Map ? statusMap.get(String(t.id)) : null;
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
+  ${t.invoicePaymentId ? `<div class="mut">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => i.id === t.invoicePaymentId) || {}).number || t.invoicePaymentId)}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${featureOn('invoice') && (t.customer || t.service) ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
   ${featureOn('assistant') && t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
