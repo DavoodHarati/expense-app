@@ -2,7 +2,7 @@ if (!directReceiveRecover()) throw new Error('Pending direct receive recovery fa
 if (directReceiveRecovered) setTimeout(() => alert('دریافت قبلی کامل نشده بود؛ اطلاعات قبلی این دستگاه برگردانده شد.'), 0);
 const $ = s => document.querySelector(s);
 const lsj = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) && v.length ? v : d; } catch { return d; } };
-const DEFAULT_CATS = ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'];
+const DEFAULT_CATS = ['خرید', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط'];
 const DEFAULT_INC = ['فروش', 'مشتری', 'حقوق', 'سایر'];
 const CATS = lsj('cats', [...DEFAULT_CATS]);
 const INC = lsj('icats', [...DEFAULT_INC]);
@@ -28,6 +28,60 @@ function validateFullBackup(backup) {
 let tx = load('tx', []);
 tx.forEach(t => { if ((t.loan === 'wage' || t.loan === 'share') && t.cat === 'قرض') t.cat = 'کارکرد همکار'; });
 let accounts = load('accounts', {});
+// نسخهٔ کامل پیش از ادغام روی همین دستگاه می‌ماند؛ ادغام بدون ثبت آن شروع نمی‌شود.
+const CATEGORY_MERGE_BACKUP = 'categoryMerge155Backup';
+const CATEGORY_MERGE_MAP = { 'خرید': 'خرید', 'هزینه': 'خرید', 'سایر': 'خرید', 'سوپرمارکت': 'خرید' };
+function migrateCategoriesOnce() {
+  if (localStorage.getItem('categoryMerge155Done') === '1') return;
+  // اگر برنامه هنگام نوشتن بسته شد، اول وضعیت پیش از ادغام را برگردان.
+  const interrupted = localStorage.getItem('categoryMerge155InProgress');
+  if (interrupted) {
+    try {
+      const data = validateFullBackup(JSON.parse(localStorage.getItem(CATEGORY_MERGE_BACKUP))), journal = JSON.parse(interrupted);
+      localStorage.setItem('tx', data.tx);
+      if (data.cats === undefined) localStorage.removeItem('cats'); else localStorage.setItem('cats', data.cats);
+      if (journal.dirty === null) localStorage.removeItem('dirty'); else localStorage.setItem('dirty', journal.dirty);
+      tx = JSON.parse(data.tx); CATS.splice(0, CATS.length, ...lsj('cats', [...DEFAULT_CATS]));
+      localStorage.removeItem('categoryMerge155InProgress');
+    } catch (error) { console.error('بازگردانی ادغام ناتمام انجام نشد:', error); return; }
+  }
+  const oldTx = localStorage.getItem('tx'), oldCats = localStorage.getItem('cats'), oldDirty = localStorage.getItem('dirty');
+  try {
+    const saved = JSON.stringify(makeFullBackup());
+    validateFullBackup(JSON.parse(saved));
+    localStorage.setItem(CATEGORY_MERGE_BACKUP, saved);
+    if (localStorage.getItem(CATEGORY_MERGE_BACKUP) !== saved) throw new Error('پشتیبان ذخیره نشد');
+    localStorage.setItem('categoryMerge155InProgress', JSON.stringify({ dirty: oldDirty }));
+    const next = tx.map(t => t.type === 'debit' && !t.loan && !t.xfer && Object.prototype.hasOwnProperty.call(CATEGORY_MERGE_MAP, t.cat) ? { ...t, cat: CATEGORY_MERGE_MAP[t.cat] } : t);
+    const categories = [...new Set(CATS.map(c => Object.prototype.hasOwnProperty.call(CATEGORY_MERGE_MAP, c) ? CATEGORY_MERGE_MAP[c] : c))];
+    localStorage.setItem('tx', JSON.stringify(next));
+    localStorage.setItem('cats', JSON.stringify(categories));
+    localStorage.setItem('dirty', '1');
+    localStorage.setItem('categoryMerge155Done', '1');
+    localStorage.removeItem('categoryMerge155InProgress');
+    tx = next; CATS.splice(0, CATS.length, ...categories);
+  } catch (error) {
+    try { for (const [key, value] of [['tx', oldTx], ['cats', oldCats], ['dirty', oldDirty]]) value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value); localStorage.removeItem('categoryMerge155Done'); localStorage.removeItem('categoryMerge155InProgress'); } catch (_) {}
+    console.error('ادغام دسته‌ها انجام نشد:', error);
+  }
+}
+function restoreCategoriesBeforeMerge() {
+  const snapshot = JSON.parse(localStorage.getItem(CATEGORY_MERGE_BACKUP) || 'null');
+  const data = validateFullBackup(snapshot), before = JSON.parse(data.tx);
+  const oldById = new Map(before.map(t => [String(t.id), t]));
+  const restored = tx.map(t => { const old = oldById.get(String(t.id)); return old && old.type === 'debit' && !old.loan && !old.xfer && Object.prototype.hasOwnProperty.call(CATEGORY_MERGE_MAP, old.cat) && t.cat === CATEGORY_MERGE_MAP[old.cat] ? { ...t, cat: old.cat } : t; });
+  const oldCats = data.cats ? JSON.parse(data.cats) : ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'];
+  const categories = [...new Set([...oldCats, ...CATS])];
+  const oldTx = localStorage.getItem('tx'), currentCats = localStorage.getItem('cats'), oldDirty = localStorage.getItem('dirty');
+  try {
+    localStorage.setItem('tx', JSON.stringify(restored)); localStorage.setItem('cats', JSON.stringify(categories)); localStorage.setItem('dirty', '1');
+  } catch (error) {
+    for (const [key, value] of [['tx', oldTx], ['cats', currentCats], ['dirty', oldDirty]]) value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value);
+    throw error;
+  }
+  tx = restored; CATS.splice(0, CATS.length, ...categories);
+}
+migrateCategoriesOnce();
 const tomb = ids => { const g = JSON.parse(localStorage.getItem('txDel') || '[]'); ids.forEach(i => g.push(String(i))); localStorage.setItem('txDel', JSON.stringify([...new Set(g)].slice(-500))); };
 const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
@@ -211,8 +265,9 @@ function addSms(raw) {
 }
 function addSms0(raw) {
   const p = parseSms(raw);
-  if (!p) return { ok: false, msg: 'قالب پیامک شناخته نشد' };
+  if (!p) return { ok: false, review: true, msg: 'نفهمیدم: قالب پیامک شناخته نشد؛ دستی بررسی کن' };
   if (p.ignored) return { ok: false, msg: 'پیامک رمز بود؛ نادیده گرفته شد' };
+  if (p.review) return { ok: false, review: true, msg: 'نفهمیدم: قالب ' + p.bank + ' آزمایشی است و باید دستی بررسی شود' };
   if (p.account && accounts[p.account] === undefined) { accounts[p.account] = /^\d{6,}$/.test(p.account) ? p.bank + ' …' + p.account.slice(-4) : p.bank; }
   const dup = tx.find(t => !t.ghost && t.type === p.type && t.amount === p.amount && t.date === p.date && (!t.account || !p.account || t.account === p.account));
   if (dup) return { ok: false, msg: 'تکراری بود' };
@@ -245,7 +300,7 @@ function setDesc(id, desc, cat, ex) {
   ex = ex || null;
   if (ex && ex.service) { const L = lsj('svq', []); if (!L.some(x => nrm(x) === nrm(ex.service))) { L.push(ex.service); localStorage.setItem('svq', JSON.stringify(L)); } }
   const t = tx.find(x => x.id === id);
-  t.desc = desc; t.cat = cat || t.cat || 'سایر'; t.pending = false;
+  t.desc = desc; t.cat = cat || t.cat || (t.type === 'debit' ? 'خرید' : 'سایر'); t.pending = false;
   if (ex) {
     t.customer = ex.customer || ''; t.service = ex.service || '';
     if (ex.ctype !== undefined) { const sale = t.cat === 'فروش'; t.ctype = sale || !t.customer ? '' : ex.ctype; t.cphone = sale ? '' : (ex.cphone || ''); }
@@ -264,6 +319,26 @@ const defaultCustomerType = () => localStorage.getItem('defaultCustomerType') ||
 const salaryJob = () => ['معلم', 'کارمند', 'بازنشسته'].includes(job());
 const defIncCat = () => salaryJob() ? 'حقوق' : job() === 'فروشنده' ? 'فروش' : job() ? 'مشتری' : '';
 const nrm = s => String(s).replace(/\u064a/g, 'ی').replace(/\u0643/g, 'ک').replace(/[آأإ]/g, 'ا').replace(/[\s\u200c]/g, '').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toLowerCase();
+// از دسته‌های ثبت‌شدهٔ قبلی پیشنهاد می‌سازد؛ انتخاب نهایی همچنان با کاربر است.
+function categorySuggestion(current, seller, description) {
+  const person = nrm(seller || ''), text = nrm(description || '');
+  if (!person && !text) return '';
+  const counts = new Map();
+  tx.forEach(item => {
+    if (String(item.id) === String(current.id) || item.type !== 'debit' || item.pending || item.ghost || item.loan || item.xfer || !CATS.includes(item.cat)) return;
+    if (person ? nrm(item.seller || '') !== person : nrm(item.desc || '') !== text) return;
+    counts.set(item.cat, (counts.get(item.cat) || 0) + 1);
+  });
+  const ranked = [...counts].sort((a, b) => b[1] - a[1]);
+  return ranked.length && ranked[0][1] >= 2 && (!ranked[1] || ranked[0][1] > ranked[1][1]) ? ranked[0][0] : '';
+}
+function updateCategorySuggestion(card) {
+  const button = card.querySelector('.catsuggestion'), item = tx.find(t => String(t.id) === card.dataset.id);
+  if (!button || !item) return;
+  const category = categorySuggestion(item, card.querySelector('.p')?.value, card.querySelector('.d')?.value);
+  button.hidden = !category; button.dataset.category = category;
+  button.textContent = category ? 'پیشنهاد دسته: ' + category : '';
+}
 function lev(a, b) { const m = []; for (let i = 0; i <= a.length; i++) { m[i] = [i]; } for (let j = 1; j <= b.length; j++) m[0][j] = j; for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return m[a.length][b.length]; }
 function nameSugs() {
   const rej = lsj('nameRej', []), out = [];
@@ -298,7 +373,7 @@ function pendingCard(t) {
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     ${t.receipt ? `<details><summary class="mut">🧾 رسید بانکی</summary><div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button type="button" class="sec rcpdel" data-id="${t.id}">🗑 حذف رسید</button></details>` : ''}
-    ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
+    ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><button type="button" class="sec catsuggestion" hidden></button><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
     <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><datalist id="dl"></datalist>
     <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص / فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
@@ -397,7 +472,7 @@ function render() {
   _render2();
   if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k)) d.open = true; }); window.scrollTo(0, y); }
 }
-function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); }); }
+function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); }
 function _render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
@@ -498,7 +573,7 @@ function _render() {
         <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><div class="mut">حساب‌های جدید از اولین پیامک خودکار ساخته می‌شوند؛ این فرم فقط برای نام‌گذاری زودتر است.</div><button class="sec" id="na">افزودن حساب</button></div>
       <div class="card"><b>پشتیبان‌گیری</b>
         <div class="mut">فایل پشتیبان کامل شامل اطلاعات شخصی و نشانی اتصال است؛ آن را در جای امن نگه دار.</div>
-        <div class="row" style="margin-top:8px"><button id="full-backup">دانلود پشتیبان کامل</button><button class="sec" id="full-restore">بازیابی پشتیبان کامل</button><input type="file" id="full-restore-file" accept=".json,application/json" class="hide"></div><div class="mut" id="full-backup-msg" aria-live="polite"></div>
+        <div class="row" style="margin-top:8px"><button id="full-backup">دانلود پشتیبان کامل</button><button class="sec" id="full-restore">بازیابی پشتیبان کامل</button><input type="file" id="full-restore-file" accept=".json,application/json" class="hide"></div><button type="button" class="sec" id="category-download">دانلود پشتیبان پیش از ادغام</button><button type="button" class="sec" id="category-restore">بازگردانی دسته‌ها به قبل از ادغام</button><div class="mut" id="full-backup-msg" aria-live="polite"></div>
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button id="bf">وارد کردن فایل بانک</button> <input type="file" id="bfi" accept=".xlsx" class="hide"> <button id="mgx" class="sec">ادغام (بدون حذف)</button> <button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
     el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
@@ -525,7 +600,7 @@ function _render() {
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#defaultct').onchange = e => { localStorage.setItem('defaultCustomerType', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
-    const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [], carModels: ['اسکانیا', 'ولوو'], carColors: [], carTypes: [] };
+    const LDEF = { cats: [...DEFAULT_CATS], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [], carModels: ['اسکانیا', 'ولوو'], carColors: [], carTypes: [] };
     const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : k === 'carModels' ? carModels() : lsj(k, []);
     const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»'], ['carModels', 'مدل خودروهای رانندگان'], ['carColors', 'رنگ خودرو'], ['carTypes', 'نوع خودرو']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${['svq', 'carModels', 'carColors', 'carTypes'].includes(k) ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div class="mut lbstatus" data-k="${k}" aria-live="polite"></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">با زدن × برچسب حذف می‌شود، با نوشتن نام و «افزودن» (یا Enter) اضافه می‌شود. همه‌جا همین‌ها دیده می‌شوند و بین دستگاه‌ها همگام می‌شوند.</div><div class="mut" id="lbm" style="color:#0f766e;min-height:18px"></div><div id="lbx">${labHtml()}</div></div>`);
@@ -594,6 +669,20 @@ function _render() {
         $('#full-backup-msg').textContent = 'فایل آماده شد؛ در دانلودها یا فایل‌های گوشی ذخیره شدن آن را بررسی کن.';
       } catch (err) { $('#full-backup-msg').textContent = 'ساخت فایل ناموفق بود: ' + (err.message || err); }
     };
+    $('#category-download').onclick = () => {
+      try {
+        const saved = localStorage.getItem(CATEGORY_MERGE_BACKUP); validateFullBackup(JSON.parse(saved || 'null'));
+        const url = URL.createObjectURL(new Blob([saved], { type: 'application/json' })), link = document.createElement('a');
+        link.href = url; link.download = 'expense-before-category-merge.json'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+        $('#full-backup-msg').textContent = 'فایل آماده شد؛ ذخیره‌شدن آن را در فایل‌های گوشی بررسی کن.';
+      } catch (err) { $('#full-backup-msg').textContent = 'پشتیبان پیش از ادغام پیدا نشد یا معتبر نیست.'; }
+    };
+    $('#category-restore').onclick = () => {
+      if (!localStorage.getItem(CATEGORY_MERGE_BACKUP)) { $('#full-backup-msg').textContent = 'پشتیبان پیش از ادغام در این دستگاه پیدا نشد.'; return; }
+      if (!confirm('دسته‌های ادغام‌شده به حالت قبلی برگردند؟ تراکنش‌های جدید حفظ می‌شوند. تغییرات دسته‌بندی ممکن است در همگام‌سازی بعدی ارسال شود.')) return;
+      try { restoreCategoriesBeforeMerge(); $('#full-backup-msg').textContent = 'دسته‌ها بازگردانده شدند.'; render(); }
+      catch (err) { $('#full-backup-msg').textContent = 'بازگردانی انجام نشد: ' + (err.message || err); }
+    };
     $('#full-restore').onclick = () => $('#full-restore-file').click();
     $('#full-restore-file').onchange = async e => {
       const file = e.target.files[0]; e.target.value = ''; if (!file) return;
@@ -634,7 +723,7 @@ function _render() {
           const credit = deposit > 0;
           const amount = credit ? deposit : withdraw;
           if (!amount) return;
-          let cat = credit ? 'سایر' : (kind.includes('فروشگاه') ? 'خرید' : 'سایر');
+          let cat = credit ? 'سایر' : 'خرید';
           list.push({ id: Number(r[15]) || (Date.parse(d) + list.length), bank: 'سامان', account: '', type: credit ? 'credit' : 'debit', amount, balance: Number(r[1]) || 0, date: d.slice(0, 16), desc: kind || desc.slice(0, 60), cat, pending: false, raw: desc.slice(0, 2000) });
         });
         const add = list.filter(t => !ids.has(String(t.id)));
@@ -845,7 +934,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T09:24:22.423Z'; const BUILD_VERSION = '۱۵۶';
+const BUILD = '2026-11-13T09:52:32.412Z'; const BUILD_VERSION = '۱۵۶ بخش ب';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1711,6 +1800,13 @@ document.addEventListener('change', e => { if (!e.target.classList.contains('cs'
 document.addEventListener('click', e => { if (!e.target.classList.contains('cp')) return; const l = e.target.closest('.card').querySelector('.lk'); if (l && !l.value) l.value = 'wage'; });
 
 document.addEventListener('change', e => { if (!e.target.classList.contains('catsel')) return; const c = e.target.closest('.card'); c.dataset.cat = e.target.value; (drafts[c.dataset.id] = drafts[c.dataset.id] || {}).cat = e.target.value; });
+document.addEventListener('input', e => { if (!e.target.matches('.card[data-id] .p, .card[data-id] .d')) return; updateCategorySuggestion(e.target.closest('.card[data-id]')); });
+document.addEventListener('click', e => {
+  const button = e.target.closest('.catsuggestion'); if (!button) return;
+  const card = button.closest('.card[data-id]'), select = card && card.querySelector('.catsel');
+  if (!select || !CATS.includes(button.dataset.category)) return;
+  select.value = button.dataset.category; select.dispatchEvent(new Event('change', { bubbles: true }));
+});
 
 
 // ===== مخاطبین =====

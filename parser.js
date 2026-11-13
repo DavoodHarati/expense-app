@@ -67,7 +67,12 @@
           date: d ? `${d[1]}/${pad(+d[2])}/${pad(+d[3])} ${pad(+d[4].split(':')[0])}:${d[4].split(':')[1]}` : null
         };
       }
-    }
+    },
+    // آزمایشی: بدون نمونهٔ واقعی، فقط برای بررسی دستی شناسایی می‌شود.
+    { bank: 'ملت', experimental: true, test: t => /بانک\s*ملت/.test(t) && /برداشت|واریز|خرید|انتقال/.test(t) },
+    { bank: 'سامان', experimental: true, test: t => /بانک\s*سامان/.test(t) && /برداشت|واریز|خرید|انتقال/.test(t) },
+    { bank: 'پاسارگاد', experimental: true, test: t => /بانک\s*پاسارگاد/.test(t) && /برداشت|واریز|خرید|انتقال/.test(t) },
+    { bank: 'صادرات', experimental: true, test: t => /بانک\s*صادرات/.test(t) && /برداشت|واریز|خرید|انتقال/.test(t) }
   ];
 
   function parseSms(raw) {
@@ -76,6 +81,7 @@
     if (/رمز|@ib\.|#\d{4,}|ورود/.test(t)) return { ignored: 'otp' };
     for (const r of rules) {
       if (r.test(t)) {
+        if (r.experimental) return { review: 'experimental', bank: r.bank, raw: t };
         const res = r.parse(t);
         if (res && res.amount) {
           if (!res.date) { const n = jalaliNow(); res.date = `${n.y}/${pad(n.m)}/${pad(n.d)}`; }

@@ -36,23 +36,23 @@ async function legacyInboxCheck(manual) {
       const key = source + ':' + item.id;
       if (seen.has(key)) continue;
       const parsed = parseSms(item.raw);
-      if (parsed && !parsed.ignored) { candidates.push({ key, raw: item.raw }); seen.add(key); }
+      if (!parsed || !parsed.ignored) { candidates.push({ key, raw: item.raw }); seen.add(key); }
     }
     if (!candidates.length) { if (manual) legacyInboxShow('پیامک بانکی جدید و قابل شناسایی در صندوق پیدا نشد.'); return; }
     if (manual && !confirm(candidates.length + ' پیامک بانکی بررسی‌نشده پیدا شد. برای نمایش در پرسش‌های برنامه وارد شوند؟')) { legacyInboxShow('ورود پیامک‌ها لغو شد.'); return; }
-    let added = 0, duplicate = 0, failed = 0;
+    let added = 0, duplicate = 0, review = 0, failed = 0;
     const imported = new Set(load('legacyInboxImported', []));
     for (const item of candidates) {
       if (imported.has(item.key)) continue;
       const result = addSms(item.raw);
-      if (result.ok || result.msg === 'تکراری بود') {
+      if (result.ok || result.review || result.msg === 'تکراری بود') {
         imported.add(item.key);
         localStorage.setItem('legacyInboxImported', JSON.stringify([...imported]));
         localStorage.setItem('dirty', '1');
-        if (result.ok) added++; else duplicate++;
+        if (result.ok) added++; else if (result.review) review++; else duplicate++;
       } else failed++;
     }
-    legacyInboxShow('✅ ' + added + ' پیامک برای بررسی اضافه شد؛ ' + duplicate + ' مورد تکراری بود.' + (failed ? ' ' + failed + ' مورد وارد نشد.' : ''));
+    legacyInboxShow('✅ ' + added + ' پیامک برای بررسی اضافه شد؛ ' + duplicate + ' مورد تکراری بود.' + (review ? ' ' + review + ' پیامک ناشناخته در فهرست پیامک‌های دریافتی منتظر بررسی دستی است.' : '') + (failed ? ' ' + failed + ' مورد وارد نشد.' : ''));
     if (added && tab === 'home' && typeof directAutoCanApply === 'function' && directAutoCanApply()) render();
   } catch (error) {
     legacyInboxShow('⚠️ ' + (error.message || 'بررسی پیامک انجام نشد.'));
