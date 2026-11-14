@@ -481,17 +481,51 @@ function colRefresh(card) {
   const sh = mode === 'fixed' ? (invoiceDigits(card.querySelector('.sharefixed').value) || 0) * 10 : shareOf(t.amount, p);
   card.querySelector('.cs').innerHTML = has && sh ? `سهم دستیار: <b>${toman(sh)}</b> تومان · خالصِ من: <b>${toman(t.amount - sh)}</b> تومان` : '';
 }
+function shareCheckTombs173i(ids) {
+  const saved = JSON.parse(localStorage.getItem('txDel') || '[]');
+  if (!Array.isArray(saved) || new Set([...saved.map(String), ...ids.map(String)]).size > 500) throw new Error('فهرست حذف‌های همگام‌سازی پر است؛ ابتدا همگام‌سازی را بررسی کن.');
+}
+function shareTomb173i(ids) {
+  shareCheckTombs173i(ids);
+  tomb(ids);
+}
 function applyShare(t, name, pct, mode, fixed) {
-  const old = tx.find(x => x.parent === t.id && x.loan === 'share');
-  tx = tx.filter(x => x.parent !== t.id || x.loan !== 'share');
-  t.colleague = ''; t.pct = 0; delete t.shareMode; delete t.shareAmount;
+  const names = [...new Set([t.colleague, name].filter(Boolean))], invoiceId = t.invoicePaymentId || '';
+  const found = [...new Set(names.flatMap(person => shareCandidates173i(tx, t, invoiceId, person)))];
+  if (found.length > 1) throw new Error('برای این واریز چند ردیف سهم وجود دارد؛ ابتدا از بخش کارکردها تکراری‌ها را بررسی کن.');
+  const old = found[0];
   const sh = mode === 'fixed' ? fixed : shareOf(t.amount, pct);
-  if (!name || !sh) return;
+  if ((!name || !sh) && old) shareTomb173i([old.id]);
+  t.colleague = ''; t.pct = 0; delete t.shareMode; delete t.shareAmount;
+  if (!name || !sh) { if (old) tx = tx.filter(x => x !== old); return; }
   t.colleague = name; t.pct = mode === 'percent' ? pct : 0; t.shareMode = mode; t.shareAmount = sh;
   const details = [t.customer && ((t.ctype === 'driver' ? 'راننده: ' : 'مشتری: ') + t.customer), t.service && ('خدمت: ' + t.service), t.desc && ('توضیح: ' + t.desc)].filter(Boolean).join(' · ');
   const basis = mode === 'fixed' ? 'مبلغ ثابت' : 'سهم ' + pct + '٪';
-  tx.push({ id: old ? old.id : Date.now() + Math.random(), parent: t.id, ghost: true, bank: t.bank, account: t.account, type: 'credit', amount: sh, balance: null, date: t.date, cat: 'کارکرد همکار', loan: 'share', person: name, desc: basis + (details ? ' · ' + details : ''), pending: false });
+  const updated = { id: old ? old.id : Date.now() + Math.random(), parent: t.id, ghost: true, bank: t.bank, account: t.account, type: 'credit', amount: sh, balance: null, date: t.date, cat: 'کارکرد همکار', loan: 'share', person: name, desc: basis + (details ? ' · ' + details : ''), pending: false };
+  if (old) Object.assign(old, updated); else tx.push(updated);
 }
+let sharePreviewSnapshot173i = '';
+document.addEventListener('click', event => {
+  if (event.target.id === 'share-preview-173i') {
+    const groups = shareDuplicateGroups173i(tx), box = document.getElementById('share-preview-box-173i');
+    sharePreviewSnapshot173i = JSON.stringify(groups.map(g => g.map(r => [String(r.id), r.person, r.amount, r.date, r.parent, r.invoiceId])));
+    box.innerHTML = groups.length ? '<b>' + groups.length.toLocaleString('fa-IR') + ' گروه تکراری</b>' + groups.map(g => '<div class="card"><b>' + esc(g[0].person) + '</b> · ' + esc(g[0].date || '') + ' · ' + toman(g[0].amount) + ' تومان<div class="mut">نگه‌داشتن ردیف ' + esc(String(g[0].id)) + '؛ حذف ' + g.slice(1).map(r => esc(String(r.id))).join('، ') + '</div></div>').join('') + '<button type="button" id="share-clean-173i">حذف موارد پیش‌نمایش‌شده</button>' : '<div class="mut">سهم تکراری با پیوند مشخص پیدا نشد.</div>';
+  }
+  if (event.target.id === 'share-clean-173i') {
+    const groups = shareDuplicateGroups173i(tx), snapshot = JSON.stringify(groups.map(g => g.map(r => [String(r.id), r.person, r.amount, r.date, r.parent, r.invoiceId])));
+    if (!groups.length || snapshot !== sharePreviewSnapshot173i) { alert('اطلاعات تغییر کرده است؛ دوباره بررسی کن.'); return; }
+    const remove = groups.flatMap(g => g.slice(1)), ids = remove.map(r => String(r.id));
+    if (new Set(ids).size !== ids.length || ids.some(id => tx.filter(r => String(r.id) === id).length !== 1)) { alert('شناسه‌های تکراری مبهم‌اند؛ پاک‌سازی انجام نشد.'); return; }
+    if (!confirm(ids.length.toLocaleString('fa-IR') + ' ردیف تکراری حذف شود؟ ابتدا پشتیبان محلی ثبت می‌شود. این تغییر می‌تواند همگام شود.')) return;
+    const oldTx = tx, oldDeleted = localStorage.getItem('txDel'), oldStored = localStorage.getItem('tx');
+    try {
+      const backup = JSON.stringify({ createdAt:new Date().toISOString(), tx:oldTx, txDel:oldDeleted });
+      const key = 'shareCleanupBackup173i-' + Date.now(); localStorage.setItem(key, backup);
+      if (localStorage.getItem(key) !== backup || !Array.isArray(JSON.parse(backup).tx)) throw new Error('ذخیرهٔ پشتیبان تأیید نشد');
+      shareTomb173i(ids); const removed = new Set(remove); tx = tx.filter(row => !removed.has(row)); save(); sharePreviewSnapshot173i = ''; render(); alert('ردیف‌های تکراری حذف و پشتیبان محلی ذخیره شد.');
+    } catch (error) { tx = oldTx; try { if (oldDeleted === null) localStorage.removeItem('txDel'); else localStorage.setItem('txDel', oldDeleted); if (oldStored === null) localStorage.removeItem('tx'); else localStorage.setItem('tx', oldStored); } catch (_) {} alert('پاک‌سازی کامل نشد: ' + error.message); }
+  }
+});
 function people() { return [...new Set(tx.filter(t => t.person).map(t => t.person))]; }
 function monthOf(t) { return t.date.slice(0, 7); }
 
@@ -524,7 +558,7 @@ function render() {
   if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k) && !(tab === 'add' && d.id === 'manual-more-164')) d.open = true; }); window.scrollTo(0, y); }
   if (typeof splashComplete173g === 'function') splashComplete173g();
 }
-function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); addPage164(); }
+function _render2() { _render(); if ((topic === 'work' && tab !== 'contacts' && tab !== 'settings' && tab !== 'add') || tab === 'loans') { document.getElementById('app').insertAdjacentHTML('afterbegin', '<details class="card"><summary><b>پاک‌سازی سهم‌های تکراری</b></summary><div class="mut">ابتدا پیش‌نمایش را ببین؛ حذف فقط با تأیید و پس از پشتیبان انجام می‌شود.</div><button type="button" id="share-preview-173i">بررسی تکراری‌ها</button><div id="share-preview-box-173i"></div></details>'); } document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); addPage164(); }
 const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
 function navigationState163(currentTab, currentTopic, enabled) {
   const diary = currentTab === 'report' || currentTab === 'contacts';
@@ -1097,7 +1131,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T18:10:59Z'; const BUILD_VERSION = '۱۷۳h';
+const BUILD = '2026-11-14T18:21:06Z'; const BUILD_VERSION = '۱۷۳i';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1138,7 +1172,7 @@ function loansHtml() {
     <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
     ${isCo && featureOn('assistant') ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="text" inputmode="numeric" placeholder="مبلغ سهم (تومان)">${persianDateFields('wdt')}<button id="wadd">ثبت کارکرد</button></details>` : ''}
     <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent" ${featureOn('loan') ? '' : 'hidden'}>قرض: او به من بدهکار است</option><option value="borrowed" ${featureOn('loan') ? '' : 'hidden'}>قرض: من به او بدهکارم</option></select><input id="manualamount" type="text" inputmode="numeric" placeholder="مبلغ به تومان">${persianDateFields('manualdate')}<input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
-    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}`;
+    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.filter(t => !(isCo && t.loan === 'share')).map(t => rowHtml(t, workStatus)).join('')}`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
   return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined, w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${co ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
@@ -1152,7 +1186,7 @@ function rowHtml(t, statusMap) {
   ${t.invoicePaymentId ? `<div class="mut">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => i.id === t.invoicePaymentId) || {}).number || t.invoicePaymentId)}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${featureOn('invoice') && (t.customer || t.service) ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
-  ${featureOn('assistant') && t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
+  ${featureOn('assistant') && t.colleague && t.shareAmount && !tx.some(row => row.ghost && row.loan === 'share' && String(row.parent) === String(t.id) && row.person === t.colleague) ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
@@ -1360,10 +1394,11 @@ document.addEventListener('click', async e => {
       if (nm && mode === 'percent' && (!Number.isFinite(pc) || pc <= 0 || pc > 100)) { alert('درصد سهم را بین ۱ و ۱۰۰ انتخاب کن'); return; }
       const tt = tx.find(x => x.id === id);
       if (nm && (mode === 'fixed' ? fixed : shareOf(tt.amount, pc)) > tt.amount) { alert('سهم نمی‌تواند بیشتر از مبلغ واریزی باشد'); return; }
+      try { const related = [...new Set([...new Set([tt.colleague, nm].filter(Boolean))].flatMap(person => shareCandidates173i(tx, tt, tt.invoicePaymentId || '', person)))]; if (related.length > 1) throw new Error('برای این واریز چند ردیف سهم وجود دارد؛ ابتدا از بخش کارکردها تکراری‌ها را بررسی کن.'); if (!nm && related.length) shareCheckTombs173i([related[0].id]); } catch (error) { alert(error.message); return; }
       if (nm) { const c = cols(); if (c[nm] === undefined || (co.value === '__new' && mode === 'percent')) c[nm] = mode === 'percent' ? pc : 0; setCols(c); }
       if (featureOn('invoice')) { tt.customer = card.querySelector('.cu')?.value.trim() || ''; tt.service = card.querySelector('.sv')?.value.trim() || ''; tt.ctype = card.querySelector('.ctbox')?.dataset.ct || ''; }
       tt.desc = card.querySelector('.d').value.trim();
-      applyShare(tt, nm, pc, mode, fixed);
+      try { applyShare(tt, nm, pc, mode, fixed); } catch (error) { alert(error.message); return; }
     }
   }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.seller = card.querySelector('.p').value.trim() || t0.seller || ''; t0.loan = ''; t0.person = ''; } }
