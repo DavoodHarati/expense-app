@@ -23,7 +23,7 @@ function addManualFields164(card) {
 }
 function addPage164() {
   if (tab !== 'add') return;
-  const bar = document.getElementById('add-sections'); if (bar) bar.hidden = false;
+  const bar = document.getElementById('add-sections'); if (bar) bar.hidden = true;
   const el = document.getElementById('app'); if (!el || (!document.getElementById('sms') && !document.getElementById('invoice-card'))) return;
   const children = [...el.children], invoice = document.getElementById('invoice-card'), manual = document.getElementById('manual-entry-159');
   const sms = document.getElementById('sms')?.closest('.card');

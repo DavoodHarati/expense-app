@@ -506,15 +506,18 @@ function navigationState163(currentTab, currentTopic, enabled) {
 function navigationRender163() {
   const state = navigationState163(tab, topic, featureOn); topic = state.topic;
   const topics = document.getElementById('topics'), chips = document.getElementById('diary-chips'), add = document.getElementById('add-sections');
-  if (topics) { topics.hidden = !(state.diary || tab === 'home'); const first = topics.querySelector('[data-topic="expenses"]'); if (first) first.textContent = tab === 'home' ? 'هزینه‌ها' : 'تراکنش‌ها'; }
-  if (chips) { chips.hidden = !state.diary; chips.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab)); }
-  if (add) { add.hidden = !state.add; add.querySelectorAll('[data-add-topic]').forEach(b => { b.hidden = !state.visible(b.dataset.addTopic); b.classList.toggle('on', b.dataset.addTopic === topic); }); }
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === (state.diary ? 'diary' : tab)));
+  if (topics) { topics.hidden = false; const first = topics.querySelector('[data-topic="expenses"]'); if (first) first.textContent = 'هزینه‌ها'; }
+  if (chips) chips.hidden = true;
+  if (add) add.hidden = true;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+}
+function navigationScroll171(button, smooth = true) {
+  if (button && typeof button.scrollIntoView === 'function') button.scrollIntoView({ inline:'center', block:'nearest', behavior:smooth ? 'smooth' : 'auto' });
 }
 function _render() {
   const topicFeature = { invoices: 'invoice', sales: 'invoice', work: 'assistant', reminders: 'reminder', receipts: 'sms' };
   if (topicFeature[topic] && !featureOn(topicFeature[topic])) topic = 'expenses';
-  document.querySelectorAll('[data-topic]').forEach(b => { b.hidden = !!topicFeature[b.dataset.topic] && !featureOn(topicFeature[b.dataset.topic]); });
+  document.querySelectorAll('[data-topic]').forEach(b => { b.hidden = false; b.disabled = !!topicFeature[b.dataset.topic] && !featureOn(topicFeature[b.dataset.topic]); });
   navigationRender163();
   document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
   const el = $('#app');
@@ -563,6 +566,7 @@ function _render() {
     el.innerHTML = receiptArchiveHtml() + remHtml(); accordion(el, 'rem'); remBind(); receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
   } else if (tab === 'contacts') {
     el.innerHTML = contactsHtml();
+    if (topic !== 'expenses' && cv === 'list' && pe === null) el.insertAdjacentHTML('afterbegin', '<div class="card mut">فقط مخاطبانی نمایش داده می‌شوند که ارتباطشان با این موضوع در اطلاعات ثبت شده است. برای دیدن همه، «هزینه‌ها» را در نوار بالا بزن.</div>');
   } else if (tab === 'loans') {
     el.innerHTML = loansHtml();
   } else if (tab === 'add') {
@@ -1060,7 +1064,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T12:32:47Z'; const BUILD_VERSION = '۱۷۰';
+const BUILD = '2026-11-14T13:06:00Z'; const BUILD_VERSION = '۱۷۱';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1291,13 +1295,13 @@ document.addEventListener('click', async e => {
   }
   const fa = e.target.closest('.fb [data-a]');
   if (fa) { const a = fa.dataset.a; if (a === '*') sel = null; else { sel = sel ? (sel.includes(a) ? sel.filter(x => x !== a) : [...sel, a]) : [a]; if (!sel.length) sel = null; } localStorage.setItem('sel', JSON.stringify(sel)); render(); return; }
-  const topicButton = e.target.closest('[data-topic]'); if (topicButton) { topic = topicButton.dataset.topic; if (tab === 'contacts') tab = 'report'; else if (tab === 'settings') tab = 'home'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const topicButton = e.target.closest('[data-topic]'); if (topicButton && !topicButton.disabled) { if (topicButton.dataset.topic === topic) { navigationScroll171(topicButton); return; } if (tab === 'contacts' && pEditing) { alert('ابتدا تغییرات مخاطب را ذخیره کن یا فرم را ببند.'); return; } if (tab === 'add' && ['sms','ma','md','inv-customer','inv-number'].some(id => document.getElementById(id)?.value.trim()) && !confirm('اطلاعات ذخیره‌نشدهٔ فرم کنار گذاشته و موضوع عوض شود؟')) return; topic = topicButton.dataset.topic; if (tab === 'contacts' && pe === null) cv = 'list'; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } lp = null; render(); navigationScroll171(topicButton); return; }
   const addModeButton = e.target.closest('[data-add-mode]'); if (addModeButton) { addOpen164(addModeButton.dataset.addMode); return; }
   const addFilter = e.target.closest('[data-add-filter]'); if (addFilter) { addReceiptFilter164 = addFilter.dataset.addFilter; addMode164 = 'menu'; render(); return; }
   const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
   const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; lp = null; render(); window.scrollTo(0, 0); return; }
   const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t === 'diary' ? 'report' : nb.dataset.t; if (tab === 'home' || tab === 'add') topic = 'expenses'; if (tab === 'add') { addMode164 = 'menu'; addReceiptFilter164 = 'all'; } lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
@@ -1800,6 +1804,7 @@ function autoDedupe() {
 }
 autoDedupe(); rcTryPending();
 render();
+requestAnimationFrame(() => navigationScroll171(document.querySelector('#topics .on'), false));
 if (load('directSyncState', null)?.id) prepareGoogleTest();
 if (localStorage.getItem('legacyInboxAuto') === '1') setTimeout(() => legacyInboxCheck(false), 0);
 pull().then(() => { autoDedupe(); rcTryPending(); if (!busyTyping()) render(); });
@@ -1998,6 +2003,16 @@ function contactFacts() {
 function contactCardList(p) { return Array.isArray(p.cards) ? p.cards.map(idDigits).filter(x => x.length === 16) : []; }
 function contactMatches(p, f) { return !!((f.phone && [p.phone, ...(Array.isArray(p.phones) ? p.phones : [])].map(idDigits).includes(f.phone)) || (f.card && contactCardList(p).includes(f.card))); }
 function contactNames(p) { return [p.name, ...(Array.isArray(p.aliases) ? p.aliases : [])].filter(Boolean).map(nrm); }
+function contactTopicMatch171(person, selectedTopic, transactions, invoices, reminders, colleagues) {
+  if (selectedTopic === 'expenses') return true;
+  const names = contactNames(person), nameMatches = value => !!value && names.includes(nrm(value));
+  const linked = new Set((Array.isArray(person.links) ? person.links : []).map(value => String(value).split('|')[0]));
+  if (selectedTopic === 'invoices' || selectedTopic === 'sales') return invoices.some(i => (selectedTopic !== 'sales' || i.kind === 'فروش') && (nameMatches(i.customer) || nameMatches(i.ownerName)));
+  if (selectedTopic === 'work') return Object.keys(colleagues || {}).some(nameMatches) || transactions.some(t => isWage(t) && nameMatches(t.person));
+  if (selectedTopic === 'receipts') return transactions.some(t => t.receipt && (linked.has(String(t.id)) || nameMatches(t.person) || nameMatches(t.customer)));
+  if (selectedTopic === 'reminders') return reminders.some(r => nameMatches(r.person) || nameMatches(r.name));
+  return true;
+}
 function attachFact(p, f, rememberName) {
   p.links = Array.isArray(p.links) ? p.links : [];
   if (!p.links.includes(f.key)) p.links.push(f.key);
@@ -2058,7 +2073,7 @@ function contactsHtml() {
       <input id="pnt" placeholder="برچسب تازه (نوشتن و Enter)"><textarea id="pno" rows="3" placeholder="یادداشت">${esc(p.note || '')}</textarea>
       <div class="row"><button id="psv">ذخیره</button><button class="sec" id="pcn">بستن</button>${pe === 'new' ? '' : '<button class="sec" id="pdl">🗑 حذف</button>'}</div></div>${pe === 'new' ? '' : contactHistory(p)}`;
   }
-  const q = pfa(pq).trim(), L = ppl.filter(p => (!pf || (p.tags || []).includes(pf)) && (!q || (p.name + ' ' + (p.phone || '') + ' ' + contactCardList(p).join(' ')).includes(q)));
+  const q = pfa(pq).trim(), L = ppl.filter(p => contactTopicMatch171(p, topic, tx, invoiceList(), rem, cols()) && (!pf || (p.tags || []).includes(pf)) && (!q || (p.name + ' ' + (p.phone || '') + ' ' + contactCardList(p).join(' ')).includes(q)));
   return sw + (proposals.length ? `<div class="card"><b>🔎 موارد نیازمند بررسی (${proposals.length.toLocaleString('fa-IR')})</b><div class="mut">تشابه نام یا شماره مشترک پیدا شد؛ خودکار ادغام نمی‌شود.</div>${proposals.map((x, i) => `<div style="margin-top:12px"><b>${esc(x.f.name)}</b><div class="mut">${x.f.card ? 'کارت: ' + esc(x.f.card) : 'تلفن: ' + esc(x.f.phone)} · ${esc(x.f.role)}</div><select class="pmatch" data-index="${i}"><option value="">انتخاب پرونده…</option>${x.options.map(p => `<option value="${p.id}">${esc(p.name)} · ${esc(p.phone || contactCardList(p).join('، ') || 'بدون شماره')}</option>`).join('')}<option value="new">شخص جدید و جدا</option></select><button class="pmatchsave" data-index="${i}">تأیید انتخاب</button></div>`).join('')}</div>` : '') + `<div class="card"><div class="row"><b>مخاطبین (${ppl.length.toLocaleString('fa-IR')})</b><button id="pnew">＋ جدید</button></div>
     <input id="pq" placeholder="جستجوی نام، تلفن یا کارت" value="${esc(pq)}">
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="pfl ${pf ? 'sec' : ''}" data-t="">همه</button>${ptags().map(t => `<button class="pfl ${pf === t ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
