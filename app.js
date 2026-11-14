@@ -547,17 +547,21 @@ function _render() {
   navigationRender163();
   document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
   const el = $('#app');
+  el.classList.remove('invoice-page-173e', 'invoice-report-page-173e');
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
   if (tab === 'rem') { topic = 'reminders'; tab = 'home'; }
   if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
     if ((topic === 'invoices' || topic === 'sales') && tab !== 'add') {
       const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => item.payment?.method === 'unpaid');
       el.innerHTML = tab === 'report' ? invoiceLedgerHtml(list) + invoiceHtml() : `<div class="topic-summary"><div>${salesOnly ? 'فروش کالا' : 'فاکتورها'}</div><b>${list.length.toLocaleString('fa-IR')} فاکتور</b><div>${confirmed.length.toLocaleString('fa-IR')} تأییدشده · ${unpaid.length.toLocaleString('fa-IR')} نسیه</div></div>${!salesOnly ? `<div class="card invoice-categories"><b>دسته‌های فاکتور</b><div class="invoice-category-grid"><button type="button" class="sec invoice-open-list" data-filter="service">🔧 خدمات (${list.filter(item => (item.kind || 'خدمات') === 'خدمات').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="sale">🛒 فروش (${list.filter(item => item.kind === 'فروش').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="unpaid">📌 نسیه (${unpaid.length.toLocaleString('fa-IR')})</button></div><div class="mut">نسیه وضعیت پرداخت است و می‌تواند مربوط به خدمات یا فروش باشد.</div></div>` : ''}<div class="card"><b>آخرین ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</b>${list.slice(0, 10).map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number || '')}</b><div class="mut">${esc(item.date || '')} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div></div>`).join('') || '<div class="mut">هنوز موردی ثبت نشده است.</div>'}<button class="invoice-open-list" type="button">جست‌وجو و گزارش ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</button></div>`;
+      el.classList.add('invoice-page-173e'); if (tab === 'report') el.classList.add('invoice-report-page-173e');
+      el.insertAdjacentHTML('afterbegin', invoiceDashboard173e(list));
       if (tab === 'report') {
         invoiceBind(); document.getElementById('invoice-card').open = true;
         document.getElementById('invoice-form-fields').hidden = true;
-        document.getElementById('invoice-search-panel').open = true;
-        document.querySelector('#invoice-card > summary b').textContent = salesOnly ? '🔎 جست‌وجوی فروش‌ها' : '🔎 جست‌وجوی فاکتورها';
+        const panel = document.getElementById('invoice-search-panel'); panel.open = false;
+        panel.querySelector('summary b').textContent = 'جستجو و فیلتر';
+        panel.after(document.getElementById('inv-results'));
       }
       return;
     }
@@ -877,6 +881,7 @@ function _render() {
     const connectionHub170 = document.getElementById('connection-hub-168');
     connectionHub170.replaceWith(connectionGroup170); connectionGroup170.appendChild(connectionHub170);
     const info170 = document.getElementById('settings-info'); if (info170) el.prepend(info170);
+    shortcutSettings173e(el);
     settingsAccordion170(el);
     ['legacy-sync-settings', 'welcome-sync'].forEach(id => { const card = document.getElementById(id); if (card) card.hidden = true; });
     sheetRegistryRender();
@@ -1090,7 +1095,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T15:02:30Z'; const BUILD_VERSION = '۱۷۳c';
+const BUILD = '2026-11-14T16:08:03Z'; const BUILD_VERSION = '۱۷۳e';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {

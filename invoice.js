@@ -255,7 +255,7 @@ function invoiceShowList(query = '') {
   const type170 = document.querySelector('#inv-types-170 [aria-pressed="true"]')?.dataset.invoiceType || 'all';
   const status170 = document.getElementById('inv-status-170')?.value || 'all';
   const month170 = document.getElementById('inv-month-170')?.value || '';
-  const matches = invoiceList().filter(item => invoiceTypeMatches170(item, type170) && (status170 === 'all' || invoiceStatus170(item, tx) === status170) && (!month170 || String(item.date || '').slice(0,7) === month170) && invoiceMatchesFilters(item, tx, filters) && (typeof topic === 'undefined' || topic !== 'sales' || item.kind === 'فروش') && (!term || [item.number, item.customer, item.phone, item.ownerName, item.ownerPhone, item.plate, item.model, item.date, ...(item.lines || []).map(line => line.name)].some(value => nrm(pfa(value || '')).includes(term))) && (filter === 'all' || (filter === 'service' ? (item.kind || 'خدمات') === 'خدمات' : filter === 'sale' ? item.kind === 'فروش' : filter === 'unpaid' ? item.payment?.method === 'unpaid' && invoicePaymentStatus(item, tx).status !== 'paid' : filter === 'confirmed' ? item.accounting?.status === 'confirmed' : item.accounting?.status !== 'confirmed')));
+  const matches = invoiceList().filter(item => invoiceTypeMatches170(item, type170) && (status170 === 'all' || invoiceStatus170(item, tx) === status170) && (!month170 || String(item.date || '').slice(0,7) === month170) && invoiceMatchesFilters(item, tx, filters) && (typeof topic === 'undefined' || topic !== 'sales' || item.kind === 'فروش') && (!term || [item.number, item.customer, item.phone, item.ownerName, item.ownerPhone, item.plate, item.model, item.date, item.total, ...(item.lines || []).map(line => line.name)].some(value => nrm(pfa(value || '')).includes(term))) && (filter === 'all' || (filter === 'service' ? (item.kind || 'خدمات') === 'خدمات' : filter === 'sale' ? item.kind === 'فروش' : filter === 'unpaid' ? item.payment?.method === 'unpaid' && invoicePaymentStatus(item, tx).status !== 'paid' : filter === 'confirmed' ? item.accounting?.status === 'confirmed' : item.accounting?.status !== 'confirmed')));
   const overview = document.getElementById('inv-overview-170');
   if (overview) {
     const currentMonth = invoiceDate().slice(0,7);
@@ -279,7 +279,7 @@ function invoiceShowList(query = '') {
     const item = list[index], summaryNode = card.querySelector('summary');
     if (!item || !summaryNode) return;
     const kind = invoiceKind(item), state = invoiceStatus170(item, tx);
-    if (kind === 'خدمات دائمی') card.style.borderRightColor = '#16845b';
+    card.style.borderRightColor = ({paid:'#16845b',partial:'#d97706',unpaid:'#dc4d52'})[state] || '#94a3b8';
     summaryNode.innerHTML = '<span class="invoice-card-name-170"><b>' + esc(item.customer || 'بدون نام') + '</b><small>شماره ' + esc(item.number || '—') + '</small></span><strong class="invoice-amount-170">' + (Number(item.total) || 0).toLocaleString('fa-IR') + ' تومان</strong><span class="invoice-tags-170"><span>' + esc(item.date || 'تاریخ ثبت نشده') + '</span><span style="color:' + (kind === 'خدمات دائمی' ? '#16845b' : invoiceKindColor(item)) + '">' + esc(kind === 'خدمات دائمی' ? 'خدماتی · دائمی' : kind) + '</span><span class="invoice-status-170 status-' + state + '">' + invoiceStatusLabel170(state) + '</span></span>';
   });
   return;
