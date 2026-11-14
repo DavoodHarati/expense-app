@@ -522,6 +522,7 @@ function render() {
   const y = window.scrollY, was = new Set(dkeys().filter(([d]) => d.open).map(x => x[1])), t0 = tab;
   _render2();
   if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k) && !(tab === 'add' && d.id === 'manual-more-164')) d.open = true; }); window.scrollTo(0, y); }
+  if (typeof splashComplete173g === 'function') splashComplete173g();
 }
 function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); addPage164(); }
 const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
@@ -560,7 +561,7 @@ function _render() {
         invoiceBind(); document.getElementById('invoice-card').open = true;
         document.getElementById('invoice-form-fields').hidden = true;
         const panel = document.getElementById('invoice-search-panel'); panel.open = false;
-        panel.querySelector('summary b').textContent = 'جستجو و فیلتر';
+        panel.querySelector('summary b').textContent = 'فیلتر ماه و وضعیت';
         panel.after(document.getElementById('inv-results'));
         panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-show-all').checked = true; invoiceShowList('');
       }
@@ -1096,7 +1097,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T17:31:30Z'; const BUILD_VERSION = '۱۷۳f';
+const BUILD = '2026-11-14T17:49:15Z'; const BUILD_VERSION = '۱۷۳g';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1145,7 +1146,8 @@ function loansHtml() {
 function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
   const work = statusMap instanceof Map ? statusMap.get(String(t.id)) : null;
-  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
+  const direction = typeof transactionView173g === 'function' ? transactionView173g(t) : null;
+  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${direction ? direction.color : t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (direction ? direction.sign : t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}${direction ? ' <small>' + direction.label + '</small>' : ''}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
   ${t.invoicePaymentId ? `<div class="mut">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => i.id === t.invoicePaymentId) || {}).number || t.invoicePaymentId)}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
