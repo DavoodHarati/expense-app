@@ -978,7 +978,7 @@ function settingsInfo159() {
   const stateColor = s.live ? '#087b52' : s.state === 'error' ? '#b42318' : '#667085';
   return '<div style="color:' + stateColor + '"><b>' + stateLabel + '</b> · آخرین بررسی موفق: ' + esc(stamp) + (s.state === 'error' ? ' <button type="button" id="hub-fix">اصلاح اتصال</button>' : '') + '</div>' +
     '<div class="mut">حساب گوگل: ' + esc(s.email || 'وصل نیست') + '</div>' +
-    '<div class="mut">' + esc(s.sheetLabel) + ': ' + (s.sheetUrl ? '<a target="_blank" rel="noopener noreferrer" href="' + esc(s.sheetUrl) + '">' + esc(s.sheetId ? 'باز کردن شیت (…' + s.sheetId.slice(-8) + ')' : 'باز کردن شیت') + '</a>' : 'وصل نیست') + '</div>' +
+    '<div class="mut">' + esc(s.sheetLabel) + ': ' + (s.sheetUrl ? '<a class="sheet-open-168" target="_blank" rel="noopener noreferrer" href="' + esc(s.sheetUrl) + '">' + esc(s.sheetId ? 'باز کردن شیت (…' + s.sheetId.slice(-8) + ')' : 'باز کردن شیت') + '</a>' : 'وصل نیست') + '</div>' +
     '<div class="mut">نوع اتصال: ' + esc(s.kind) + '</div>' +
     '<div class="mut">آخرین خطای فعلی: ' + esc(s.error || 'ندارد') + '</div>' +
     '<div class="mut">آخرین پشتیبان: ' + esc(backup) + '</div>' +
@@ -1038,7 +1038,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T17:13:12.290Z'; const BUILD_VERSION = '۱۶۶';
+const BUILD = '2026-11-13T20:45:42Z'; const BUILD_VERSION = '۱۶۸';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
