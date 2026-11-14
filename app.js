@@ -194,7 +194,7 @@ function receiptArchiveRender(query) {
     const name = rc && rc.name || t && (t.person || t.seller) || 'رسید';
     const amount = rc && rc.amount || t && t.amount;
     const date = rc && rc.date || t && t.date || '';
-    return `<details style="border-top:1px solid #e5e7eb;padding:10px 0"><summary><b>${esc(name)}</b>${amount ? ' · ' + toman(amount) + ' تومان' : ''}<span class="mut"> · ${t ? 'وصل‌شده به تراکنش' : 'بدون تراکنش متصل'}</span></summary><div class="mut">${esc(date)}${t ? ' · حساب: ' + esc(accName(t.account)) : ''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.raw)}</div>${!t && rc ? `<label>حساب<select class="receipt-create-account"><option value="">انتخاب حساب</option>${Object.keys(accounts).map(key => `<option value="${esc(key)}">${esc(accName(key))}</option>`).join('')}</select></label><button type="button" class="receipt-create-tx" data-index="${item.index}">ثبت به‌عنوان تراکنش</button>` : ''}</details>`;
+    return `<details data-receipt-index-173j="${item.index}" style="border-top:1px solid #e5e7eb;padding:10px 0"><summary><b>${esc(name)}</b>${amount ? ' · ' + toman(amount) + ' تومان' : ''}<span class="mut"> · ${t ? 'وصل‌شده به تراکنش' : 'بدون تراکنش متصل'}</span></summary><div class="mut">${esc(date)}${t ? ' · حساب: ' + esc(accName(t.account)) : ''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.raw)}</div>${!t && rc ? `<label>حساب<select class="receipt-create-account"><option value="">انتخاب حساب</option>${Object.keys(accounts).map(key => `<option value="${esc(key)}">${esc(accName(key))}</option>`).join('')}</select></label><button type="button" class="receipt-create-tx" data-index="${item.index}">ثبت به‌عنوان تراکنش</button>` : ''}</details>`;
   }).join('') : '<div class="mut">رسیدی پیدا نشد.</div>';
 }
 function receiptArchiveHtml() {
@@ -602,8 +602,8 @@ function _render() {
       return;
     }
     if (topic === 'receipts') {
-      el.innerHTML = `${tab === 'add' ? '<div class="card"><b>ثبت رسید بانکی</b><textarea id="sms" rows="5" placeholder="متن پیامک رسید را اینجا بچسبان"></textarea><div class="topic-actions"><button id="go">ثبت رسید</button><button id="pst" class="sec">چسباندن</button></div><div id="msg" class="mut"></div></div>' : ''}${receiptArchiveHtml()}${tab === 'home' ? rcReviewHtml() : ''}`;
-      receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
+      el.innerHTML = tab === 'add' ? '<div class="card"><b>ثبت رسید بانکی</b><textarea id="sms" rows="5" placeholder="متن پیامک رسید را اینجا بچسبان"></textarea><div class="topic-actions"><button id="go">ثبت رسید</button><button id="pst" class="sec">چسباندن</button></div><div id="msg" class="mut"></div></div>' : receiptArchiveHtml() + (tab === 'home' ? rcReviewHtml() : '');
+      if (tab !== 'add') { receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); }
       if (tab === 'add') {
         bindReceiptEntry173c();
       }
@@ -1131,7 +1131,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T18:21:06Z'; const BUILD_VERSION = '۱۷۳i';
+const BUILD = '2026-11-14T18:44:29Z'; const BUILD_VERSION = '۱۷۳j';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
