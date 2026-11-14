@@ -280,8 +280,16 @@ function invoiceShowList(query = '') {
     if (!item || !summaryNode) return;
     const kind = invoiceKind(item), state = invoiceStatus170(item, tx);
     card.style.borderRightColor = ({paid:'#16845b',partial:'#d97706',unpaid:'#dc4d52'})[state] || '#94a3b8';
+    card.dataset.invoiceId = String(item.id);
+    if (typeof tab !== 'undefined' && tab === 'report') {
+      const status = item.payment?.method === 'unpaid' && state !== 'paid' ? 'نسیه' : item.accounting?.status === 'confirmed' ? '✓ تأییدشده' : 'در انتظار';
+      const color = status === 'نسیه' ? '#b92d61' : status.startsWith('✓') ? '#147345' : '#9a6500';
+      summaryNode.innerHTML = '<span class="invoice-table-173f"><span>' + esc(item.number || '—') + '</span><span><b>' + esc(item.customer || 'بدون نام') + '</b><small style="display:block">' + esc(item.date || '') + '</small></span><strong>' + (Number(item.total) || 0).toLocaleString('fa-IR') + ' تومان</strong><span style="color:' + color + '">' + status + '</span></span>';
+      return;
+    }
     summaryNode.innerHTML = '<span class="invoice-card-name-170"><b>' + esc(item.customer || 'بدون نام') + '</b><small>شماره ' + esc(item.number || '—') + '</small></span><strong class="invoice-amount-170">' + (Number(item.total) || 0).toLocaleString('fa-IR') + ' تومان</strong><span class="invoice-tags-170"><span>' + esc(item.date || 'تاریخ ثبت نشده') + '</span><span style="color:' + (kind === 'خدمات دائمی' ? '#16845b' : invoiceKindColor(item)) + '">' + esc(kind === 'خدمات دائمی' ? 'خدماتی · دائمی' : kind) + '</span><span class="invoice-status-170 status-' + state + '">' + invoiceStatusLabel170(state) + '</span></span>';
   });
+  if (typeof tab !== 'undefined' && tab === 'report') box.insertAdjacentHTML('afterbegin', '<div class="invoice-table-173f invoice-table-head-173f"><span>شماره</span><span>مشتری</span><span>مبلغ</span><span>وضعیت</span></div>');
   return;
 }
 function invoicePrint(item) {

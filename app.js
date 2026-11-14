@@ -562,6 +562,7 @@ function _render() {
         const panel = document.getElementById('invoice-search-panel'); panel.open = false;
         panel.querySelector('summary b').textContent = 'جستجو و فیلتر';
         panel.after(document.getElementById('inv-results'));
+        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-show-all').checked = true; invoiceShowList('');
       }
       return;
     }
@@ -1095,7 +1096,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T16:08:03Z'; const BUILD_VERSION = '۱۷۳e';
+const BUILD = '2026-11-14T17:31:30Z'; const BUILD_VERSION = '۱۷۳f';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {

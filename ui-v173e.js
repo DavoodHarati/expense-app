@@ -26,9 +26,8 @@ function invoiceDashboardData173e(items, transactions, month) {
 }
 function invoiceDashboard173e(items) {
   if (!Array.isArray(items)) return '<div class="card mut" role="status">در حال بارگذاری فاکتورها…</div>';
-  const d=invoiceDashboardData173e(items,tx,invoiceDate().slice(0,7)), max=Math.max(1,...d.months.map(x=>x[1]));
-  const bars=d.months.map(([month,value])=>'<i style="height:'+Math.max(3,Math.round(value/max*100))+'%" title="'+esc(month)+' · '+value.toLocaleString('fa-IR')+' تومان"></i>').join('');
-  return '<div class="dashboard-173e"><div class="dashboard-grid"><div>جمع ماه<b>'+d.monthly.toLocaleString('fa-IR')+' تومان</b></div><div>ماندهٔ طلب<b>'+d.debt.toLocaleString('fa-IR')+' تومان</b></div></div><div class="mut">'+d.count.toLocaleString('fa-IR')+' فاکتور نسیه یا بخشی پرداخت‌شده</div>'+(bars?'<div class="dashboard-chart" aria-label="جمع ماهانه فاکتورها">'+bars+'</div>':'<div class="mut">هنوز فاکتوری ثبت نشده است.</div>')+'</div>';
+  const d=invoiceDashboardData173e(items,tx,invoiceDate().slice(0,7));
+  return '<div class="dashboard-173e"><div class="dashboard-grid"><div>جمع ماه<b>'+d.monthly.toLocaleString('fa-IR')+' تومان</b></div><div>ماندهٔ طلب<b>'+d.debt.toLocaleString('fa-IR')+' تومان</b></div></div>'+(!items.length?'<div class="mut">هنوز فاکتوری ثبت نشده است.</div>':'')+'</div>';
 }
 function shortcutUrl173e() {
   const value = localStorage.getItem('legacyInboxUrl') || localStorage.getItem('sync_bak') || localStorage.getItem('sync') || '';

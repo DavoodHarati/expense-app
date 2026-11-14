@@ -18,7 +18,7 @@ function addRestoreReceipt173c() {
   if (card?.closest('[data-receipt-form-173c]')) { card.hidden = true; document.getElementById('app')?.appendChild(card); }
 }
 function addMount173b(details) {
-  const key = details.dataset.inline173b, host = details.querySelector('.add-form-173b');
+  const key = details.getAttribute('data-inline-173b'), host = details.querySelector('.add-form-173b');
   if (!host) return;
   host.replaceChildren(); addInline173b = key;
   const temp = document.createElement('div');
@@ -44,7 +44,7 @@ function addMount173b(details) {
   } else if (key === 'reminder') {
     host.innerHTML = (featureOn('sms') ? '<details class="add-subrow-173c" data-receipt-form-173c><summary>ثبت رسید ▾</summary><div class="add-receipt-form-173c"></div></details>' : '') + (featureOn('reminder') ? '<div class="add-section-173c"><b>یادآوری‌ها</b>' + addReminderSummary173c(rem) + '<details class="add-subrow-173c" data-rem-form-173c><summary>افزودن یادآوری ▾</summary><div class="add-rem-form-173c"></div></details></div>' : '') + (featureOn('sms') ? '<div class="add-section-173c"><b>رسیدها</b>' + addReceiptSummary173c(receiptArchiveItems()) + '</div>' : '');
     const receipt = host.querySelector('[data-receipt-form-173c]'), reminder = host.querySelector('[data-rem-form-173c]');
-    if (receipt) receipt.addEventListener('toggle', () => { if (receipt.open) { if (reminder) reminder.open = false; const card = document.getElementById('sms')?.closest('.card'); if (card) { card.hidden = false; receipt.querySelector('.add-receipt-form-173c').appendChild(card); const title = card.querySelector?.('b'), go = card.querySelector?.('#go'), manual = card.querySelector?.('#manual-open-159'); if (title) title.textContent = 'ثبت رسید بانکی'; if (go) go.textContent = 'ثبت رسید'; if (manual) manual.hidden = true; bindReceiptEntry173c(); } } else addRestoreReceipt173c(); });
+    if (receipt) receipt.addEventListener('toggle', () => { if (receipt.open) { if (reminder) reminder.open = false; const card = document.getElementById('sms')?.closest('.card'); if (card) { card.hidden = false; if (card.tagName === 'DETAILS') card.open = true; receipt.querySelector('.add-receipt-form-173c').appendChild(card); const title = card.querySelector?.('b'), go = card.querySelector?.('#go'), manual = card.querySelector?.('#manual-open-159'); if (title) title.textContent = 'ثبت رسید بانکی'; if (go) go.textContent = 'ثبت رسید'; if (manual) manual.hidden = true; bindReceiptEntry173c(); } } else addRestoreReceipt173c(); });
     if (reminder) reminder.addEventListener('toggle', () => { const box = reminder.querySelector('.add-rem-form-173c'); if (reminder.open) { if (receipt) receipt.open = false; temp.innerHTML = remHtml(); const form = temp.querySelector('#rt')?.closest('.card'); if (form) { box.appendChild(form); remBind(); } } else box.replaceChildren(); });
   }
   const close = document.createElement('button'); close.type = 'button'; close.className = 'sec add-close-173b'; close.textContent = 'بستن'; close.addEventListener('click', () => { details.open = false; }); host.appendChild(close);
@@ -53,12 +53,12 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
   const details = event.target;
   if (!details.matches?.('details[data-inline-173b]')) return;
   if (details.open) {
-    document.querySelectorAll('details[data-inline-173b]').forEach(other => { if (other !== details) { other.open = false; if (other.dataset.inline173b === 'reminder') addRestoreReceipt173c(); other.querySelector('.add-form-173b')?.replaceChildren(); } });
+    document.querySelectorAll('details[data-inline-173b]').forEach(other => { if (other !== details) { other.open = false; if (other.getAttribute('data-inline-173b') === 'reminder') addRestoreReceipt173c(); other.querySelector('.add-form-173b')?.replaceChildren(); } });
     addMount173b(details);
   } else {
-    if (details.dataset.inline173b === 'reminder') addRestoreReceipt173c();
+    if (details.getAttribute('data-inline-173b') === 'reminder') addRestoreReceipt173c();
     details.querySelector('.add-form-173b')?.replaceChildren();
-    if (addInline173b === details.dataset.inline173b) addInline173b = '';
+    if (addInline173b === details.getAttribute('data-inline-173b')) addInline173b = '';
   }
 }, true);
 function addTileDefinitions164() {
