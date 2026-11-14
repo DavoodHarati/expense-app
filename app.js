@@ -101,6 +101,15 @@ let tab = 'home', month = null, topic = 'expenses';
 const visibleRem157 = new Set();
 function bizEnabled() { const v = localStorage.getItem('bizMode'); return v === '1' || (v !== '0' && !!localStorage.getItem('job')); }
 const FEATURE_LABELS = { assistant: 'کارکرد همکار و دستیار', invoice: 'مشتری و فاکتور', loan: 'قرض و طلب', reminder: 'یادآور و اقساط', budget: 'بودجه', sms: 'پیامک بانکی', vehicle: 'خودرو (مدل، رنگ، نوع)' };
+const FEATURE_DESCRIPTIONS_173K = {
+  assistant: 'ثبت همکار و کارکرد، سهم همکار در فاکتور و تراکنش و گزینه‌های دستمزد پنهان می‌شوند؛ موضوع کارکردها غیرفعال می‌شود.',
+  invoice: 'ثبت فاکتور، اطلاعات مشتری و خدمت تراکنش و گزارش مشتری و خدمت پنهان می‌شوند؛ موضوع فاکتورها و فروش‌ها غیرفعال می‌شود.',
+  loan: 'گزینه‌های قرض در ثبت و ویرایش تراکنش و خلاصه قرض‌ها پنهان می‌شوند.',
+  reminder: 'ثبت یادآوری، هشدارهای خانه و تاریخ یادآوری در ویرایش تراکنش پنهان می‌شوند؛ موضوع یادآوری غیرفعال می‌شود.',
+  budget: 'بخش تنظیم بودجه پنهان می‌شود.',
+  sms: 'ثبت پیامک و رسید، بررسی رسیدها و صندوق پیامک قدیمی پنهان می‌شوند.',
+  vehicle: 'مشخصات خودرو در مخاطب و فاکتور و گزارش رانندگان پنهان می‌شوند.'
+};
 function featureOn(name) { const f = load('features', {}); return !f || typeof f !== 'object' || Array.isArray(f) || f[name] !== false; }
 let welcomeDismissed = false;
 
@@ -587,7 +596,7 @@ function _render() {
   if (tab === 'rem') { topic = 'reminders'; tab = 'home'; }
   if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
     if ((topic === 'invoices' || topic === 'sales') && tab !== 'add') {
-      const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => item.payment?.method === 'unpaid');
+      const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => invoiceIsUnpaid173k(item, tx));
       el.innerHTML = tab === 'report' ? invoiceLedgerHtml(list) + invoiceHtml() : `<div class="topic-summary"><div>${salesOnly ? 'فروش کالا' : 'فاکتورها'}</div><b>${list.length.toLocaleString('fa-IR')} فاکتور</b><div>${confirmed.length.toLocaleString('fa-IR')} تأییدشده · ${unpaid.length.toLocaleString('fa-IR')} نسیه</div></div>${!salesOnly ? `<div class="card invoice-categories"><b>دسته‌های فاکتور</b><div class="invoice-category-grid"><button type="button" class="sec invoice-open-list" data-filter="service">🔧 خدمات (${list.filter(item => (item.kind || 'خدمات') === 'خدمات').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="sale">🛒 فروش (${list.filter(item => item.kind === 'فروش').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="unpaid">📌 نسیه (${unpaid.length.toLocaleString('fa-IR')})</button></div><div class="mut">نسیه وضعیت پرداخت است و می‌تواند مربوط به خدمات یا فروش باشد.</div></div>` : ''}<div class="card"><b>آخرین ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</b>${list.slice(0, 10).map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number || '')}</b><div class="mut">${esc(item.date || '')} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div></div>`).join('') || '<div class="mut">هنوز موردی ثبت نشده است.</div>'}<button class="invoice-open-list" type="button">جست‌وجو و گزارش ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</button></div>`;
       el.classList.add('invoice-page-173e'); if (tab === 'report') el.classList.add('invoice-report-page-173e');
       el.insertAdjacentHTML('afterbegin', invoiceDashboard173e(list));
@@ -715,7 +724,7 @@ function _render() {
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
     $('#jbc').insertAdjacentHTML('beforeend', `<label style="display:block;margin-top:12px"><input id="biz-toggle" type="checkbox" style="width:auto;vertical-align:middle" ${featureOn('invoice') && featureOn('assistant') ? 'checked' : ''}> حالت کسب‌وکار</label><div class="mut">با خاموش‌کردن، بخش‌های کسب‌وکار پنهان می‌شوند و اطلاعاتشان باقی می‌ماند.</div>`);
     $('#biz-toggle').onchange = e => { const current = load('features', {}), next = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {}; next.invoice = e.target.checked; next.assistant = e.target.checked; localStorage.setItem('features', JSON.stringify(next)); localStorage.setItem('bizMode', e.target.checked ? '1' : '0'); localStorage.setItem('dirty', '1'); render(); };
-    el.insertAdjacentHTML('beforeend', `<div class="card" id="features-settings"><b>چه بخش‌هایی را می‌خواهم؟</b><div class="mut">با برداشتن تیک، بخش فقط پنهان می‌شود و اطلاعاتش باقی می‌ماند.</div><div id="features-fields">${Object.entries(FEATURE_LABELS).map(([key, label]) => `<label style="display:block;margin:9px 0"><input type="checkbox" class="feature-toggle" data-feature-name="${key}" style="width:auto" ${featureOn(key) ? 'checked' : ''}> ${label}</label>`).join('')}</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="features-settings"><b>چه بخش‌هایی را می‌خواهم؟</b><div class="mut">با برداشتن تیک، بخش فقط پنهان می‌شود و اطلاعاتش باقی می‌ماند.</div><div id="features-fields">${Object.entries(FEATURE_LABELS).map(([key, label]) => `<label style="display:block;margin:9px 0"><input type="checkbox" class="feature-toggle" data-feature-name="${key}" style="width:auto" ${featureOn(key) ? 'checked' : ''}> ${label}<small style="display:block;color:#777;font-size:12px;line-height:1.7;margin-right:24px">${FEATURE_DESCRIPTIONS_173K[key]}</small></label>`).join('')}</div></div>`);
     $('#features-fields').onchange = e => { if (!e.target.classList.contains('feature-toggle')) return; const current = load('features', {}); const next = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {}; next[e.target.dataset.featureName] = e.target.checked; localStorage.setItem('features', JSON.stringify(next)); localStorage.setItem('dirty', '1'); render(); };
     const budgetData = load('budgets', {}), budgets = budgetData && typeof budgetData === 'object' && !Array.isArray(budgetData) ? budgetData : {};
     const budgetMonth = jd(new Date()).slice(0, 7), rows = budgetRows157(CATS, budgets, tx, budgetMonth);
@@ -1131,7 +1140,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T18:44:29Z'; const BUILD_VERSION = '۱۷۳j';
+const BUILD = '2026-11-14T18:57:42Z'; const BUILD_VERSION = '۱۷۳k';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1181,7 +1190,7 @@ function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
   const work = statusMap instanceof Map ? statusMap.get(String(t.id)) : null;
   const direction = typeof transactionView173g === 'function' ? transactionView173g(t) : null;
-  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${direction ? direction.color : t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (direction ? direction.sign : t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}${direction ? ' <small>' + direction.label + '</small>' : ''}</b></div>
+  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b style="white-space:nowrap" class="${direction ? direction.color : t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (direction ? direction.sign : t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
   ${t.invoicePaymentId ? `<div class="mut">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => i.id === t.invoicePaymentId) || {}).number || t.invoicePaymentId)}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>

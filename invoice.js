@@ -101,6 +101,9 @@ function invoicePaymentStatus(item, transactions) {
   const amount = payments.reduce((sum, t) => sum + (Number(t.amount) || 0) / 10, 0);
   return { payments, amount, status: payments.length ? (amount >= Number(item.total || 0) ? 'paid' : 'partial') : 'unpaid' };
 }
+function invoiceIsUnpaid173k(item, transactions) {
+  return item.payment?.method === 'unpaid' && invoicePaymentStatus(item, transactions).status !== 'paid';
+}
 function invoiceMatchesFilters(item, transactions, filters) {
   const state = invoicePaymentStatus(item, transactions), kinds = filters.kinds || [], states = filters.states || [];
   return (!kinds.length || kinds.includes(invoiceKind(item))) && (!states.length || states.some(x => x === 'with' ? state.payments.length > 0 : x === 'without' ? !state.payments.length : x === 'partial' ? state.status === 'partial' : x === 'unpaid' ? item.payment?.method === 'unpaid' && state.status !== 'paid' : false));
@@ -230,7 +233,7 @@ function invoiceAnalytics170(list, from = '', to = '', type = 'all') {
 }
 function invoiceLedgerHtml(list = invoiceList()) {
   const confirmed = list.filter(item => item.accounting?.status === 'confirmed');
-  const unpaid = list.filter(item => item.payment?.method === 'unpaid');
+  const unpaid = list.filter(item => invoiceIsUnpaid173k(item, tx));
   const sum = (items, pick) => items.reduce((total, item) => total + (Number(pick(item)) || 0), 0).toLocaleString('fa-IR');
   const customers = new Map(), services = new Map();
   for (const item of confirmed) {
@@ -248,7 +251,7 @@ document.addEventListener('change', event => {
   box.querySelector('.invoice-report-result-170').innerHTML = invoiceAnalytics170(invoiceList().filter(i => typeof topic === 'undefined' || topic !== 'sales' || i.kind === 'فروش'), from, to, box.querySelector('.invoice-report-type-170').value);
 });
 function invoiceCreditHtml() {
-  const list = invoiceList().filter(item => item.payment?.method === 'unpaid' && invoicePaymentStatus(item, tx).status !== 'paid');
+  const list = invoiceList().filter(item => invoiceIsUnpaid173k(item, tx));
   if (!list.length) return '';
   return `<details class="card"><summary><b>🧾 فاکتورهای نسیه (${list.length.toLocaleString('fa-IR')})</b></summary><div class="mut">فاکتورهای نسیه جدا از حساب قرض هستند؛ برای تغییر وضعیت تسویه، فاکتور را ویرایش کن.</div>${list.map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number)}</b><div class="mut">${esc(item.date || '')} · ${esc(item.phone || '')} · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div><b>${Number(item.total || 0).toLocaleString('fa-IR')} تومان</b></div>`).join('')}<button type="button" class="invoice-open-list" data-filter="unpaid">بررسی فاکتورهای نسیه</button></details>`;
 }
