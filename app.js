@@ -215,9 +215,25 @@ document.addEventListener('click', event => {
   if (!item || !select || !select.value) { alert('ابتدا حساب را انتخاب کن.'); return; }
   try { if (receiptCreateTransaction(item.raw, select.value, confirm('این رسید به‌عنوان تراکنش برداشت ثبت شود؟'))) { receiptArchiveRender(document.getElementById('receipt-archive-search')?.value || ''); alert('تراکنش ثبت شد.'); } } catch (error) { alert(error.message); }
 });
+const RECEIPT_MATCH_172 = Object.freeze({ maxDaysMinutes: 4320, closeMinutes: 10, maxDifferenceRials: 1000000 });
+function rcTimestamp172(value) {
+  const text = String(value || '').replace(/[۰-۹]/g, c => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).replace(/[٠-٩]/g, c => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)));
+  const m = text.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31 || +m[4] > 23 || +m[5] > 59) return null;
+  return { day:m[1] + '/' + m[2].padStart(2,'0') + '/' + m[3].padStart(2,'0'), minutes:toMin(text) };
+}
 function rcCands(rc) {
-  const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
-  return tx.filter(t => t.type === 'debit' && !t.ghost && !t.xfer && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 1000000 && dist(t) <= 4320).sort((p, q) => dist(p) - dist(q));
+  const receiptTime = rcTimestamp172(rc.date); if (!receiptTime) return [];
+  const dist = t => Math.abs(rcTimestamp172(t.date).minutes - receiptTime.minutes);
+  const all = tx.filter(t => { const time = rcTimestamp172(t.date); return t.type === 'debit' && !t.ghost && !t.xfer && !t.receipt && time && Number.isFinite(t.amount) && t.amount >= rc.amount && t.amount - rc.amount <= RECEIPT_MATCH_172.maxDifferenceRials && Math.abs(time.minutes - receiptTime.minutes) <= RECEIPT_MATCH_172.maxDaysMinutes; }).sort((a,b) => dist(a) - dist(b));
+  const near = all.filter(t => rcTimestamp172(t.date).day === receiptTime.day && dist(t) <= RECEIPT_MATCH_172.closeMinutes);
+  return near.length ? near : all;
+}
+function rcAutoMatch172(rc, candidates) {
+  const receiptTime = rcTimestamp172(rc.date); if (!receiptTime || !rc.name || candidates.length !== 1) return null;
+  const t = candidates[0], time = rcTimestamp172(t.date);
+  const names = [t.seller, t.person, t.customer].filter(Boolean);
+  return time && time.day === receiptTime.day && Math.abs(time.minutes - receiptTime.minutes) <= RECEIPT_MATCH_172.closeMinutes && t.amount === rc.amount && names.some(name => nrm(name) === nrm(rc.name)) ? t : null;
 }
 function rcAttach(c, rc, raw) {
   const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
@@ -232,8 +248,9 @@ function rcTryPending() {
     const rc = parseReceipt(raw); if (!rc) return true;
     if (tx.some(t => t.receipt === String(raw).trim().slice(0, 1000))) return false;
     const cs = rcCands(rc);
-    if (cs.length === 1 && cs[0].amount - rc.amount <= 150000 && Math.abs(toMin(cs[0].date) - toMin(rc.date)) <= 30) {
-      rcAttach(cs[0], rc, raw); n++; return false;
+    const match = rcAutoMatch172(rc, cs);
+    if (match) {
+      rcAttach(match, rc, raw); n++; return false;
     }
     return true;
   });
@@ -244,8 +261,9 @@ function rcTryPending() {
 function rcReviewHtml() {
   return rcPending().map((raw, i) => {
     const rc = parseReceipt(raw); if (!rc) return '';
+    if (tx.some(t => t.receipt === String(raw).trim().slice(0, 1000))) return '';
     const cs = rcCands(rc); if (!cs.length) return '';
-    return `<div class="card" style="background:#eefaf6"><b>🧾 انتخاب تراکنش برای رسید</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div><div class="mut">گزینه درست را انتخاب کن؛ اختلاف مبلغ هم نمایش داده شده است.</div>${cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان · اختلاف ${toman(t.amount - rc.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}</div></span><button class="rcchoose" data-ri="${i}" data-tid="${t.id}">این است</button></div>`).join('')}</div>`;
+    return `<div class="card" style="background:#eefaf6"><b>🧾 انتخاب تراکنش برای رسید</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div><div class="mut">گزینه درست را انتخاب کن؛ اختلاف مبلغ هم نمایش داده شده است.</div>${cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان · اختلاف ${toman(t.amount - rc.amount)} تومان<div class="mut"><b>${esc(t.date)}</b> · ${esc(accName(t.account))}</div></span><button class="rcchoose" data-ri="${i}" data-tid="${t.id}">این است</button></div>`).join('')}</div>`;
   }).join('');
 }
 function rcMessage(t, rc, already) {
@@ -262,6 +280,10 @@ document.addEventListener('click', e => {
   if (!t) { render(); return; }
   rcAttach(t, rc, raw); L.splice(+b.dataset.ri, 1); localStorage.setItem('prc', JSON.stringify(L)); save(); render();
 });
+function showReceiptResult172(message) {
+  const card = document.querySelector('.add-saved-164');
+  if (card && message) { const note = document.createElement('div'); note.textContent = message; card.appendChild(note); }
+}
 function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
@@ -540,7 +562,7 @@ function _render() {
       receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
       if (tab === 'add') {
         $('#pst').onclick = async () => { try { $('#sms').value = await navigator.clipboard.readText(); } catch (_) { $('#msg').textContent = 'متن رسید را داخل کادر بچسبان.'; } };
-        $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; addSaved164('receipt'); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
+        $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { const message = $('#msg').textContent; $('#sms').value = ''; addSaved164('receipt'); showReceiptResult172(message); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
       }
       return;
     }
@@ -589,7 +611,7 @@ function _render() {
     else document.getElementById('invoice-card').hidden = true;
     $('#manual-open-159').onclick = () => { const card = document.getElementById('manual-entry-159'); if (!card) return; card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.getElementById('ma')?.focus({ preventScroll: true }); };
     $('#pst').onclick = async () => { try { const t = await navigator.clipboard.readText(); if (!t) { $('#msg').textContent = 'کلیپ‌بورد خالی است'; return; } $('#sms').value = t; $('#msg').textContent = 'چسبانده شد'; } catch (e) { $('#sms').focus(); $('#msg').textContent = 'اجازهٔ دسترسی به کلیپ‌بورد داده نشد؛ داخل کادر نگه دار و «Paste» بزن.'; } };
-    $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; addSaved164('sms'); return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; addSaved164('sms'); } };
+    $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { const message = $('#msg').textContent; $('#sms').value = ''; addSaved164('sms'); showReceiptResult172(message); return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; addSaved164('sms'); } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
     $('#mg').onclick = () => {
       const a = invoiceDigits($('#ma').value); if (!a || !Number.isSafeInteger(a * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; }
@@ -1064,7 +1086,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T13:06:00Z'; const BUILD_VERSION = '۱۷۱';
+const BUILD = '2026-11-14T13:49:37Z'; const BUILD_VERSION = '۱۷۲';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {

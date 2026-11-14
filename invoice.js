@@ -110,6 +110,42 @@ function invoiceSetPaymentLink(transaction, invoiceId) {
   if (invoiceId && transaction.invoicePaymentId && transaction.invoicePaymentId !== invoiceId) throw new Error('این تراکنش به فاکتور دیگری سنجاق شده است.');
   if (invoiceId) transaction.invoicePaymentId = invoiceId; else delete transaction.invoicePaymentId;
 }
+// Only program-generated, non-bank rows are eligible for automatic revision.
+function invoiceRowType172(row) {
+  if (!row || !row.invoiceId || !row.ghost || row.invoicePaymentId || row.receipt) return '';
+  if (['assistant_work','assistant_share','income'].includes(row.invoiceRowType)) return row.invoiceRowType;
+  return row.loan === 'share' && row.type === 'credit' ? 'assistant_work' : '';
+}
+function invoiceRows172(item, transactions) {
+  return transactions.filter(row => String(row.invoiceId || '') === String(item.id) && invoiceRowType172(row));
+}
+function invoiceDuplicates172(transactions) {
+  const groups = new Map();
+  for (const row of transactions) {
+    const type = invoiceRowType172(row); if (!type) continue;
+    const key = JSON.stringify([String(row.invoiceId),type]);
+    if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row);
+  }
+  return [...groups.values()].filter(rows => rows.length > 1);
+}
+function invoiceUpdateRows172(item, transactions) {
+  const rows = invoiceRows172(item, transactions), kinds = [...new Set(rows.map(invoiceRowType172))], changes = [];
+  for (const kind of kinds) {
+    const group = rows.filter(row => invoiceRowType172(row) === kind), primary = group.filter(row => row.invoicePrimary172 === true);
+    if (group.length > 1 && primary.length !== 1) throw new Error('ردیف تکراری پیدا شد؛ ابتدا ردیف اصلی را در بررسی تکراری‌ها مشخص کن.');
+    const row = group.length === 1 ? group[0] : primary[0], amount = kind === 'income' ? Number(item.total) : Number(item.share);
+    if ((kind === 'assistant_work' || kind === 'assistant_share') && !item.assistant) throw new Error('ردیف دستیار وجود دارد ولی دستیار فاکتور مشخص نیست؛ ابتدا بررسی کن.');
+    if (!Number.isSafeInteger(amount) || amount < 0 || !Number.isSafeInteger(amount * 10)) throw new Error('مبلغ ردیف فاکتور معتبر نیست.');
+    changes.push({ row, kind, amount });
+  }
+  for (const change of changes) {
+    change.row.amount = change.amount * 10;
+    change.row.invoiceRowType = change.kind;
+    if (change.kind !== 'income') change.row.person = item.assistant;
+    if (item.date) change.row.date = item.date + (String(change.row.date || '').match(/\s+\d{1,2}:\d{2}/)?.[0] || '');
+  }
+  return changes.length;
+}
 function invoicePaymentLabel(method) { return ({unpaid:'نسیه / پرداخت نشده',cash:'نقدی',transfer:'کارت به کارت',pos:'کارت‌خوان'})[method] || 'ثبت نشده'; }
 function invoiceHtml() {
   const contacts = load('ppl', []), peopleList = Array.isArray(contacts) ? contacts : [], assistants = Object.keys(cols());
@@ -269,6 +305,11 @@ function invoiceBind() {
   get('inv-owner-presets-170').addEventListener('click', event => { const button = event.target.closest('[data-owner-percent]'); if (!button) return; if (button.dataset.ownerPercent === 'custom') get('inv-owner-percent').focus(); else { get('inv-owner-percent').value = button.dataset.ownerPercent; invoiceRefreshTotal(); } });
   get('inv-owner-fixed-170').addEventListener('input', event => { invoiceAmountInput(event.target); invoiceRefreshTotal(); });
   const searchPanel170 = get('invoice-search-panel');
+  searchPanel170.querySelector('summary').insertAdjacentHTML('afterend', '<button type="button" class="sec" id="invoice-check-duplicates-172">بررسی تکراری‌های فاکتور</button><div id="invoice-duplicates-172" aria-live="polite"></div>');
+  const showDuplicates172 = () => {
+    const groups = invoiceDuplicates172(tx), box = get('invoice-duplicates-172');
+    box.innerHTML = groups.length ? groups.map((rows, index) => '<div class="invoice-account-box"><b>فاکتور ' + esc(rows[0].invoiceId) + ' · ' + esc(invoiceRowType172(rows[0])) + '</b><div class="mut">هیچ ردیفی حذف نمی‌شود. برای به‌روزرسانی خودکار، یک ردیف اصلی انتخاب کن؛ بقیه را جداگانه بررسی کن.</div>' + rows.map((row, rowIndex) => '<div class="row"><span>' + esc(row.person || 'بدون نام') + ' · ' + (Number(row.amount || 0) / 10).toLocaleString('fa-IR') + ' تومان · ' + esc(row.date || '') + (row.invoicePrimary172 ? ' · اصلی' : '') + '</span><button type="button" class="sec invoice-primary-172" data-group="' + index + '" data-row="' + rowIndex + '">انتخاب اصلی</button></div>').join('') + '</div>').join('') : '<div class="mut">ردیف تکراری مربوط به فاکتور پیدا نشد.</div>';
+  };
   searchPanel170.querySelector('summary').insertAdjacentHTML('afterend', '<div id="inv-types-170" class="invoice-types-170" role="group" aria-label="نوع فاکتور"><button type="button" data-invoice-type="all" aria-pressed="true">همه</button><button type="button" data-invoice-type="service" aria-pressed="false">خدماتی</button><button type="button" data-invoice-type="sale" aria-pressed="false">فروش</button><button type="button" data-invoice-type="expense" aria-pressed="false">هزینه</button></div><div id="inv-overview-170" class="invoice-overview-170"></div><label>وضعیت<select id="inv-status-170"><option value="all">همه وضعیت‌ها</option><option value="paid">پرداخت‌شده</option><option value="recorded">روش پرداخت ثبت‌شده</option><option value="unpaid">نسیه</option><option value="partial">پرداخت بخشی</option><option value="proforma">پیش‌فاکتور</option><option value="unknown">نامشخص</option></select></label><label>ماه<select id="inv-month-170"><option value="">همه ماه‌ها</option></select></label>');
   [...new Set(invoiceList().map(i => String(i.date || '').slice(0,7)).filter(m => /^\d{4}\/\d{2}$/.test(m)))].sort().reverse().forEach(m => get('inv-month-170').insertAdjacentHTML('beforeend', '<option value="' + esc(m) + '">' + esc(m) + '</option>'));
   for (const id of ['inv-status-170','inv-month-170']) get(id).addEventListener('change', () => invoiceShowList(get('inv-search').value));
@@ -312,6 +353,9 @@ function invoiceBind() {
   card.addEventListener('input', event => { if (!['inv-search','inv-filter','inv-show-all'].includes(event.target.id)) get('inv-save').disabled = false; if (event.target.classList.contains('inv-price') || event.target.id === 'inv-materials') invoiceAmountInput(event.target); if (event.target.matches('.inv-price,.inv-qty,#inv-share,#inv-materials,#inv-owner-percent')) invoiceRefreshTotal(); });
   card.addEventListener('change', event => { if (event.target.id !== 'inv-search') get('inv-save').disabled = false; if (event.target.classList.contains('inv-car-choice') && event.target.value) get(event.target.dataset.target).value = event.target.value; const isChoice = event.target.classList.contains('inv-service-choice'); if (!isChoice && !event.target.classList.contains('inv-item')) return; const row = event.target.closest('.invoice-line'); if (isChoice && event.target.value) row.querySelector('.inv-item').value = event.target.value; const item = invoiceCatalog().find(entry => entry.name === row.querySelector('.inv-item').value.trim()); if (item) row.querySelector('.inv-price').value = Number(item.price).toLocaleString('en-US'); else if (isChoice && event.target.value) row.querySelector('.inv-price').value = ''; invoiceRefreshTotal(); });
   card.addEventListener('click', event => {
+    if (event.target.closest('#invoice-check-duplicates-172')) { showDuplicates172(); return; }
+    const primary172 = event.target.closest('.invoice-primary-172');
+    if (primary172) { const group = invoiceDuplicates172(tx)[Number(primary172.dataset.group)], row = group && group[Number(primary172.dataset.row)]; if (!row) { showDuplicates172(); return; } if (!confirm('این ردیف، ردیف اصلی فاکتور باشد؟ هیچ ردیفی حذف نمی‌شود.')) return; group.forEach(entry => { entry.invoicePrimary172 = entry === row; }); save(); showDuplicates172(); return; }
     const day = event.target.closest('.inv-day'); if (day) { get('inv-date').value = invoiceDate(Number(day.dataset.days)); dateSelectors(); return; }
     const remove = event.target.closest('.inv-remove-item'); if (remove) { if (document.querySelectorAll('#invoice-lines .invoice-line').length > 1) remove.closest('.invoice-line').remove(); else alert('حداقل یک ردیف لازم است'); invoiceRefreshTotal(); return; }
     const catalog = event.target.closest('.inv-save-item'); if (catalog) { const row = catalog.closest('.invoice-line'), name = row.querySelector('.inv-item').value.trim(), price = invoiceDigits(row.querySelector('.inv-price').value); if (!name || price === null) { alert('نام و قیمت را وارد کن'); return; } const items = invoiceCatalog(), old = items.find(item => item.name === name); if (old && !confirm('قیمت ثبت‌شده برای «' + name + '» تغییر کند؟')) return; if (old) old.price = price; else items.push({ name, price }); invoiceSaveData('invoiceCatalog', items); get('invoice-items').innerHTML = invoiceOptions([...load('svq', []), ...items.map(item => item.name)]); get('inv-message').textContent = 'نام و قیمت در فهرست ذخیره شد.'; return; }
@@ -339,12 +383,14 @@ function invoiceBind() {
       get('inv-message').textContent = legacyShare ? 'این فاکتور قدیمی سهم دستیار را به مبلغ ثابت باز می‌کند؛ مبلغ قبلی حفظ شده است.' : 'فاکتور برای ویرایش باز شد؛ پس از تغییر، ذخیره را بزن.';
       card.scrollIntoView({ behavior:'smooth', block:'start' }); return;
     }
-    const approve = event.target.closest('.invoice-confirm'); if (approve) { const list = invoiceList(), item = list.find(entry => entry.id === approve.dataset.id); if (!item || !item.accounting || item.accounting.status === 'confirmed') return; try { const checked = invoiceAccount(item.total, String(item.accounting.materials), String(item.accounting.ownerPercent), item.share || 0); if (!confirm('سهم نهایی ' + checked.ownerNet.toLocaleString('fa-IR') + ' تومان در حساب فاکتورها تأیید شود؟ موجودی بانکی تغییر نمی‌کند.')) return; item.accounting = { ...checked, status:'confirmed', confirmedAt:new Date().toISOString() }; invoiceSaveData('invoices', list); invoiceShowList(get('inv-search').value); get('inv-message').textContent = '✅ فاکتور در حساب فاکتورها تأیید شد.'; } catch (error) { alert(error.message); } return; }
+    const approve = event.target.closest('.invoice-confirm'); if (approve) { if (approve.disabled) return; approve.disabled = true; try { const list = invoiceList(), item = list.find(entry => String(entry.id) === approve.dataset.id); if (!item || !item.accounting || item.accounting.status === 'confirmed') return; const checked = invoiceAccount(item.total, String(item.accounting.materials), String(item.accounting.ownerPercent), item.share || 0); if (!confirm('سهم نهایی ' + checked.ownerNet.toLocaleString('fa-IR') + ' تومان تأیید شود؟ ردیف‌های ساخته‌شدهٔ همین فاکتور به‌روز می‌شوند؛ تراکنش بانکی تغییر نمی‌کند.')) return; const updated = invoiceUpdateRows172(item, tx); item.accounting = { ...checked, status:'confirmed', confirmedAt:new Date().toISOString() }; invoiceSaveData('invoices', list); if (updated) save(); invoiceShowList(get('inv-search').value); get('inv-message').textContent = '✅ فاکتور تأیید شد' + (updated ? ' و ردیف‌های مربوط به‌روز شدند.' : '.'); } catch (error) { alert(error.message); } finally { approve.disabled = false; } return; }
     const print = event.target.closest('.invoice-print'); if (print) { const item = invoiceList().find(entry => entry.id === print.dataset.id); if (item) invoicePrint(item); return; }
     const deleted = event.target.closest('.invoice-delete'); if (deleted) { const list = invoiceList(), item = list.find(entry => entry.id === deleted.dataset.id); if (!item) return; const linked = tx.some(entry => entry.invoiceId === item.id); if (!confirm('فاکتور «' + item.number + '» حذف شود؟' + (linked ? ' کارکرد دستیار که قبلاً ثبت شده حفظ می‌شود و جداگانه باید بررسی شود.' : ''))) return; invoiceSaveData('invoices', list.filter(entry => entry.id !== item.id)); invoiceShowList(get('inv-search').value); get('inv-message').textContent = 'فاکتور حذف شد.'; return; }
-    const work = event.target.closest('.invoice-work'); if (work) { const item = invoiceList().find(entry => entry.id === work.dataset.id); if (!item || !item.assistant || !item.share) { alert('سهم دستیار باید بیشتر از صفر باشد'); return; } if (tx.some(entry => entry.invoiceId === item.id)) { alert('کارکرد این فاکتور قبلاً ثبت شده است.'); return; } if (!confirm('سهم ' + item.share.toLocaleString('fa-IR') + ' تومان برای «' + item.assistant + '» در کارکرد ثبت شود؟')) return; const source = tx.find(entry => entry.account) || {}; tx.push({ id: Date.now() + Math.random(), invoiceId: item.id, ghost: true, bank: source.bank || '', account: source.account || '', type: 'credit', amount: item.share * 10, balance: null, date: item.date + ' ' + nowStr().slice(11), cat: 'کارکرد همکار', loan: 'share', person: item.assistant, desc: 'فاکتور ' + item.number + (item.customer ? ' · ' + item.customer : ''), pending: false }); save(); alert('کارکرد ثبت شد.'); return; }
+    const work = event.target.closest('.invoice-work'); if (work) { if (work.disabled) return; work.disabled = true; try { const item = invoiceList().find(entry => String(entry.id) === work.dataset.id); if (!item || !item.assistant || !item.share || !Number.isSafeInteger(item.share * 10)) { alert('سهم دستیار باید مبلغ معتبر و بیشتر از صفر باشد'); return; } if (invoiceRows172(item, tx).some(entry => invoiceRowType172(entry) === 'assistant_work')) { alert('کارکرد این فاکتور قبلاً ثبت شده است؛ برای تغییر، فاکتور را ویرایش و دوباره تأیید کن.'); return; } if (!confirm('سهم ' + item.share.toLocaleString('fa-IR') + ' تومان برای «' + item.assistant + '» در کارکرد ثبت شود؟')) return; if (invoiceRows172(item, tx).some(entry => invoiceRowType172(entry) === 'assistant_work')) throw new Error('کارکرد این فاکتور قبلاً ثبت شده است.'); const source = tx.find(entry => entry.account) || {}; tx.push({ id: Date.now() + Math.random(), invoiceId: item.id, invoiceRowType:'assistant_work', ghost: true, bank: source.bank || '', account: source.account || '', type: 'credit', amount: item.share * 10, balance: null, date: item.date + ' ' + nowStr().slice(11), cat: 'کارکرد همکار', loan: 'share', person: item.assistant, desc: 'فاکتور ' + item.number + (item.customer ? ' · ' + item.customer : ''), pending: false }); save(); alert('کارکرد ثبت شد.'); } catch (error) { alert(error.message); } finally { work.disabled = false; } return; }
   });
   get('inv-save').onclick = () => {
+    const saveButton = get('inv-save'); if (saveButton.disabled) return; saveButton.disabled = true;
+    let committed172 = false;
     try {
       const lines = invoiceFormLines(), assistant = get('inv-assistant').value, mode = get('inv-share-mode').value, result = invoiceTotals(lines, mode, get('inv-share').value, assistant);
       invoiceOwnerSync170(result.total);
@@ -358,11 +404,12 @@ function invoiceBind() {
       if (editingInvoiceId && !previous) throw new Error('فاکتور اصلی پیدا نشد؛ تغییری ذخیره نشد');
       if (list.some(item => item.number === number && item.id !== editingInvoiceId)) throw new Error('این شماره فاکتور قبلاً ثبت شده است');
       const linked = previous && tx.some(entry => entry.invoiceId === previous.id);
-      if (previous && !confirm('تغییرات فاکتور «' + previous.number + '» ذخیره شود؟ فاکتور برای تأیید مجدد به فهرست تأییدنشده‌ها برمی‌گردد.' + (linked ? ' سهم دستیار که قبلاً در کارکرد ثبت شده خودکار تغییر نمی‌کند و باید جداگانه بررسی شود.' : ''))) return;
+      if (previous && !confirm('تغییرات فاکتور «' + previous.number + '» ذخیره شود؟ فاکتور برای تأیید مجدد به فهرست تأییدنشده‌ها برمی‌گردد.' + (linked ? ' پس از تأیید دوباره، ردیف‌های ساخته‌شدهٔ همین فاکتور به‌روز می‌شود؛ اگر تکراری باشند ابتدا ردیف اصلی را انتخاب کن.' : ''))) return;
       const item = { ...(previous || {}), id: previous?.id || 'invoice-' + Date.now() + '-' + Math.random().toString(36).slice(2), number, date: match[1] + '/' + match[2].padStart(2, '0') + '/' + match[3].padStart(2, '0'), customer: get('inv-customer').value.trim(), phone: get('inv-phone').value.trim(), ownerName: get('inv-owner-name').value.trim(), ownerPhone: get('inv-owner-phone').value.trim(), plate: get('inv-plate').value.trim(), model: get('inv-model').value.trim(), color: get('inv-color').value.trim(), carType: get('inv-car-type').value.trim(), kind: get('inv-kind').value, proforma: get('inv-proforma').checked, lines, total: result.total, assistant, share: result.share, shareMode: mode, shareValue: get('inv-share').value, payment: { ...(previous?.payment || {}), method: get('inv-payment').value, recipient: get('inv-pay-name').value.trim(), account: get('inv-pay-card').value.trim(), note: get('inv-pay-note').value.trim() }, createdAt: previous?.createdAt || new Date().toISOString() };
       item.accounting = { ...accounting, status:'pending' };
-      if (previous) list[list.indexOf(previous)] = item; else list.unshift(item); invoiceSaveData('invoices', list); editingInvoiceId = null; get('inv-save').textContent = 'ذخیره فاکتور'; get('inv-message').textContent = '✅ فاکتور ذخیره شد؛ در فهرست فاکتورها آن را بررسی و تأیید کن.'; get('inv-number').value = ''; get('inv-save').disabled = true; invoiceShowList(get('inv-search').value); if (typeof addSaved164 === 'function' && typeof tab !== 'undefined' && tab === 'add') setTimeout(() => addSaved164('invoice'), 0);
+      if (previous) list[list.indexOf(previous)] = item; else list.unshift(item); invoiceSaveData('invoices', list); committed172 = true; editingInvoiceId = null; get('inv-save').textContent = 'ذخیره فاکتور'; get('inv-message').textContent = '✅ فاکتور ذخیره شد؛ در فهرست فاکتورها آن را بررسی و تأیید کن.'; get('inv-number').value = ''; get('inv-save').disabled = true; invoiceShowList(get('inv-search').value); if (typeof addSaved164 === 'function' && typeof tab !== 'undefined' && tab === 'add') setTimeout(() => addSaved164('invoice'), 0);
     } catch (error) { get('inv-message').textContent = '⚠️ ' + (error.message || 'ذخیره فاکتور انجام نشد'); }
+    finally { saveButton.disabled = committed172; }
   };
   invoiceShowList();
 }
