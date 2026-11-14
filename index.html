@@ -64,7 +64,15 @@ details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
 </style>
 <style>.invoice-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:10px 0}.invoice-category-grid button{font-size:13px;padding:10px 8px;line-height:1.6}#invoice-card{font-size:14px;line-height:1.7}#invoice-card .mut,.invoice-ledger .mut{font-size:12px;line-height:1.75}#invoice-card input,#invoice-card select{font-size:16px}#invoice-card summary b,#inv-total{font-size:16px;color:#0f766e}.invoice-result summary b,.invoice-ledger-grid b{font-size:15px}</style><style>.diary-chips,.add-sections{display:flex;gap:8px;overflow-x:auto;padding:8px 12px;background:#fff}.diary-chips[hidden],.add-sections[hidden]{display:none}.diary-chips button,.add-sections button,.topic-nav button,nav button{min-height:44px}.diary-chips button,.add-sections button{white-space:nowrap;border-radius:22px;background:#edf3f2;color:#405652}.diary-chips button.on,.add-sections button.on{background:#0f766e;color:white}.nav-add{font-size:19px!important;font-weight:700;color:#0f766e!important}</style><style>.add-grid-164{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.add-grid-164[hidden]{display:none}.add-tile-164{display:flex;min-height:145px;align-items:flex-start;flex-direction:column;gap:10px;text-align:right;background:#fff;color:#15352f;border:1px solid #e1ece9;border-radius:18px;padding:15px;box-shadow:0 2px 8px #1231}.add-icon-164{width:72px;height:72px;border-radius:16px;background:color-mix(in srgb,var(--tile) 12%,white);color:var(--tile);display:grid;place-items:center}.add-icon-164 svg{width:36px;height:36px}.add-tile-164 b{display:block;font-size:17px;font-weight:800}.add-tile-164 small{display:block;font-size:12px;color:#64756f;margin-top:3px}.add-filter-164{display:flex;gap:8px}.add-filter-164 button,.add-back-164,.add-saved-164 button,.manual-more-164 summary{min-height:44px}.manual-more-164{padding:10px 0}.manual-more-164 summary{cursor:pointer;font-weight:bold;padding:10px 0}.add-saved-164 .row{margin-top:15px}.add-saved-164 button{flex:1}@supports not (background:color-mix(in srgb,red 12%,white)){.add-icon-164{background:#edf5f2}}</style></head>
 <body>
-<header id="title">هزینه‌ها</header>
+<style>
+.header-173a{display:flex;align-items:center;gap:8px;background:#0e7569;padding:calc(env(safe-area-inset-top) + 7px) 12px 7px;font-weight:600}
+.header-173a #title{flex:1;text-align:right}.header-actions-173a{display:flex;align-items:center;gap:0;direction:rtl}
+.header-icon-173a{width:44px;height:44px;display:grid;place-items:center;background:transparent;padding:0}.header-icon-173a span{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#ffffff26;font-size:17px}.header-icon-173a:disabled{opacity:.65}
+nav{align-items:center;justify-content:space-around;z-index:5;padding:8px 0 calc(8px + env(safe-area-inset-bottom));direction:rtl}
+nav button:not(.nav-add){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;min-height:44px;font-size:20px}nav button small{font-size:12px}
+nav button.nav-add,nav button.nav-add.on{flex:none;width:46px;height:46px;min-height:46px;margin:-22px 12px 0;border-radius:50%;background:#0e7569;color:#fff!important;box-shadow:0 3px 8px #0e756955;padding:0;display:grid;place-items:center;font-size:26px!important;font-weight:300;line-height:1}
+</style>
+<header class="header-173a"><span id="title">هزینه‌ها</span><div class="header-actions-173a"><button type="button" class="header-icon-173a" id="search-173a" aria-label="جستجو؛ به‌زودی" title="جستجو در مرحله بعد" disabled><span>🔍</span></button><button type="button" class="header-icon-173a" data-t="contacts" aria-label="اشخاص"><span>👤</span></button><button type="button" class="header-icon-173a" data-t="settings" aria-label="تنظیمات"><span>⚙️</span></button></div></header>
 <div class="diary-chips" id="diary-chips" hidden aria-label="بخش دفتر"><button type="button" data-t="report">گزارش</button><button type="button" data-t="contacts">اشخاص</button></div>
 <div class="topic-nav" id="topics" aria-label="موضوع برنامه">
   <button type="button" data-topic="expenses">هزینه‌ها</button>
@@ -77,29 +85,27 @@ details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
 <div class="add-sections" id="add-sections" hidden aria-label="انتخاب بخش ثبت"><button type="button" data-add-topic="expenses">همه</button><button type="button" data-add-topic="receipts">رسید</button><button type="button" data-add-topic="invoices">فاکتورها</button><button type="button" data-add-topic="work">کارکردها</button><button type="button" data-add-topic="sales">فروش‌ها</button><button type="button" data-add-topic="reminders">یادآوری</button></div>
 <main id="app"></main>
 <nav>
-  <button data-t="home">خانه</button>
-  <button data-t="report">گزارش</button>
-  <button data-t="add" class="nav-add">＋ ثبت</button>
-  <button data-t="contacts">اشخاص</button>
-  <button data-t="settings">تنظیمات</button>
+  <button type="button" data-t="home"><span aria-hidden="true">⌂</span><small>خانه</small></button>
+  <button type="button" data-t="add" class="nav-add" aria-label="ثبت"><span>+</span></button>
+  <button type="button" data-t="report"><span aria-hidden="true">▥</span><small>گزارش</small></button>
 </nav>
 <script src="xlsx.full.min.js"></script>
-<script src="sheet-safety.js?v=172"></script>
-<script src="account-owner-lock.js?v=172"></script>
-<script src="account-switch-backup.js?v=172"></script>
-<script src="account-switch.js?v=172"></script>
-<script src="parser.js?v=172"></script>
-<script src="direct-sync-core.js?v=172"></script>
-<script src="legacy-reference.js?v=172"></script>
-<script src="direct-sync-ui.js?v=172"></script>
-<script src="direct-sync-auto.js?v=172"></script>
-<script src="direct-sync-receive.js?v=172"></script>
-<script src="invoice.js?v=172"></script>
-<script src="legacy-inbox.js?v=172"></script>
-<script src="easy-google-setup.js?v=172"></script>
-<script src="features-157.js?v=172"></script>
-<script src="add-page-164.js?v=172"></script>
-<script src="connection-hub-168.js?v=172"></script>
-<script src="app.js?v=172"></script>
+<script src="sheet-safety.js?v=173a"></script>
+<script src="account-owner-lock.js?v=173a"></script>
+<script src="account-switch-backup.js?v=173a"></script>
+<script src="account-switch.js?v=173a"></script>
+<script src="parser.js?v=173a"></script>
+<script src="direct-sync-core.js?v=173a"></script>
+<script src="legacy-reference.js?v=173a"></script>
+<script src="direct-sync-ui.js?v=173a"></script>
+<script src="direct-sync-auto.js?v=173a"></script>
+<script src="direct-sync-receive.js?v=173a"></script>
+<script src="invoice.js?v=173a"></script>
+<script src="legacy-inbox.js?v=173a"></script>
+<script src="easy-google-setup.js?v=173a"></script>
+<script src="features-157.js?v=173a"></script>
+<script src="add-page-164.js?v=173a"></script>
+<script src="connection-hub-168.js?v=173a"></script>
+<script src="app.js?v=173a"></script>
 </body>
 </html>

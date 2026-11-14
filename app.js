@@ -1086,7 +1086,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T13:49:37Z'; const BUILD_VERSION = '۱۷۲';
+const BUILD = '2026-11-14T14:25:47Z'; const BUILD_VERSION = '۱۷۳a';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1323,7 +1323,7 @@ document.addEventListener('click', async e => {
   const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
   const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; lp = null; render(); window.scrollTo(0, 0); return; }
   const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button, .header-173a button[data-t]'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
