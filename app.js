@@ -1086,7 +1086,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T14:25:47Z'; const BUILD_VERSION = '۱۷۳a';
+const BUILD = '2026-11-14T14:44:44Z'; const BUILD_VERSION = '۱۷۳b';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1323,7 +1323,7 @@ document.addEventListener('click', async e => {
   const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
   const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; lp = null; render(); window.scrollTo(0, 0); return; }
   const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button, .header-173a button[data-t]'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button, .header-173a button[data-t]'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { topic = 'expenses'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
@@ -2104,7 +2104,7 @@ function contactsHtml() {
 const carRow = c => `<div class="crow row" style="flex-wrap:wrap;gap:4px;margin:6px 0;border-bottom:1px solid #eee;padding-bottom:6px"><input class="cp" placeholder="پلاک" value="${esc(c.plate || '')}"><input class="cm" list="car-model-list" placeholder="مدل" value="${esc(c.model || '')}"><datalist id="car-model-list">${carModels().map(m => `<option value="${esc(m)}">`).join('')}</datalist><input class="cc" placeholder="رنگ" value="${esc(c.color || '')}"><input class="ct" placeholder="نوع (کامیون، وانت…)" value="${esc(c.type || '')}"><button class="sec cdel">✕</button></div>`;
 const pRead = () => ({ cars: [...document.querySelectorAll('#cl .crow')].map(r => ({ plate: pfa(r.querySelector('.cp').value.trim()), model: r.querySelector('.cm').value.trim(), color: r.querySelector('.cc').value.trim(), type: r.querySelector('.ct').value.trim() })).filter(c => c.plate || c.model || c.color || c.type), name: $('#pn').value.trim(), phone: pfa($('#pp').value.trim()), cards: $('#pcards').value.split(/\n/).map(idDigits).filter(Boolean), note: $('#pno').value.trim(), tags: [...document.querySelectorAll('#pform .ptg:not(.sec)')].map(b => b.dataset.t) });
 document.addEventListener('click', e => {
-  if (tab !== 'contacts') return;
+  if (tab !== 'contacts' && !(tab === 'add' && addInline173b === 'contact' && e.target.closest('[data-inline-173b="contact"]'))) return;
   const g = s => e.target.closest(s);
   if (g('.pmatchsave')) {
     ppl = load('ppl', []); const proposals = reconcileContacts(), i = +g('.pmatchsave').dataset.index, item = proposals[i];
@@ -2120,7 +2120,7 @@ document.addEventListener('click', e => {
   if (g('#pnew')) { pe = 'new'; pEditing = true; render(); return; }
   if (g('#pedit')) { pEditing = true; render(); return; }
   if (g('#pback')) { pe = null; pEditing = false; render(); return; }
-  if (g('#pcn')) { if (pe === 'new') { if (Object.values(pRead()).some(v => Array.isArray(v) ? v.length : !!v) && !confirm('اطلاعات ذخیره نشده است. فرم بسته شود؟')) return; pe = null; } else { const old = ppl.find(x => x.id === pe), d = pRead(); if (old && JSON.stringify({name:old.name || '',phone:old.phone || '',cards:old.cards || [],tags:old.tags || [],cars:old.cars || [],note:old.note || ''}) !== JSON.stringify({name:d.name,phone:d.phone,cards:d.cards,tags:d.tags,cars:d.cars,note:d.note}) && !confirm('تغییرات ذخیره نشده است. ویرایش بسته شود؟')) return; } pEditing = false; render(); return; }
+  if (g('#pcn')) { if (pe === 'new') { if (Object.values(pRead()).some(v => Array.isArray(v) ? v.length : !!v) && !confirm('اطلاعات ذخیره نشده است. فرم بسته شود؟')) return; pe = null; } else { const old = ppl.find(x => x.id === pe), d = pRead(); if (old && JSON.stringify({name:old.name || '',phone:old.phone || '',cards:old.cards || [],tags:old.tags || [],cars:old.cars || [],note:old.note || ''}) !== JSON.stringify({name:d.name,phone:d.phone,cards:d.cards,tags:d.tags,cars:d.cars,note:d.note}) && !confirm('تغییرات ذخیره نشده است. ویرایش بسته شود؟')) return; } pEditing = false; if (tab === 'add') { const row = g('[data-inline-173b="contact"]'); if (row) row.open = false; return; } render(); return; }
   if (g('.pfl')) { pf = g('.pfl').dataset.t; render(); return; }
   if (g('.cadd')) { $('#cl').insertAdjacentHTML('beforeend', carRow({ model: carModels().includes('اسکانیا') ? 'اسکانیا' : (carModels()[0] || '') })); return; }
   if (g('.cdel')) { g('.crow').remove(); return; }

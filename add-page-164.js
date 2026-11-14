@@ -1,5 +1,51 @@
 'use strict';
 let addMode164 = 'menu', addSavedMode164 = '', addReceiptFilter164 = 'all';
+let addInline173b = '';
+function addGroups173b() {
+  const row = (key, title) => '<details class="add-row-173b" data-inline-173b="' + key + '"><summary><span>' + title + '</span><span aria-hidden="true">▾</span></summary><div class="add-form-173b"></div></details>';
+  return '<div class="add-groups-173b"><div class="add-group-label-173b">افراد</div>' + row('contact','ثبت مخاطب') + (featureOn('assistant') ? row('assistant','ثبت دستیار / همکار') : '') + (featureOn('assistant') ? '<div class="add-group-label-173b">کار</div>' + row('work','ثبت کارکرد') : '') + (featureOn('reminder') ? '<div class="add-group-label-173b">یادآوری</div>' + row('reminder','ثبت یادآوری') : '') + '</div>';
+}
+function addMount173b(details) {
+  const key = details.dataset.inline173b, host = details.querySelector('.add-form-173b');
+  if (!host) return;
+  host.replaceChildren(); addInline173b = key;
+  const temp = document.createElement('div');
+  if (key === 'contact') {
+    cv = 'list'; pe = 'new'; pEditing = true;
+    temp.innerHTML = contactsHtml();
+    const form = temp.querySelector('#pform'); if (form) host.appendChild(form);
+  } else if (key === 'assistant') {
+    const previous = lp; lp = null; temp.innerHTML = loansHtml(); lp = previous;
+    const form = temp.querySelector('#nadd')?.closest('details');
+    if (form) { form.open = true; host.appendChild(form); }
+  } else if (key === 'work') {
+    const names = Object.keys(cols()); lp = names.includes(lp) ? lp : '';
+    const label = document.createElement('label'); label.textContent = 'دستیار / همکار';
+    const select = document.createElement('select'); select.id = 'add-work-person-173b';
+    const empty = document.createElement('option'); empty.value = ''; empty.textContent = 'انتخاب دستیار'; select.appendChild(empty);
+    names.forEach(name => { const option = document.createElement('option'); option.value = name; option.textContent = name; select.appendChild(option); });
+    select.value = lp || ''; label.appendChild(select); host.appendChild(label);
+    const formHost = document.createElement('div'); host.appendChild(formHost);
+    const showWork = () => { lp = select.value; formHost.replaceChildren(); if (!lp) return; temp.innerHTML = loansHtml(); const form = temp.querySelector('#wadd')?.closest('details'); if (form) { form.open = true; formHost.appendChild(form); } };
+    select.addEventListener('change', showWork); showWork();
+    if (!names.length) { const hint = document.createElement('div'); hint.className = 'mut'; hint.textContent = 'ابتدا یک دستیار ثبت کن.'; host.appendChild(hint); }
+  } else if (key === 'reminder') {
+    temp.innerHTML = remHtml(); const form = temp.querySelector('#rt')?.closest('.card');
+    if (form) { host.appendChild(form); remBind(); }
+  }
+  const close = document.createElement('button'); close.type = 'button'; close.className = 'sec add-close-173b'; close.textContent = 'بستن'; close.addEventListener('click', () => { details.open = false; }); host.appendChild(close);
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('toggle', event => {
+  const details = event.target;
+  if (!details.matches?.('details[data-inline-173b]')) return;
+  if (details.open) {
+    document.querySelectorAll('details[data-inline-173b]').forEach(other => { if (other !== details) { other.open = false; other.querySelector('.add-form-173b')?.replaceChildren(); } });
+    addMount173b(details);
+  } else {
+    details.querySelector('.add-form-173b')?.replaceChildren();
+    if (addInline173b === details.dataset.inline173b) addInline173b = '';
+  }
+}, true);
 function addTileDefinitions164() {
   return [
     { id:'sms', title:'چسباندن پیامک', description:'ثبت پیامک بانکی', color:'#12815f', icon:'<path d="M4 5h16v11H9l-5 4V5z"/><path d="M7 9h10M7 12h7"/>' },
@@ -28,15 +74,16 @@ function addPage164() {
   const children = [...el.children], invoice = document.getElementById('invoice-card'), manual = document.getElementById('manual-entry-159');
   const sms = document.getElementById('sms')?.closest('.card');
   if ((addMode164 === 'manual' || (addMode164 === 'menu' && addReceiptFilter164 === 'all')) && manual) addManualFields164(manual);
-  let chosen = addMode164 === 'menu' && addReceiptFilter164 === 'all' ? manual : addMode164 === 'manual' ? manual : addMode164 === 'sms' || addMode164 === 'receipt' ? sms : addMode164 === 'invoice' ? invoice : null;
+  let chosen = addMode164 === 'manual' ? manual : addMode164 === 'sms' || addMode164 === 'receipt' ? sms : addMode164 === 'invoice' ? invoice : null;
   if (addMode164 === 'receipt') chosen = null;
   for (const child of children) child.hidden = !(chosen && (child === chosen || child.contains(chosen))) && addMode164 !== 'receipt';
   if (chosen && chosen.tagName === 'DETAILS') chosen.open = true;
   if (addMode164 === 'invoice' && invoice) { invoice.hidden = false; invoice.open = true; const search = document.getElementById('invoice-search-panel'); if (search) search.hidden = true; }
   if (addMode164 === 'receipt') { for (const child of children) { child.hidden = child !== sms && !child.contains(sms); if (!child.hidden && child.tagName === 'DETAILS') child.open = true; } }
   if (addMode164 === 'menu') {
-    const tiles = addTileDefinitions164().filter(t => addTileVisible164(t.id, featureOn)).map(t => '<button type="button" class="add-tile-164" data-add-mode="' + t.id + '"><span class="add-icon-164" style="--tile:' + t.color + '"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + t.icon + '</svg></span><span><b>' + t.title + '</b><small>' + t.description + '</small></span></button>').join('');
-    el.insertAdjacentHTML('afterbegin', '<div id="add-hub-164"><div class="add-grid-164">' + tiles + '</div></div>');
+    const labels173b = {sms:['💬','ثبت پیامک'],manual:['✍️','ثبت دستی'],invoice:['🧾','فاکتور جدید'],receipt:['📎','ثبت رسید']};
+    const tiles = addTileDefinitions164().filter(t => addTileVisible164(t.id, featureOn)).map(t => '<button type="button" class="add-tile-164" data-add-mode="' + t.id + '"><span class="add-icon-164" style="--tile:' + t.color + '" aria-hidden="true">' + labels173b[t.id][0] + '</span><span><b>' + labels173b[t.id][1] + '</b><small>' + t.description + '</small></span></button>').join('');
+    el.insertAdjacentHTML('afterbegin', '<div id="add-hub-164"><div class="add-grid-164">' + tiles + '</div>' + (addReceiptFilter164 === 'all' ? addGroups173b() : '') + '</div>');
     if (addReceiptFilter164 === 'receipt' && featureOn('sms')) { const grid = el.querySelector('.add-grid-164'); grid.hidden = true; el.querySelector('#add-hub-164').insertAdjacentHTML('beforeend', receiptArchiveHtml()); const box = el.querySelector('#add-hub-164 details'); box.open = true; receiptArchiveRender(''); document.getElementById('receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); if (!receiptArchiveItems().length) document.getElementById('receipt-archive-results').innerHTML = '<div class="mut">هنوز چیزی ثبت نشده</div><button type="button" data-add-mode="receipt">شروع</button>'; }
   } else if (addMode164 === 'saved') {
     el.insertAdjacentHTML('afterbegin', '<div class="card add-saved-164" role="status"><b>ذخیره شد ✅</b><div class="row"><button type="button" data-add-action="again">یکی دیگر</button><button type="button" class="sec" data-add-action="back">بازگشت</button></div></div>');
