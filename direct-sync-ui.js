@@ -221,6 +221,7 @@ function directSyncAuthorize(action, requestConsent = false) {
           const user = await userResponse.json(); if (!user.email) throw new Error('ایمیل حساب مشخص نشد'); accountOwnerIdentify(user.email);
           let state = load('directSyncState', null);
           if (action === 'create') {
+            if (!await sheetConfirmCreate()) { directSyncMessage('ساخت لغو شد.'); return; }
             if (!confirm('شیت جدید و جدا در حساب ' + user.email + ' ساخته شود؟ شیت فعلی تغییر نمی‌کند.')) { directSyncMessage('ساخت لغو شد.'); return; }
             directSyncMessage('در حال ساخت شیت جدا…');
             localStorage.setItem('directSyncCreatePending', '1'); pending = true;
@@ -228,6 +229,7 @@ function directSyncAuthorize(action, requestConsent = false) {
             if (!result.ok) { if (result.status < 500) { localStorage.removeItem('directSyncCreatePending'); pending = false; } throw new Error('ساخت شیت انجام نشد (کد ' + result.status + ')'); }
             const sheet = await result.json();
             if (!/^[A-Za-z0-9_-]+$/.test(sheet.spreadsheetId || '')) throw new Error('شناسه شیت دریافت نشد');
+            sheetRegistryRecord(sheet.spreadsheetId, 'هزینه‌ها - اتصال مستقیم آزمایشی');
             state = { id: sheet.spreadsheetId, email: user.email, base: '' };
             localStorage.setItem('directSyncState', JSON.stringify(state)); localStorage.removeItem('directSyncCreatePending'); pending = false; directSyncLink(state);
             const setup = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(state.id) + '/values/' + encodeURIComponent("'DirectSync'!A1:B1") + '?valueInputOption=RAW', { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [['expense-direct-sync', '1']] }) });

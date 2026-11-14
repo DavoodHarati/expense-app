@@ -2,7 +2,7 @@
 
 // Only Google userinfo and Sheets metadata are read here. Tokens stay in memory.
 const CONNECTION_TYPE_KEY = 'connectionType168';
-let hubSession = null, hubGeneration = 0, hubNotice = '';
+let hubSession = null, hubGeneration = 0, hubNotice = '', hubCandidate = '';
 let hubResult = { state: 'unchecked', reason: '', checkedAt: 0, signature: '' };
 
 function hubType() {
@@ -43,7 +43,34 @@ function hubStages() {
   const wasAllowed = (!!ready.ready && String(ready.email || '').toLowerCase() === t.email.toLowerCase()) || localStorage.getItem('hubAllowed168') === (easyState().mainUrl ? easyState().mainUrl + '|' + t.email.toLowerCase() : 'NO_URL');
   const allowed = signed && wasAllowed;
   const sheet = allowed && /iMmTHhko$/.test(t.id);
-  return { backup, signed, allowed, sheet, read:sheet && connectionStatus().state === 'connected' };
+  const verifiedSheet = allowed && !hubCandidate && (sheet || /^[A-Za-z0-9_-]{1,256}$/.test(t.id));
+  return { backup, signed, allowed, sheet:verifiedSheet, read:verifiedSheet && connectionStatus().state === 'connected' };
+}
+async function hubCheckCandidate() {
+  const target = hubTarget(), candidate = hubCandidate, session = hubToken(target);
+  if (!candidate || !session || !hubStages().allowed) return;
+  if (typeof accountOwnerLocked === 'function' && accountOwnerLocked()) { hubNotice = 'ابتدا مشکل حساب را حل کن؛ انتخاب ذخیره نشد.'; hubUpdate(); return; }
+  const same = () => hubCandidate === candidate && hubTarget().type === target.type && hubTarget().email.toLowerCase() === target.email.toLowerCase() && hubToken(hubTarget()) === session;
+  const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(candidate), headers = { Authorization:'Bearer ' + session.token };
+  try {
+    hubNotice = 'در حال خواندن نام شیت و تعداد تراکنش‌ها…'; hubUpdate();
+    const metadata = await fetch(base + '?fields=spreadsheetId,properties(title),sheets(properties(title))', { method:'GET', headers, cache:'no-store' });
+    if (!metadata.ok) throw new Error('خواندن شیت انجام نشد (کد ' + metadata.status + ').');
+    const info = await metadata.json();
+    if (info.spreadsheetId !== candidate || !info.properties || typeof info.properties.title !== 'string' || !Array.isArray(info.sheets)) throw new Error('اطلاعات شیت کامل دریافت نشد.');
+    let count = 0;
+    if (info.sheets.some(item => item.properties && item.properties.title === 'Transactions')) {
+      const response = await fetch(base + '/values/' + encodeURIComponent("'Transactions'!A2:N"), { method:'GET', headers, cache:'no-store' });
+      if (!response.ok) throw new Error('خواندن تراکنش‌ها انجام نشد (کد ' + response.status + ').');
+      const data = await response.json(); if (data.values && !Array.isArray(data.values)) throw new Error('فهرست تراکنش‌ها نامعتبر است.');
+      count = (data.values || []).filter(row => Array.isArray(row) && row.some(cell => String(cell ?? '').trim())).length;
+    }
+    if (!same()) return;
+    const description = 'نام شیت: ' + info.properties.title + '\nردیف‌های دارای داده در Transactions: ' + count.toLocaleString('fa-IR') + '\nاین همان شیت است؟';
+    if (!confirm(description) || !same()) { hubNotice = 'انتخاب ذخیره نشد.'; hubUpdate(); return; }
+    localStorage.setItem('hubSheet168', candidate); hubCandidate = ''; hubNotice = 'شیت انتخاب شد: ' + info.properties.title + ' · تراکنش‌ها: ' + count.toLocaleString('fa-IR');
+    await hubCheck();
+  } catch (error) { if (same()) { hubNotice = (error && error.message || 'بررسی شیت انجام نشد.') + ' انتخاب ذخیره نشد.'; hubUpdate(); } }
 }
 async function hubCheck() {
   const target = hubTarget(), signature = hubSignature(target), generation = ++hubGeneration;
@@ -90,23 +117,23 @@ function hubRender(el) {
   const button = (id, label, disabled) => '<button type="button" class="hub-action-168" id="' + id + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>';
   const step = (label, complete) => '<div class="hub-step-168">' + (complete ? '✅ ' : '⏳ ') + label + '</div>';
   let content = '';
-  if (t.type === 'easy') content = step('۱. پشتیبان', backup) + button('hub-backup', 'گرفتن پشتیبان', false) + button('hub-backup-confirm', 'پشتیبان را در فایل‌ها ذخیره کردم', !localStorage.getItem('lastBackupAt')) + step('۲. ورود به گوگل', signed) + '<label>ایمیل حساب <input id="hub-email" type="email" dir="ltr" value="' + esc(t.email) + '" ' + (!backup ? 'disabled' : '') + '></label>' + button('hub-email-save', 'ثبت حساب', !backup) + button('hub-signin', 'ورود به گوگل', !backup || !t.email) + step('۳. اجازه در Safari', allowed) + button('hub-authorization', 'باز کردن مرحله اجازه', !signed || !easyState().mainUrl) + button('hub-allowed', 'اجازه دادم', !signed || !easyState().mainUrl) + step('۴. انتخاب شیت …iMmTHhko', sheet) + '<label>لینک یا شناسه شیت <input id="hub-sheet" dir="ltr" value="' + esc(t.id) + '" ' + (!allowed ? 'disabled' : '') + '></label>' + button('hub-sheet-save', 'انتخاب این شیت', !allowed) + step('۵. تست خواندن', stages.read) + button('hub-check', 'بررسی خواندن', false) + (hubNotice ? '<div class="hub-notice-168" role="status">' + esc(hubNotice) + '</div>' : '') + (!signed && hubNotice ? button('hub-check-signin', 'ورود به گوگل', !backup || !t.email) : '') + '<div class="hub-step-168">۶. انتقال داده: به‌زودی</div><button type="button" disabled>به‌زودی</button><hr>' + button('hub-easy-tools', 'ابزار اتصال آسان موجود', !backup);
+  if (t.type === 'easy') content = step('۱. پشتیبان', backup) + button('hub-backup', 'گرفتن پشتیبان', false) + button('hub-backup-confirm', 'پشتیبان را در فایل‌ها ذخیره کردم', !localStorage.getItem('lastBackupAt')) + step('۲. ورود به گوگل', signed) + '<label>ایمیل حساب <input id="hub-email" type="email" dir="ltr" value="' + esc(t.email) + '" ' + (!backup ? 'disabled' : '') + '></label>' + button('hub-email-save', 'ثبت حساب', !backup) + button('hub-signin', 'ورود به گوگل', !backup || !t.email) + step('۳. اجازه در Safari', allowed) + button('hub-authorization', 'باز کردن مرحله اجازه', !signed || !easyState().mainUrl) + button('hub-allowed', 'اجازه دادم', !signed || !easyState().mainUrl) + step('۴. انتخاب شیت …iMmTHhko', sheet) + '<label>لینک یا شناسه شیت <input id="hub-sheet" dir="ltr" value="' + esc(hubCandidate || t.id) + '" ' + (!allowed ? 'disabled' : '') + '></label>' + button('hub-sheet-save', 'انتخاب این شیت', !allowed) + step('۵. تست خواندن', stages.read) + button('hub-check', 'بررسی خواندن', false) + (hubNotice ? '<div class="hub-notice-168" role="status">' + esc(hubNotice) + '</div>' : '') + (!signed && hubNotice ? button('hub-check-signin', 'ورود به گوگل', !backup || !t.email) : '') + '<div class="hub-step-168">۶. انتقال داده: به‌زودی</div><button type="button" disabled>به‌زودی</button><hr>' + button('hub-easy-tools', 'ابزار اتصال آسان موجود', !backup);
   else { const legacySigned = !!hubToken(t) && String(hubToken(t).email || '').toLowerCase() === t.email.toLowerCase(); content = step('۱. ورود به حساب', legacySigned) + button('hub-signin', 'دوباره وارد شو', !t.email) + step('۲. بررسی خواندن شیت', legacySigned && status.state === 'connected') + button('hub-check', 'بررسی خواندن', false) + (hubNotice ? '<div class="hub-notice-168" role="status">' + esc(hubNotice) + '</div>' : '') + (!legacySigned && hubNotice ? button('hub-check-signin', 'ورود به گوگل', !t.email) : '') + (t.type === 'legacy' ? '<div class="mut">این بررسی فقط خواندنی است.</div>' : ''); }
   const choice = (kind, label, description) => '<button type="button" class="hub-choice-168 ' + (t.type === kind ? 'selected' : '') + '" id="hub-type-' + kind + '" aria-pressed="' + (t.type === kind) + '"><strong>' + label + '</strong><span>' + description + '</span></button>';
   el.innerHTML = '<b>انتخاب نوع اتصال</b><div class="mut">' + esc(t.label) + ' · ' + esc(t.email || 'حساب مشخص نشده') + ' · ' + esc(t.id ? 'شیت …' + t.id.slice(-8) : 'شیت مشخص نشده') + '</div><div class="hub-choices-168">' + choice('easy', 'اتصال آسان · پیشنهادی', 'انتخاب این روش و دیدن مراحل') + choice('legacy', 'اتصال قدیمی', 'فقط بررسی خواندنی') + '<button type="button" id="hub-type-direct" hidden>مستقیم (آزمایشی)</button></div><div class="hub-selected-168">' + esc(t.label) + ' انتخاب شده است؛ مراحل زیر را به‌ترتیب انجام بده.</div>' + content;
 }
 document.addEventListener('click', e => {
   const id = (e.target.closest('button') || e.target).id;
-  if (id === 'hub-type-easy' || id === 'hub-type-legacy' || id === 'hub-type-direct') { const next = id.slice(9); if (hubType() !== next) { localStorage.setItem(CONNECTION_TYPE_KEY, next); hubSession = null; } hubNotice = ''; ['easy-setup', 'legacy-sync-settings', 'direct-sync'].forEach(key => { const card = document.getElementById(key); if (card) card.hidden = true; }); hubUpdate(); }
+  if (id === 'hub-type-easy' || id === 'hub-type-legacy' || id === 'hub-type-direct') { const next = id.slice(9); if (hubType() !== next) { localStorage.setItem(CONNECTION_TYPE_KEY, next); hubSession = null; hubCandidate = ''; } hubNotice = ''; hubUpdate(); }
   if (id === 'hub-signin' || id === 'hub-fix' || id === 'hub-check-signin') { if (hubType() === 'easy' && !hubStages().backup) { hubNotice = 'ابتدا پشتیبان مرحله ۱ را بگیر و ذخیره کن.'; hubUpdate(); } else hubSignIn(); }
-  if (id === 'hub-check') { const target = hubTarget(), session = hubToken(target), stages = hubStages(); if (!session || String(session.email || '').toLowerCase() !== target.email.toLowerCase()) { hubNotice = 'اول در مرحله ۲ وارد شو'; hubUpdate(); } else if (target.type === 'easy' && !stages.sheet) { hubNotice = !stages.backup ? 'ابتدا پشتیبان مرحله ۱ را کامل کن.' : !stages.allowed ? 'ابتدا مرحله ۳ اجازه را کامل کن.' : 'ابتدا شیت مرحله ۴ را انتخاب کن.'; hubUpdate(); } else { hubNotice = ''; hubCheck(); } }
+  if (id === 'hub-check') { const target = hubTarget(), session = hubToken(target), stages = hubStages(); if (!session || String(session.email || '').toLowerCase() !== target.email.toLowerCase()) { hubNotice = 'اول در مرحله ۲ وارد شو'; hubUpdate(); } else if (target.type === 'easy' && !stages.allowed) { hubNotice = !stages.backup ? 'ابتدا پشتیبان مرحله ۱ را کامل کن.' : 'ابتدا مرحله ۳ اجازه را کامل کن.'; hubUpdate(); } else if (target.type === 'easy' && hubCandidate) { void hubCheckCandidate(); } else if (target.type === 'easy' && !stages.sheet) { hubNotice = 'ابتدا شیت مرحله ۴ را انتخاب کن.'; hubUpdate(); } else { hubNotice = ''; hubCheck(); } }
   if (id === 'hub-backup') { const b = document.getElementById('full-backup'); if (b) { b.click(); hubUpdate(); } }
   if (id === 'hub-backup-confirm' && localStorage.getItem('lastBackupAt')) { localStorage.setItem('hubBackupConfirmed168', '1'); hubUpdate(); }
-  if (id === 'hub-email-save' && hubStages().backup) { const value = document.getElementById('hub-email').value.trim(); if (!easyEmailValid(value)) { alert('ایمیل معتبر وارد کن.'); return; } localStorage.setItem('hubEmail168', value); hubSession = null; hubCheck(); }
-  if (id === 'hub-sheet-save' && hubStages().allowed) { const value = document.getElementById('hub-sheet').value.trim(), match = value.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/), sheetId = match ? match[1] : value; if (!/^[A-Za-z0-9_-]*iMmTHhko$/.test(sheetId)) { alert('شناسه یا لینک شیتی را وارد کن که به iMmTHhko ختم می‌شود.'); return; } localStorage.setItem('hubSheet168', sheetId); hubCheck(); }
+  if (id === 'hub-email-save' && hubStages().backup) { const value = document.getElementById('hub-email').value.trim(); if (!easyEmailValid(value)) { alert('ایمیل معتبر وارد کن.'); return; } localStorage.setItem('hubEmail168', value); hubSession = null; hubCandidate = ''; hubCheck(); }
+  if (id === 'hub-sheet-save' && hubStages().allowed) { const value = document.getElementById('hub-sheet').value.trim(), match = value.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/), sheetId = match ? match[1] : value; if (!/^[A-Za-z0-9_-]{1,256}$/.test(sheetId)) { alert('شناسه یا لینک شیت معتبر نیست.'); return; } hubCandidate = sheetId; hubNotice = 'برای دیدن نام و تعداد تراکنش‌ها «بررسی خواندن» را بزن.'; hubUpdate(); }
   if (id === 'hub-authorization' && hubStages().signed) { try { window.open(easyAuthUrl(easyState().mainUrl, hubTarget().email), '_blank', 'noopener'); } catch (_) { alert('نشانی صفحه اجازه مشخص نیست.'); } }
   if (id === 'hub-allowed' && hubStages().signed) { if (easyState().mainUrl) localStorage.setItem('hubAllowed168', easyState().mainUrl + '|' + hubTarget().email.toLowerCase()); hubUpdate(); }
-  if (id === 'hub-easy-tools') { const card = document.getElementById('easy-setup'), group = document.getElementById('settings-advanced'), sync = document.getElementById('legacy-sync-settings'); if (group) group.open = true; if (sync && localStorage.getItem('legacySyncPaused') === '1') sync.hidden = false; if (card) { card.hidden = false; card.open = true; card.scrollIntoView({ behavior:'smooth' }); } }
+  if (id === 'hub-easy-tools') { const card = document.getElementById('easy-setup'), group = document.getElementById('settings-experimental'), sync = document.getElementById('legacy-sync-settings'); if (group) group.open = true; if (sync && localStorage.getItem('legacySyncPaused') === '1') sync.hidden = false; if (card) { card.hidden = false; card.open = true; card.scrollIntoView({ behavior:'smooth' }); } }
 });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') hubCheck(); });
 setTimeout(hubCheck, 0);

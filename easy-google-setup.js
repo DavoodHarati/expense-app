@@ -134,7 +134,7 @@ function easyAdminPrepare() {
   const list = document.getElementById('easy-admin-list'), copy = document.getElementById('easy-admin-copy'), status = document.getElementById('easy-admin-status');
   if (!input || !add || !list || !copy || !status) return;
   const info = document.getElementById('easy-admin-info'), stamp = Number(localStorage.getItem('lastSync'));
-  if (info) info.textContent = 'نسخه: ۱۶۸ · کش: exp-v168-fix1 · اتصال آسان: ' + (easyWizardState().ready ? 'آماده' : 'آماده نیست') + ' · ارسال خودکار نشست: ' + (typeof directAutoSession !== 'undefined' && directAutoSession ? 'فعال' : 'غیرفعال') + ' · آخرین همگام‌سازی: ' + (stamp ? new Date(stamp).toLocaleString('fa-IR') : 'نامشخص') + ' · ادغام دسته‌ها: ' + (localStorage.getItem('categoryMerge155Done') === '1' ? 'انجام شد' : 'انجام نشده') + ' · پیامک ناشناخته: ' + (typeof log !== 'undefined' ? log.filter(x => String(x.msg || '').includes('نفهمیدم')).length : 0);
+  if (info) info.textContent = 'نسخه: ۱۶۸ · کش: exp-v168-fix2 · اتصال آسان: ' + (easyWizardState().ready ? 'آماده' : 'آماده نیست') + ' · ارسال خودکار نشست: ' + (typeof directAutoSession !== 'undefined' && directAutoSession ? 'فعال' : 'غیرفعال') + ' · آخرین همگام‌سازی: ' + (stamp ? new Date(stamp).toLocaleString('fa-IR') : 'نامشخص') + ' · ادغام دسته‌ها: ' + (localStorage.getItem('categoryMerge155Done') === '1' ? 'انجام شد' : 'انجام نشده') + ' · پیامک ناشناخته: ' + (typeof log !== 'undefined' ? log.filter(x => String(x.msg || '').includes('نفهمیدم')).length : 0);
   const reset = document.getElementById('easy-admin-reset'), backup = document.getElementById('easy-admin-backup');
   if (reset) reset.onclick = () => { if (easyWizardState().owner) document.getElementById('easy-setup-reset')?.click(); };
   if (backup) backup.onclick = () => { if (easyWizardState().owner) document.getElementById('category-download')?.click(); };
@@ -266,8 +266,9 @@ async function easyRun(token, email) {
     catch (error) { if (error.definite) { state.pending=''; easySave(state); } throw error; }
   }
   if (!state.sheetId) {
+    if (!await sheetConfirmCreate()) { easyMessage('ساخت شیت لغو شد.'); return; }
     easyMessage('۱ از ۴: در حال ساخت شیت آزمایشی خالی…');
-    await createStep('ساخت شیت',()=>easyApi(token,'https://sheets.googleapis.com/v4/spreadsheets','POST',{properties:{title:'هزینه‌ها - آزمایش اتصال آسان'}}),r=>{if(!/^[\w-]+$/.test(r.spreadsheetId||'')) throw new Error('شناسه شیت دریافت نشد');state.sheetId=r.spreadsheetId;});
+    await createStep('ساخت شیت',()=>easyApi(token,'https://sheets.googleapis.com/v4/spreadsheets','POST',{properties:{title:'هزینه‌ها - آزمایش اتصال آسان'}}),r=>{if(!/^[\w-]+$/.test(r.spreadsheetId||'')) throw new Error('شناسه شیت دریافت نشد');state.sheetId=r.spreadsheetId;sheetRegistryRecord(state.sheetId,'هزینه‌ها - آزمایش اتصال آسان');});
   }
   if (!state.scriptId) {
     easyMessage('۲ از ۴: در حال ساخت پروژه اسکریپت آزمایشی…');

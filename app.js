@@ -841,7 +841,8 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
     el.insertAdjacentHTML('afterbegin', '<div class="card" id="connection-hub-168"></div>');
     hubRender(document.getElementById('connection-hub-168'));
-    ['legacy-sync-settings', 'google-test', 'google-copy', 'direct-sync', 'easy-setup', 'welcome-sync'].forEach(id => { const card = document.getElementById(id); if (card) card.hidden = true; });
+    ['legacy-sync-settings', 'welcome-sync'].forEach(id => { const card = document.getElementById(id); if (card) card.hidden = true; });
+    sheetRegistryRender();
     refreshInfo159();
     const budgetCard = document.getElementById('budget-settings'); if (budgetCard) budgetCard.hidden = !featureOn('budget');
     const inboxCard = document.getElementById('legacy-inbox'); if (inboxCard) inboxCard.hidden = !featureOn('sms');
@@ -853,20 +854,22 @@ function _render() {
 function settingsLayout(el) {
   const cards = [...el.children].filter(c => c.tagName === 'DETAILS');
   const admin = el.querySelector ? el.querySelector('#easy-admin') : null;
-  const groups = [ ['settings-simple', 'تنظیمات ساده'], ['settings-tools', 'ابزارهای پرکاربرد'], ['settings-advanced', 'پیشرفته و حرفه‌ای'], ['settings-admin', 'مدیریت'] ].map(([id, text]) => {
+  const groups = [ ['settings-simple', 'تنظیمات ساده'], ['settings-tools', 'ابزارهای پرکاربرد'], ['settings-advanced', 'پیشرفته و حرفه‌ای'], ['settings-admin', 'مدیریت'], ['settings-experimental', 'ابزارهای آزمایشی'] ].map(([id, text]) => {
     const group = document.createElement('details'); group.className = 'card'; group.id = id;
     const summary = document.createElement('summary'); summary.textContent = text; group.appendChild(summary); return group;
   });
   const advanced = new Set(['legacy-sync-settings', 'google-test', 'google-copy', 'direct-sync', 'easy-setup', 'dpc']);
+  const experimental = new Set(['google-test', 'google-copy', 'direct-sync', 'easy-setup']);
   const tools = new Set(['legacy-inbox', 'budget-settings']);
   cards.forEach(card => {
     const title = (card.querySelector('summary')?.textContent || '').trim();
-    const group = advanced.has(card.id) || /پشتیبان|بازگردانی|پاک.سازی|شروع از صفر|کد راه‌اندازی/.test(title) ? groups[2]
+    const group = experimental.has(card.id) ? groups[4] : advanced.has(card.id) || /پشتیبان|بازگردانی|پاک.سازی|شروع از صفر|کد راه‌اندازی/.test(title) ? groups[2]
       : tools.has(card.id) || /نام حساب|پیامک‌های دریافتی|یادآور/.test(title) ? groups[1] : groups[0];
     group.appendChild(card);
   });
   if (admin) { groups[3].appendChild(admin); groups[3].hidden = admin.hidden; }
   else groups[3].hidden = true;
+  const registry = document.createElement('div'); registry.id = 'sheet-registry-168'; groups[4].appendChild(registry);
   groups.forEach(group => el.appendChild(group));
 }
 
@@ -1038,7 +1041,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-13T20:45:42Z'; const BUILD_VERSION = '۱۶۸';
+const BUILD = '2026-11-14T09:52:06Z'; const BUILD_VERSION = '۱۶۸';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1376,11 +1379,13 @@ function prepareGoogleTest() {
               const userResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
               if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
               const user = await userResponse.json(); accountOwnerIdentify(user.email); if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
+              if (!await sheetConfirmCreate()) { googleSheetStatus('ساخت شیت لغو شد.'); return; }
               googleSheetStatus('در حال ساخت شیت خالی برای ' + user.email + '…');
               localStorage.setItem('googleTestSheetPending', '1'); attempted = true;
               const created = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - شیت آزمایشی' } }) });
               if (!created.ok) { if (created.status < 500) { localStorage.removeItem('googleTestSheetPending'); attempted = false; } throw new Error('گوگل درخواست ساخت را نپذیرفت (کد ' + created.status + ')'); }
               const sheet = await created.json(); if (!sheet.spreadsheetId || !/^[a-zA-Z0-9_-]+$/.test(sheet.spreadsheetId)) throw new Error('شناسه شیت در پاسخ گوگل نبود');
+              sheetRegistryRecord(sheet.spreadsheetId, 'هزینه‌ها - شیت آزمایشی');
               localStorage.setItem('googleTestSheet', JSON.stringify({ id: sheet.spreadsheetId, email: user.email }));
               localStorage.removeItem('googleTestSheetPending'); attempted = false;
               const check = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.spreadsheetId) + '?fields=spreadsheetId,properties.title', { headers: auth }).catch(() => null);
@@ -1594,6 +1599,7 @@ function googleCreateBackupCopy() {
           if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
           const user = await userResponse.json(); accountOwnerIdentify(user.email);
           if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
+          if (!await sheetConfirmCreate()) { googleCopyStatus('ساخت پشتیبان لغو شد.'); return; }
           const snapshot = makeFullBackup();
           ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy', 'accountArchives'].forEach(key => delete snapshot.data[key]);
           validateFullBackup(snapshot);
@@ -1603,11 +1609,13 @@ function googleCreateBackupCopy() {
           const rows = [['format', 'expense-app-backup-v1'], ['chunks', String(chunks.length)], ...chunks.map((chunk, index) => [String(index + 1), chunk])];
           googleCopyStatus('در حال ساخت شیت پشتیبان جداگانه…');
           localStorage.setItem('googleBackupCopyPending', '1'); attempted = true;
-          const created = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - پشتیبان ' + new Date().toISOString() }, sheets: [{ properties: { title: 'Backup' } }] }) });
+          const backupSheetName = 'هزینه‌ها - پشتیبان ' + new Date().toISOString();
+          const created = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: backupSheetName }, sheets: [{ properties: { title: 'Backup' } }] }) });
           if (!created.ok) { if (created.status < 500) { localStorage.removeItem('googleBackupCopyPending'); attempted = false; } throw new Error('ساخت شیت پذیرفته نشد (کد ' + created.status + ')'); }
           const sheet = await created.json();
           if (!/^[a-zA-Z0-9_-]+$/.test(sheet.spreadsheetId || '')) throw new Error('شناسه شیت دریافت نشد');
           createdId = sheet.spreadsheetId;
+          sheetRegistryRecord(createdId, sheet.properties?.title || backupSheetName);
           localStorage.setItem('googleBackupCopy', JSON.stringify({ id: createdId, email: user.email, verified: false }));
           localStorage.removeItem('googleBackupCopyPending'); attempted = false;
           const link = document.getElementById('google-copy-link'); if (link) link.innerHTML = googleCopyLink();
