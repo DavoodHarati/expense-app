@@ -3,7 +3,19 @@ let addMode164 = 'menu', addSavedMode164 = '', addReceiptFilter164 = 'all';
 let addInline173b = '';
 function addGroups173b() {
   const row = (key, title) => '<details class="add-row-173b" data-inline-173b="' + key + '"><summary><span>' + title + '</span><span aria-hidden="true">▾</span></summary><div class="add-form-173b"></div></details>';
-  return '<div class="add-groups-173b"><div class="add-group-label-173b">افراد</div>' + row('contact','ثبت مخاطب') + (featureOn('assistant') ? row('assistant','ثبت دستیار / همکار') : '') + (featureOn('assistant') ? '<div class="add-group-label-173b">کار</div>' + row('work','ثبت کارکرد') : '') + (featureOn('reminder') ? '<div class="add-group-label-173b">یادآوری</div>' + row('reminder','ثبت یادآوری') : '') + '</div>';
+  return '<div class="add-groups-173b"><div class="add-group-label-173b">افراد</div>' + row('contact','ثبت مخاطب') + (featureOn('assistant') ? row('assistant','ثبت دستیار / همکار') : '') + (featureOn('assistant') ? '<div class="add-group-label-173b">کار</div>' + row('work','ثبت کارکرد') : '') + ((featureOn('reminder') || featureOn('sms')) ? '<div class="add-group-label-173b">یادآوری</div>' + row('reminder','یادآوری و رسیدها') : '') + '</div>';
+}
+function addReminderSummary173c(items) {
+  const rows = items.map(r => ({ r, due:nextDue(r) })).sort((a,b) => a.due.d - b.due.d);
+  return rows.length ? rows.map(({r,due}) => '<div class="add-summary-173c"><b>' + esc(r.title || 'یادآوری') + '</b><div class="mut">' + (r.amount ? toman(r.amount * 10) + ' تومان · ' : '') + esc(fa(due.d)) + (r.done ? ' · انجام‌شده' : '') + '</div></div>').join('') : '<div class="mut">موردی نیست</div>';
+}
+function addReceiptSummary173c(items) {
+  const rows = items.map(item => { const raw = String(item.raw || '').trim(), parsed = parseReceipt(raw), match = tx.find(t => t.receipt === raw.slice(0,1000)), date = parsed?.date || match?.date || '', time = rcTimestamp172(date); return { item, parsed, match, date, order:time?.minutes ?? 0 }; }).sort((a,b) => b.order - a.order || (Number(b.item.at) || 0) - (Number(a.item.at) || 0));
+  return rows.length ? rows.map(({parsed,match,date}) => { const status = match ? 'وصل‌شده' : parsed && rcCands(parsed).length ? 'پیشنهاد دارد' : 'بدون تطبیق'; const amount = parsed?.amount || match?.amount; return '<div class="add-summary-173c"><b>' + esc(parsed?.name || 'رسید') + '</b><div class="mut">' + (amount ? toman(amount) + ' تومان · ' : '') + esc(date || 'تاریخ و ساعت نامشخص') + ' · ' + status + '</div></div>'; }).join('') : '<div class="mut">موردی نیست</div>';
+}
+function addRestoreReceipt173c() {
+  const card = document.getElementById('sms')?.closest('.card');
+  if (card?.closest('[data-receipt-form-173c]')) { card.hidden = true; document.getElementById('app')?.appendChild(card); }
 }
 function addMount173b(details) {
   const key = details.dataset.inline173b, host = details.querySelector('.add-form-173b');
@@ -30,8 +42,10 @@ function addMount173b(details) {
     select.addEventListener('change', showWork); showWork();
     if (!names.length) { const hint = document.createElement('div'); hint.className = 'mut'; hint.textContent = 'ابتدا یک دستیار ثبت کن.'; host.appendChild(hint); }
   } else if (key === 'reminder') {
-    temp.innerHTML = remHtml(); const form = temp.querySelector('#rt')?.closest('.card');
-    if (form) { host.appendChild(form); remBind(); }
+    host.innerHTML = (featureOn('sms') ? '<details class="add-subrow-173c" data-receipt-form-173c><summary>ثبت رسید ▾</summary><div class="add-receipt-form-173c"></div></details>' : '') + (featureOn('reminder') ? '<div class="add-section-173c"><b>یادآوری‌ها</b>' + addReminderSummary173c(rem) + '<details class="add-subrow-173c" data-rem-form-173c><summary>افزودن یادآوری ▾</summary><div class="add-rem-form-173c"></div></details></div>' : '') + (featureOn('sms') ? '<div class="add-section-173c"><b>رسیدها</b>' + addReceiptSummary173c(receiptArchiveItems()) + '</div>' : '');
+    const receipt = host.querySelector('[data-receipt-form-173c]'), reminder = host.querySelector('[data-rem-form-173c]');
+    if (receipt) receipt.addEventListener('toggle', () => { if (receipt.open) { if (reminder) reminder.open = false; const card = document.getElementById('sms')?.closest('.card'); if (card) { card.hidden = false; receipt.querySelector('.add-receipt-form-173c').appendChild(card); const title = card.querySelector?.('b'), go = card.querySelector?.('#go'), manual = card.querySelector?.('#manual-open-159'); if (title) title.textContent = 'ثبت رسید بانکی'; if (go) go.textContent = 'ثبت رسید'; if (manual) manual.hidden = true; bindReceiptEntry173c(); } } else addRestoreReceipt173c(); });
+    if (reminder) reminder.addEventListener('toggle', () => { const box = reminder.querySelector('.add-rem-form-173c'); if (reminder.open) { if (receipt) receipt.open = false; temp.innerHTML = remHtml(); const form = temp.querySelector('#rt')?.closest('.card'); if (form) { box.appendChild(form); remBind(); } } else box.replaceChildren(); });
   }
   const close = document.createElement('button'); close.type = 'button'; close.className = 'sec add-close-173b'; close.textContent = 'بستن'; close.addEventListener('click', () => { details.open = false; }); host.appendChild(close);
 }
@@ -39,9 +53,10 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
   const details = event.target;
   if (!details.matches?.('details[data-inline-173b]')) return;
   if (details.open) {
-    document.querySelectorAll('details[data-inline-173b]').forEach(other => { if (other !== details) { other.open = false; other.querySelector('.add-form-173b')?.replaceChildren(); } });
+    document.querySelectorAll('details[data-inline-173b]').forEach(other => { if (other !== details) { other.open = false; if (other.dataset.inline173b === 'reminder') addRestoreReceipt173c(); other.querySelector('.add-form-173b')?.replaceChildren(); } });
     addMount173b(details);
   } else {
+    if (details.dataset.inline173b === 'reminder') addRestoreReceipt173c();
     details.querySelector('.add-form-173b')?.replaceChildren();
     if (addInline173b === details.dataset.inline173b) addInline173b = '';
   }
@@ -82,7 +97,7 @@ function addPage164() {
   if (addMode164 === 'receipt') { for (const child of children) { child.hidden = child !== sms && !child.contains(sms); if (!child.hidden && child.tagName === 'DETAILS') child.open = true; } }
   if (addMode164 === 'menu') {
     const labels173b = {sms:['💬','ثبت پیامک'],manual:['✍️','ثبت دستی'],invoice:['🧾','فاکتور جدید'],receipt:['📎','ثبت رسید']};
-    const tiles = addTileDefinitions164().filter(t => addTileVisible164(t.id, featureOn)).map(t => '<button type="button" class="add-tile-164" data-add-mode="' + t.id + '"><span class="add-icon-164" style="--tile:' + t.color + '" aria-hidden="true">' + labels173b[t.id][0] + '</span><span><b>' + labels173b[t.id][1] + '</b><small>' + t.description + '</small></span></button>').join('');
+    const tiles = addTileDefinitions164().filter(t => t.id !== 'receipt' && addTileVisible164(t.id, featureOn)).map(t => '<button type="button" class="add-tile-164" data-add-mode="' + t.id + '"><span class="add-icon-164" style="--tile:' + t.color + '" aria-hidden="true">' + labels173b[t.id][0] + '</span><span><b>' + labels173b[t.id][1] + '</b><small>' + t.description + '</small></span></button>').join('');
     el.insertAdjacentHTML('afterbegin', '<div id="add-hub-164"><div class="add-grid-164">' + tiles + '</div>' + (addReceiptFilter164 === 'all' ? addGroups173b() : '') + '</div>');
     if (addReceiptFilter164 === 'receipt' && featureOn('sms')) { const grid = el.querySelector('.add-grid-164'); grid.hidden = true; el.querySelector('#add-hub-164').insertAdjacentHTML('beforeend', receiptArchiveHtml()); const box = el.querySelector('#add-hub-164 details'); box.open = true; receiptArchiveRender(''); document.getElementById('receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); if (!receiptArchiveItems().length) document.getElementById('receipt-archive-results').innerHTML = '<div class="mut">هنوز چیزی ثبت نشده</div><button type="button" data-add-mode="receipt">شروع</button>'; }
   } else if (addMode164 === 'saved') {

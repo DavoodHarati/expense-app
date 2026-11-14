@@ -284,6 +284,10 @@ function showReceiptResult172(message) {
   const card = document.querySelector('.add-saved-164');
   if (card && message) { const note = document.createElement('div'); note.textContent = message; card.appendChild(note); }
 }
+function bindReceiptEntry173c() {
+  $('#pst').onclick = async () => { try { $('#sms').value = await navigator.clipboard.readText(); } catch (_) { $('#msg').textContent = 'متن رسید را داخل کادر بچسبان.'; } };
+  $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { const message = $('#msg').textContent; $('#sms').value = ''; addSaved164('receipt'); showReceiptResult172(message); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
+}
 function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
@@ -561,8 +565,7 @@ function _render() {
       el.innerHTML = `${tab === 'add' ? '<div class="card"><b>ثبت رسید بانکی</b><textarea id="sms" rows="5" placeholder="متن پیامک رسید را اینجا بچسبان"></textarea><div class="topic-actions"><button id="go">ثبت رسید</button><button id="pst" class="sec">چسباندن</button></div><div id="msg" class="mut"></div></div>' : ''}${receiptArchiveHtml()}${tab === 'home' ? rcReviewHtml() : ''}`;
       receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
       if (tab === 'add') {
-        $('#pst').onclick = async () => { try { $('#sms').value = await navigator.clipboard.readText(); } catch (_) { $('#msg').textContent = 'متن رسید را داخل کادر بچسبان.'; } };
-        $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { const message = $('#msg').textContent; $('#sms').value = ''; addSaved164('receipt'); showReceiptResult172(message); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
+        bindReceiptEntry173c();
       }
       return;
     }
@@ -574,7 +577,8 @@ function _render() {
       return;
     }
     if (topic === 'reminders') {
-      el.innerHTML = remHtml(); accordion(el, 'rem'); remBind();
+      el.innerHTML = remHtml() + (tab !== 'add' && featureOn('sms') ? rcReviewHtml() + receiptArchiveHtml() : ''); accordion(el, 'rem'); remBind();
+      const receiptSearch = document.getElementById('receipt-archive-search'); if (receiptSearch) { receiptArchiveRender(''); receiptSearch.oninput = e => receiptArchiveRender(e.target.value); }
       const form = $('#rt').closest('.card');
       if (tab === 'add') { [...el.children].forEach(child => { if (child !== form) child.hidden = true; }); form.open = true; }
       else form.hidden = true;
@@ -1086,7 +1090,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T14:44:44Z'; const BUILD_VERSION = '۱۷۳b';
+const BUILD = '2026-11-14T15:02:30Z'; const BUILD_VERSION = '۱۷۳c';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
