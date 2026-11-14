@@ -1097,7 +1097,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T17:49:15Z'; const BUILD_VERSION = '۱۷۳g';
+const BUILD = '2026-11-14T18:10:59Z'; const BUILD_VERSION = '۱۷۳h';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
