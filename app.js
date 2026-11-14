@@ -841,6 +841,13 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
     el.insertAdjacentHTML('afterbegin', '<div class="card" id="connection-hub-168"></div>');
     hubRender(document.getElementById('connection-hub-168'));
+    const connectionGroup170 = document.createElement('details');
+    connectionGroup170.id = 'settings-connection-170'; connectionGroup170.className = 'card';
+    connectionGroup170.innerHTML = '<summary>اتصال به گوگل</summary>';
+    const connectionHub170 = document.getElementById('connection-hub-168');
+    connectionHub170.replaceWith(connectionGroup170); connectionGroup170.appendChild(connectionHub170);
+    const info170 = document.getElementById('settings-info'); if (info170) el.prepend(info170);
+    settingsAccordion170(el);
     ['legacy-sync-settings', 'welcome-sync'].forEach(id => { const card = document.getElementById(id); if (card) card.hidden = true; });
     sheetRegistryRender();
     refreshInfo159();
@@ -854,7 +861,7 @@ function _render() {
 function settingsLayout(el) {
   const cards = [...el.children].filter(c => c.tagName === 'DETAILS');
   const admin = el.querySelector ? el.querySelector('#easy-admin') : null;
-  const groups = [ ['settings-simple', 'تنظیمات ساده'], ['settings-tools', 'ابزارهای پرکاربرد'], ['settings-advanced', 'پیشرفته و حرفه‌ای'], ['settings-admin', 'مدیریت'], ['settings-experimental', 'ابزارهای آزمایشی'] ].map(([id, text]) => {
+  const groups = [ ['settings-simple', 'ظاهر و ویژگی‌ها'], ['settings-tools', 'حساب و ابزارها'], ['settings-advanced', 'پشتیبان و تنظیمات پیشرفته'], ['settings-admin', 'مدیریت'], ['settings-experimental', 'ابزارهای آزمایشی'] ].map(([id, text]) => {
     const group = document.createElement('details'); group.className = 'card'; group.id = id;
     const summary = document.createElement('summary'); summary.textContent = text; group.appendChild(summary); return group;
   });
@@ -871,6 +878,18 @@ function settingsLayout(el) {
   else groups[3].hidden = true;
   const registry = document.createElement('div'); registry.id = 'sheet-registry-168'; groups[4].appendChild(registry);
   groups.forEach(group => el.appendChild(group));
+}
+let settingsOpen170 = '';
+function settingsAccordion170(el) {
+  const groups = [...el.children].filter(node => node.tagName === 'DETAILS');
+  groups.forEach(group => {
+    group.open = !!settingsOpen170 && group.id === settingsOpen170;
+    group.addEventListener('toggle', () => {
+      if (!group.open) { if (settingsOpen170 === group.id) settingsOpen170 = ''; return; }
+      settingsOpen170 = group.id;
+      groups.forEach(other => { if (other !== group) other.open = false; });
+    });
+  });
 }
 
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
@@ -1041,7 +1060,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T09:52:06Z'; const BUILD_VERSION = '۱۶۸';
+const BUILD = '2026-11-14T12:32:47Z'; const BUILD_VERSION = '۱۷۰';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
