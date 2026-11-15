@@ -1289,6 +1289,7 @@ function driversHtml() {
   const rows = Object.entries(m).sort((a, b) => b[1].yr - a[1].yr);
   return `<details class="card"><summary><b>🚚 رانندگان (مشتری‌های خدماتی)</b></summary><div class="mut">مرتب بر اساس واریزی امسال؛ ماه و سال از ماه انتخاب‌شده</div>${rows.map(([n, r], i) => `<div style="margin-top:10px"><div class="row"><b>${i + 1}. ${esc(n)}</b>${r.ph ? `<a href="tel:${esc(r.ph)}">${esc(r.ph)}</a>` : ''}</div><div class="row mut"><span>این ماه: <b class="grn">${toman(r.mo)}</b></span><span>امسال: <b class="grn">${toman(r.yr)}</b></span></div><div class="mut">کل: ${toman(r.all)} · ${r.n.toLocaleString('fa-IR')} بار</div></div>`).join('')}</details>`;
 }
+function reportTransactions173q(items) { return items.filter(t => !t.ghost && t.loan !== 'share'); }
 function reportHtml() {
   const base = tx.filter(t => isSel(t.account));
   const months = [...new Set(tx.map(monthOf))].sort().reverse();
@@ -1325,7 +1326,7 @@ function reportHtml() {
   ${incBy.cu.length ? `<details class="card"${featureOn('invoice') ? '' : ' hidden'}><summary><b>💰 درآمد به تفکیک مشتری</b></summary>${incBy.cu.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
   ${incBy.sv.length ? `<details class="card"${featureOn('invoice') ? '' : ' hidden'}><summary><b>🔧 درآمد به تفکیک خدمت</b></summary>${incBy.sv.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
   <details class="card"${featureOn('invoice') ? '' : ' hidden'}><summary><b>🔍 جستجوی مشتری / خدمت</b></summary><input id="cq" placeholder="نام مشتری، خدمت یا شرح..."><div id="cqr"></div></details>
-  <h3>تراکنش‌ها</h3>${ordBar()}${ordTx(list).map(rowHtml).join('')}`;
+  <h3>تراکنش‌ها</h3>${ordBar()}${ordTx(reportTransactions173q(list)).map(rowHtml).join('')}`;
 }
 
 document.addEventListener('change', e => {
