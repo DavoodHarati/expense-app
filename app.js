@@ -621,16 +621,16 @@ function _render() {
   if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
     if ((topic === 'invoices' || topic === 'sales') && tab !== 'add') {
       const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => invoiceIsUnpaid173k(item, tx));
-      el.innerHTML = tab === 'report' ? invoiceLedgerHtml(list) + invoiceHtml() : `<div class="topic-summary"><div>${salesOnly ? 'فروش کالا' : 'فاکتورها'}</div><b>${list.length.toLocaleString('fa-IR')} فاکتور</b><div>${confirmed.length.toLocaleString('fa-IR')} تأییدشده · ${unpaid.length.toLocaleString('fa-IR')} نسیه</div></div>${!salesOnly ? `<div class="card invoice-categories"><b>دسته‌های فاکتور</b><div class="invoice-category-grid"><button type="button" class="sec invoice-open-list" data-filter="service">🔧 خدمات (${list.filter(item => (item.kind || 'خدمات') === 'خدمات').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="sale">🛒 فروش (${list.filter(item => item.kind === 'فروش').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="unpaid">📌 نسیه (${unpaid.length.toLocaleString('fa-IR')})</button></div><div class="mut">نسیه وضعیت پرداخت است و می‌تواند مربوط به خدمات یا فروش باشد.</div></div>` : ''}<div class="card"><b>آخرین ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</b>${list.slice(0, 10).map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number || '')}</b><div class="mut">${esc(item.date || '')} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div></div>`).join('') || '<div class="mut">هنوز موردی ثبت نشده است.</div>'}<button class="invoice-open-list" type="button">جست‌وجو و گزارش ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</button></div>`;
-      el.classList.add('invoice-page-173e'); if (tab === 'report') el.classList.add('invoice-report-page-173e');
-      el.insertAdjacentHTML('afterbegin', invoiceDashboard173e(list));
-      if (tab === 'report') {
+      el.innerHTML = (tab === 'home' ? statusCard() : '') + invoiceLedgerHtml(list) + invoiceHtml();
+      el.classList.add('invoice-page-173e', 'invoice-report-page-173e');
+      {
         invoiceBind(); document.getElementById('invoice-card').open = true;
         document.getElementById('invoice-form-fields').hidden = true;
         const panel = document.getElementById('invoice-search-panel'); panel.open = false;
         panel.querySelector('summary b').textContent = 'فیلتر ماه و وضعیت';
         panel.after(document.getElementById('inv-results'));
         panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-show-all').checked = true;
+         const duplicateTools = document.createElement('details'); duplicateTools.className = 'card'; duplicateTools.innerHTML = '<summary>ابزار بررسی فاکتورها</summary>'; duplicateTools.append(document.getElementById('invoice-check-duplicates-172'), document.getElementById('invoice-duplicates-172')); panel.after(duplicateTools);
         const ledger = el.querySelector('.invoice-ledger'); if (ledger) ledger.before(document.getElementById('invoice-card'));
         invoiceShowList('');
       }
@@ -648,11 +648,11 @@ function _render() {
       const relevant = tx.filter(item => item.loan && LOAN[item.loan] && isWage(item));
       const title = 'حساب دستیاران و کارکردها';
       const summary = tab === 'report' ? `<div class="topic-summary"><div>گزارش ${title}</div><b>${relevant.length.toLocaleString('fa-IR')} ردیف</b><div>جزئیات و مانده هر شخص جداگانه در حساب او نمایش داده می‌شود.</div></div>` : '';
-      el.innerHTML = summary + `<div class="topic-heading">${title} · برای ثبت یا مشاهده جزئیات، حساب شخص را باز کن.</div>` + loansHtml();
+      el.innerHTML = (tab === 'home' ? statusCard() : '') + summary + `<div class="topic-heading">${title} · برای ثبت یا مشاهده جزئیات، حساب شخص را باز کن.</div>` + loansHtml();
       return;
     }
     if (topic === 'reminders') {
-      el.innerHTML = remHtml() + (tab !== 'add' && featureOn('sms') ? rcReviewHtml() + receiptArchiveHtml() : ''); accordion(el, 'rem'); remBind();
+      el.innerHTML = (tab === 'home' ? statusCard() : '') + remHtml() + (tab !== 'add' && featureOn('sms') ? rcReviewHtml() + receiptArchiveHtml() : ''); accordion(el, 'rem'); remBind();
       const receiptSearch = document.getElementById('receipt-archive-search'); if (receiptSearch) { receiptArchiveRender(''); receiptSearch.oninput = e => receiptArchiveRender(e.target.value); }
       const form = $('#rt').closest('.card');
       if (tab === 'add') { [...el.children].forEach(child => { if (child !== form) child.hidden = true; }); form.open = true; }
@@ -1135,10 +1135,14 @@ function homeSyncStatus() {
 }
 function statusCard() {
   const l = log[0], lt = tx.reduce((m, t) => (t.id > (m?.id || 0) ? t : m), null);
+  const lastInvoice = (topic === 'invoices' || topic === 'sales') ? invoiceList().filter(i => topic !== 'sales' || i.kind === 'فروش').slice(-1)[0] : null;
+  const lastWork = topic === 'work' ? tx.filter(t => t.loan && isWage(t)).slice(-1)[0] : null;
+  const lastReminder = topic === 'reminders' ? rem.slice(-1)[0] : null;
+  const subjectStatus = lastInvoice ? `آخرین فاکتور: ${esc(lastInvoice.customer || 'بدون نام')} · ${esc(lastInvoice.date || '')}` : lastWork ? `آخرین کارکرد: ${esc(lastWork.person || '')} · ${esc(lastWork.date || '')}` : lastReminder ? `آخرین یادآوری: ${esc(lastReminder.title || '')}` : topic !== 'expenses' ? 'هنوز موردی در این بخش ثبت نشده است.' : '';
   return `<div class="card"><b>آخرین وضعیت</b>
    <div class="mut" style="margin-top:6px">آخرین پیامک رسیده: ${l ? fmt(l.at) + ' · ' + (l.ok ? '✅ ' : '⚠️ ') + esc(l.msg) : 'هنوز نیامده'}</div>
    <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? fmt(lt.id) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
-   <div class="mut" id="home-sync-status">${esc(homeSyncStatus())}</div>
+   <div class="mut" id="home-sync-status">${esc(homeSyncStatus())}</div>${subjectStatus ? `<div class="mut">${subjectStatus}</div>` : ''}
    ${load('directSyncState', null)?.id ? `<button type="button" id="home-direct-start" style="margin-top:8px" ${directAutoSession ? 'hidden' : ''}>اتصال خودکار به گوگل</button>` : ''}
    <div class="mut">${esc(syncMsg)}</div></div>`; }
 function workPayments(p, L) {
@@ -1159,14 +1163,14 @@ function workList(p, L) {
   const un = rows.filter(r => r.left > 0), pd = rows.filter(r => r.left === 0);
   const sum = un.reduce((s, r) => s + r.left, 0);
   if (!rows.length) return '';
-  return `<details class="card"><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
+  return `<details class="card" open><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
   <div class="mut" style="margin:4px 0">پرداخت‌ها به‌ترتیب تاریخ روی قدیمی‌ترین کارها حساب می‌شوند.${pool > 0 ? ' پیش‌پرداخت مازاد: ' + toman(pool) + ' تومان.' : ''}</div>
   ${un.length ? `<b class="red">پرداخت‌نشده · ${toman(sum)} تومان</b>${un.map(row).join('')}` : ''}
   ${pd.length ? `<b class="grn">✓ پرداخت‌شده (${pd.length.toLocaleString('fa-IR')})</b>${pd.map(row).join('')}` : ''}</details>`;
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-15T14:04:03Z'; const BUILD_VERSION = '۱۷۳m';
+const BUILD = '2026-11-15T14:35:50Z'; const BUILD_VERSION = '۱۷۳n';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1176,10 +1180,10 @@ function pdfPerson(p, layout = 'table') {
     const pr = t.parent ? tx.find(x => x.id === t.parent) : null; let d = t.desc && !Object.values(LOAN).some(x => x[0] === t.desc) ? t.desc : '';
     if (pr) { if (pr.service) d += ' · خدمات: ' + pr.service; if (pr.customer && !d.includes(pr.customer)) d += ' · مشتری: ' + pr.customer; }
     if (t.loan === 'wage' && t.receipt) d = (d ? d + ' · ' : '') + 'طبق رسید' + ((t.receipt || '').match(/\d{1,2}:\d{2}/) ? ' (ساعت ' + t.receipt.match(/\d{1,2}:\d{2}/)[0] + ')' : '');
-    return layout === 'linear' ? `<div class="lineitem"><div class="linetop"><b>${esc(LOAN[t.loan][0])}</b><strong>${toman(t.amount)} تومان</strong></div><div class="muted">${esc(t.date || '')}</div>${d ? `<div>${esc(d)}</div>` : ''}<div class="muted">مانده دستمزد: ${toman(wageBal)} تومان · مانده قرض: ${toman(loanBal)} تومان</div></div>` : `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(wageBal)}</td><td class="n">${toman(loanBal)}</td></tr>`; }).join('');
+    return layout === 'linear' ? `<div class="lineitem"><div class="linetop"><b>${esc(LOAN[t.loan][0])}</b><strong class="${t.loan === 'share' ? 'work-amount-173n' : t.loan === 'wage' ? 'wage-amount-173n' : ''}">${toman(t.amount)} تومان</strong></div><div class="muted">${esc(t.date || '')}</div>${d ? `<div>${esc(d)}</div>` : ''}<div class="muted">مانده دستمزد: ${toman(wageBal)} تومان · مانده قرض: ${toman(loanBal)} تومان</div></div>` : `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'work-amount-173n' : t.loan === 'wage' ? 'wage-amount-173n' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(wageBal)}</td><td class="n">${toman(loanBal)}</td></tr>`; }).join('');
   const f = n => toman(Math.abs(n)).toLocaleString('fa-IR');
   const st = bal > 0 ? 'پیش‌پرداخت: ' + f(bal) : bal < 0 ? (isCo ? 'مانده دستمزد: ' : 'بدهی: ') + f(bal) : 'تسویه کامل';
-  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>@page{margin:16mm}body{font-family:Tahoma,sans-serif;padding:20px;color:#24332f;line-height:1.7}h2{margin:0;color:#0f766e;font-size:23px}.intro{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.intro div{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th{background:#e7f4f1;color:#115e59}td,th{border-bottom:1px solid #dce9e5;padding:9px 6px;text-align:right;vertical-align:top}tr{page-break-inside:avoid}tr:nth-child(even){background:#f7faf9}.n{text-align:left;white-space:nowrap}.a{color:#16803d}.b{color:#bd3636}.lineitem{padding:12px 0;border-bottom:1px solid #dce9e5;page-break-inside:avoid}.linetop{display:flex;justify-content:space-between;gap:12px}.linetop strong{color:#0f766e;white-space:nowrap}.muted{font-size:11px;color:#64748b}.s{margin-top:18px;font-size:13px;line-height:2;background:#f0f8f5;border-right:4px solid #0f766e;padding:12px 16px}</style></head><body><div class="intro"><h2>صورت‌حساب ${esc(p)}</h2><div>گزارش کارکرد، پرداخت و قرض · تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })}</div></div>
+  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>@page{margin:16mm}body{font-family:Tahoma,sans-serif;padding:20px;color:#24332f;line-height:1.7}h2{margin:0;color:#0f766e;font-size:23px}.intro{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.intro div{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th{background:#e7f4f1;color:#115e59}td,th{border-bottom:1px solid #dce9e5;padding:9px 6px;text-align:right;vertical-align:top}tr{page-break-inside:avoid}tr:nth-child(even){background:#f7faf9}.n{text-align:left;white-space:nowrap}.a{color:#16803d}.b{color:#bd3636}.lineitem{padding:12px 0;border-bottom:1px solid #dce9e5;page-break-inside:avoid}.linetop{display:flex;justify-content:space-between;gap:12px}.linetop strong{color:#0f766e;white-space:nowrap}.work-amount-173n{color:#64748b!important}.wage-amount-173n{color:#16803d!important}.muted{font-size:11px;color:#64748b}.s{margin-top:18px;font-size:13px;line-height:2;background:#f0f8f5;border-right:4px solid #0f766e;padding:12px 16px}</style></head><body><div class="intro"><h2>صورت‌حساب ${esc(p)}</h2><div>گزارش کارکرد، پرداخت و قرض · تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })}</div></div>
   ${layout === 'linear' ? (rows || '<div class="muted">ردیفی ثبت نشده است.</div>') : `<table><tr><th>تاریخ</th><th>نوع</th><th>شرح</th><th>مبلغ (تومان)</th><th>مانده دستمزد</th><th>مانده قرض</th></tr>${rows}</table>`}
   <div class="s"><b>جمع و مانده حساب</b><br>${isCo ? `مجموع کارکرد: <b>${f(sh)}</b><br>پرداخت دستمزد: <b>${f(pd)}</b><br>مانده دستمزد: <b>${wageBal > 0 ? 'پیش‌پرداخت' : wageBal < 0 ? 'بدهی من' : 'تسویه'} ${f(wageBal)}</b><br>مانده قرض: <b>${loanBal > 0 ? 'طلب من' : loanBal < 0 ? 'بدهی من' : 'تسویه'} ${f(loanBal)}</b>${showAssistantTotal ? `<br>جمع دو حساب: <b>${bal > 0 ? 'طلب من' : bal < 0 ? 'بدهی من' : 'تسویه'} ${f(bal)} تومان</b>` : ''}` : `وضعیت: <b>${st} تومان</b>`}</div></body></html>`;
   const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column';
@@ -1351,6 +1355,8 @@ document.addEventListener('click', async e => {
   const review = e.target.closest('.workreview');
   if (review) {
     const t = tx.find(x => String(x.id) === review.dataset.id), box = $('#workreviewbox'); if (!t || !box) return;
+    const relatedInvoice = invoiceList().find(i => String(i.id) === String(t.invoiceId || ''));
+    if (relatedInvoice) { topic = 'invoices'; tab = 'report'; render(); const result = [...document.querySelectorAll('#inv-results .invoice-result')].find(node => node.dataset.invoiceId === String(relatedInvoice.id)); if (result) { result.open = true; result.scrollIntoView({behavior:'smooth',block:'start'}); } return; }
     const parent = t.parent ? tx.find(x => x.id === t.parent) : null, source = parent || t;
     const fields = [ ['نوع', LOAN[t.loan]?.[0]], ['شخص', t.person], ['مبلغ این ردیف', toman(t.amount) + ' تومان'], ['تاریخ', t.date], ['شرح', t.desc], ['حساب', source.account ? accName(source.account) : ''], ['مبلغ واریزی اصلی', parent ? toman(parent.amount) + ' تومان' : ''], ['مشتری', source.customer], ['خدمت', source.service], ['سهم', parent ? (parent.shareMode === 'fixed' ? 'مبلغ ثابت' : parent.pct ? parent.pct + '٪' : '') : ''] ].filter(([,v]) => v);
     box.innerHTML = `<div class="card"><div class="row"><b>🔎 مرور جزئیات</b><button type="button" class="sec reviewclose">بستن</button></div>${fields.map(([k,v]) => `<div style="margin-top:6px"><span class="mut">${esc(k)}: </span><b>${esc(v)}</b></div>`).join('')}${source.raw ? `<details style="margin-top:8px"><summary class="mut">متن پیامک</summary><div style="white-space:pre-wrap">${esc(source.raw)}</div></details>` : ''}${source.receipt ? `<details style="margin-top:8px"><summary class="mut">رسید بانکی</summary><div style="white-space:pre-wrap">${esc(source.receipt)}</div></details>` : ''}</div>`;
@@ -1399,13 +1405,13 @@ document.addEventListener('click', async e => {
   }
   const fa = e.target.closest('.fb [data-a]');
   if (fa) { const a = fa.dataset.a; if (a === '*') sel = null; else { sel = sel ? (sel.includes(a) ? sel.filter(x => x !== a) : [...sel, a]) : [a]; if (!sel.length) sel = null; } localStorage.setItem('sel', JSON.stringify(sel)); render(); return; }
-  const topicButton = e.target.closest('[data-topic]'); if (topicButton && !topicButton.disabled) { if (topicButton.dataset.topic === topic) { navigationScroll171(topicButton); return; } if (tab === 'contacts' && pEditing) { alert('ابتدا تغییرات مخاطب را ذخیره کن یا فرم را ببند.'); return; } if (tab === 'add' && ['sms','ma','md','inv-customer','inv-number'].some(id => document.getElementById(id)?.value.trim()) && !confirm('اطلاعات ذخیره‌نشدهٔ فرم کنار گذاشته و موضوع عوض شود؟')) return; topic = topicButton.dataset.topic; if (tab === 'contacts' && pe === null) cv = 'list'; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } lp = null; render(); navigationScroll171(topicButton); return; }
+  const topicButton = e.target.closest('[data-topic]'); if (topicButton && !topicButton.disabled) { if (tab === 'contacts' && pEditing) { alert('ابتدا تغییرات مخاطب را ذخیره کن یا فرم را ببند.'); return; } if (tab === 'add' && ['sms','ma','md','inv-customer','inv-number'].some(id => document.getElementById(id)?.value.trim()) && !confirm('اطلاعات ذخیره‌نشدهٔ فرم کنار گذاشته و موضوع عوض شود؟')) return; topic = topicButton.dataset.topic; tab = 'home'; lp = null; render(); navigationScroll171(topicButton); return; }
   const addModeButton = e.target.closest('[data-add-mode]'); if (addModeButton) { addOpen164(addModeButton.dataset.addMode); return; }
   const addFilter = e.target.closest('[data-add-filter]'); if (addFilter) { addReceiptFilter164 = addFilter.dataset.addFilter; addMode164 = 'menu'; render(); return; }
   const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
   const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; lp = null; render(); window.scrollTo(0, 0); return; }
   const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button, .header-173a button[data-t]'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { topic = 'expenses'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button[data-t], .header-173a button[data-t]'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }

@@ -50,7 +50,11 @@ function shortcutSettings173e(container) {
 document.addEventListener('DOMContentLoaded',()=>{
   const open=document.getElementById('search-173a'),panel=document.getElementById('search-panel-173e'),input=document.getElementById('search-input-173e'); let timer;
   if(!open||!panel||!input) return;
-  open.onclick=()=>{panel.hidden=false;searchRender173e();input.focus();};
+  const searchOpen173n=()=>{panel.hidden=false;const options=document.getElementById('search-invoice-options-173n'); if(options) options.hidden=topic!=='invoices' && topic!=='sales'; searchRender173e();input.focus();};
+  open.onclick=searchOpen173n;
+  document.getElementById('section-search-173n').onclick=searchOpen173n;
+  document.getElementById('search-invoice-options-173n').addEventListener('click', event=>{const button=event.target.closest('[data-search-type]');if(!button)return;document.querySelectorAll('#search-types-173n button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));searchRender173e();});
+  document.getElementById('search-invoice-options-173n').addEventListener('change', searchRender173e);
   document.getElementById('search-close-173e').onclick=()=>{panel.hidden=true;open.focus();};
   document.getElementById('search-clear-173e').onclick=()=>{clearTimeout(timer);input.value='';searchRender173e();input.focus();};
   input.oninput=()=>{clearTimeout(timer);timer=setTimeout(searchRender173e,200);};

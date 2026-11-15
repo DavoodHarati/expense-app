@@ -94,7 +94,13 @@ function addPage164() {
   if (addMode164 === 'receipt') chosen = null;
   for (const child of children) child.hidden = !(chosen && (child === chosen || child.contains(chosen))) && addMode164 !== 'receipt';
   if (chosen && chosen.tagName === 'DETAILS') chosen.open = true;
-  if (addMode164 === 'invoice' && invoice) { invoice.hidden = false; invoice.open = true; const search = document.getElementById('invoice-search-panel'); if (search) search.hidden = true; }
+  if (addMode164 === 'invoice' && invoice) {
+    invoice.hidden = false; invoice.open = true; const search = document.getElementById('invoice-search-panel'); if (search) search.hidden = true;
+    const form = document.getElementById('invoice-form-fields');
+    if (form) { form.insertAdjacentHTML('afterbegin','<div class="invoice-types-170" id="invoice-add-types-173n"><button type="button" data-kind="خدمات">خدمات</button><button type="button" data-kind="فروش">فروش</button><button type="button" data-kind="هزینه">هزینه</button><button type="button" data-kind="نسیه">نسیه</button></div>');
+      form.querySelector('#invoice-add-types-173n').addEventListener('click', event => { const button=event.target.closest('button[data-kind]'); if(!button)return; const kind=document.getElementById('inv-kind'); if(button.dataset.kind==='نسیه') document.getElementById('inv-payment').value='unpaid'; else { kind.value=button.dataset.kind; kind.dispatchEvent(new Event('change')); } form.querySelectorAll('#invoice-add-types-173n button').forEach(b=>b.setAttribute('aria-pressed',String(b===button))); });
+    }
+  }
   if (addMode164 === 'receipt') { for (const child of children) { child.hidden = child !== sms && !child.contains(sms); if (!child.hidden && child.tagName === 'DETAILS') child.open = true; } }
   if (addMode164 === 'menu') {
     const labels173b = {sms:['💬','ثبت پیامک'],manual:['✍️','ثبت دستی'],invoice:['🧾','فاکتور جدید'],receipt:['📎','ثبت رسید']};

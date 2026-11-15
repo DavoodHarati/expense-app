@@ -32,8 +32,12 @@ function searchRender173e() {
   const box=document.getElementById('search-results-173e'), input=document.getElementById('search-input-173e'); if (!box || !input) return;
   const contacts=load('ppl',[]), receiptRows=[...receiptArchive(),...tx.filter(t=>t.receipt).map(t=>({raw:t.receipt})),...log.filter(x=>x.rc&&x.raw).map(x=>({raw:x.raw})),...rcPending().map(raw=>({raw}))];
   const receipts=[...new Map(receiptRows.filter(r=>r.raw).map(r=>[r.raw.trim().slice(0,1000),r])).values()].map(item=>({...item,linked:tx.find(t=>t.receipt===item.raw.trim().slice(0,1000))}));
-  const groups=searchGroups173f(input.value,{transactions:tx,invoices:invoiceList(),receipts,contacts:Array.isArray(contacts)?contacts:[],reminders:rem});
-  searchReceipts173j=groups.find(g=>g.key==='receipts').rows.slice(0,50);
+  const scope = typeof topic === 'undefined' ? 'expenses' : topic;
+  const type = document.querySelector?.('#search-types-173n [aria-pressed="true"]')?.dataset.searchType || 'all';
+  const status = document.getElementById('search-status-173n')?.value || 'all', month = document.getElementById('search-month-173n')?.value.trim() || '';
+  const matchesInvoice = i => (type === 'unpaid' ? invoiceIsUnpaid173k(i,tx) : invoiceTypeMatches170(i,type)) && (status === 'all' || invoiceStatus170(i,tx) === status) && (!month || searchNormalize173e(i.date||'').includes(searchNormalize173e(month)));
+  const groups=searchGroups173f(input.value,{transactions:scope === 'work' ? tx.filter(isWage) : tx,invoices:invoiceList().filter(matchesInvoice),receipts,contacts:Array.isArray(contacts)?contacts:[],reminders:rem}).filter(g => scope === 'invoices' ? ['invoices','sales'].includes(g.key) : scope === 'sales' ? g.key === 'sales' : scope === 'work' || scope === 'expenses' ? g.key === 'transactions' : scope === 'reminders' ? ['reminders','receipts'].includes(g.key) : true);
+  searchReceipts173j=(groups.find(g=>g.key==='receipts')?.rows || []).slice(0,50);
   box.innerHTML=groups.filter(g=>g.rows.length).map(g=>'<section><div class="mut"><b>'+g.title+' · '+g.rows.length.toLocaleString('fa-IR')+'</b></div>'+g.rows.slice(0,50).map((item,index)=>{
     const i=g.key==='invoices'||g.key==='sales', r=item.parsed, title=i?(item.customer||'بدون نام'):g.key==='receipts'?(r?.name||item.linked?.person||item.linked?.seller||'رسید'):g.key==='contacts'?(item.name||'مخاطب'):g.key==='reminders'?(item.title||'یادآوری'):(item.desc||item.person||item.name||'تراکنش');
     const date=i?item.date:g.key==='receipts'?(r?.date||item.linked?.date):g.key==='reminders'?searchReminderDate173j(item):item.date;
