@@ -606,7 +606,9 @@ function _render() {
         const panel = document.getElementById('invoice-search-panel'); panel.open = false;
         panel.querySelector('summary b').textContent = 'فیلتر ماه و وضعیت';
         panel.after(document.getElementById('inv-results'));
-        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-show-all').checked = true; invoiceShowList('');
+        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-show-all').checked = true;
+        const ledger = el.querySelector('.invoice-ledger'); if (ledger) ledger.before(document.getElementById('invoice-card'));
+        invoiceShowList('');
       }
       return;
     }
@@ -917,7 +919,7 @@ function _render() {
     }
     accordion(el, 'settings');
     settingsLayout(el);
-    el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
+    el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div><div class="mut" style="margin-top:8px">نسخه ${BUILD_VERSION} · زمان آماده‌سازی: ${new Date(BUILD).toLocaleString('fa-IR', { dateStyle:'long', timeStyle:'short', timeZone:'Asia/Tehran' })}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
     el.insertAdjacentHTML('afterbegin', '<div class="card" id="connection-hub-168"></div>');
     hubRender(document.getElementById('connection-hub-168'));
     const connectionGroup170 = document.createElement('details');
@@ -1140,7 +1142,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-14T18:57:42Z'; const BUILD_VERSION = '۱۷۳k';
+const BUILD = '2026-11-15T13:08:13Z'; const BUILD_VERSION = '۱۷۳l';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
