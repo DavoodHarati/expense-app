@@ -1170,7 +1170,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-15T14:35:50Z'; const BUILD_VERSION = '۱۷۳n';
+const BUILD = '2026-11-15T15:20:31Z'; const BUILD_VERSION = '۱۷۳o';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {

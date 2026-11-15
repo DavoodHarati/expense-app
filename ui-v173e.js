@@ -47,15 +47,22 @@ function shortcutSettings173e(container) {
   section.querySelector('#shortcut-copy-173e').onclick=async()=>{const url=shortcutUrl173e(),status=section.querySelector('#shortcut-status-173e'); if(!url){status.textContent='آدرس اتصال پیامک در این گوشی ثبت نشده است.';return;} status.textContent=await shortcutCopy173e(url,navigator.clipboard,document)?'کپی شد ✓':'کپی انجام نشد؛ دسترسی کلیپ‌بورد را بررسی کن.';};
   section.querySelector('#shortcut-open-173e').onclick=()=>{if(SHORTCUT_ICLOUD_URL) window.open(SHORTCUT_ICLOUD_URL,'_blank','noopener');};
 }
+function searchClose173o() {
+  const panel=document.getElementById('search-panel-173e'), app=document.getElementById('app');
+  if(panel) panel.hidden=true; if(app) app.hidden=false;
+  document.getElementById('section-search-173n')?.classList.remove('on');
+  if(typeof navigationRender163==='function') navigationRender163();
+}
 document.addEventListener('DOMContentLoaded',()=>{
   const open=document.getElementById('search-173a'),panel=document.getElementById('search-panel-173e'),input=document.getElementById('search-input-173e'); let timer;
   if(!open||!panel||!input) return;
-  const searchOpen173n=()=>{panel.hidden=false;const options=document.getElementById('search-invoice-options-173n'); if(options) options.hidden=topic!=='invoices' && topic!=='sales'; searchRender173e();input.focus();};
+  const searchOpen173n=()=>{searchSetup173o(topic);input.value='';panel.hidden=false;document.getElementById('app').hidden=true;document.querySelectorAll('.section-nav-173n button').forEach(b=>b.classList.remove('on'));document.getElementById('section-search-173n').classList.add('on');searchRender173e();input.focus();};
   open.onclick=searchOpen173n;
   document.getElementById('section-search-173n').onclick=searchOpen173n;
-  document.getElementById('search-invoice-options-173n').addEventListener('click', event=>{const button=event.target.closest('[data-search-type]');if(!button)return;document.querySelectorAll('#search-types-173n button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));searchRender173e();});
-  document.getElementById('search-invoice-options-173n').addEventListener('change', searchRender173e);
-  document.getElementById('search-close-173e').onclick=()=>{panel.hidden=true;open.focus();};
+  document.getElementById('search-filters-173o').addEventListener('change', searchRender173e);
+  document.getElementById('search-reset-173o').onclick=()=>{document.querySelectorAll('#search-filters-173o select').forEach(s=>{s.value='';});searchRender173e();};
+  document.getElementById('search-close-173e').onclick=()=>{searchClose173o();open.focus();};
+  document.addEventListener('click',event=>{if(!panel.hidden && event.target.closest('#topics [data-topic], .section-nav-173n [data-t], .header-173a [data-t]')) searchClose173o();},true);
   document.getElementById('search-clear-173e').onclick=()=>{clearTimeout(timer);input.value='';searchRender173e();input.focus();};
   input.oninput=()=>{clearTimeout(timer);timer=setTimeout(searchRender173e,200);};
 });
