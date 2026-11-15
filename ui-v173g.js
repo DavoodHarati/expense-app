@@ -22,8 +22,8 @@ function transactionView173g(transaction) {
   return transaction.type === 'debit' ? {sign:'−', color:'red', label:'برداشت'} : {sign:'+', color:'grn', label:'واریز'};
 }
 function invoiceCardSummary173g(item, transactions) {
-  const state=invoiceStatus170(item,transactions), status=item.payment?.method==='unpaid' && state!=='paid' ? 'نسیه' : item.accounting?.status==='confirmed' ? 'تأییدشده ✓' : 'در انتظار';
-  const color=status==='نسیه'?'#b92d61':status.startsWith('تأیید')?'#147345':'#9a6500';
+  const status=item.accounting?.status==='confirmed' ? '✓ تأییدشده' : '⏳ در انتظار تأیید';
+  const color=item.accounting?.status==='confirmed'?'#147345':'#9a6500';
   const payments=transactions.filter(t=>!t.ghost && t.type === 'credit' && String(t.invoicePaymentId || '')===String(item.id));
   const linked=payments.length>0, received=payments.some(t=>!!(t.receipt || t.raw)), paidWithReceipt=received && invoicePaymentStatus(item,transactions).status==='paid';
   const lines=(item.lines || []).map(x=>x.name).filter(Boolean).join('، ');

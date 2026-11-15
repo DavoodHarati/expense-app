@@ -434,8 +434,9 @@ function pendingCard(t) {
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     ${t.receipt ? `<details><summary class="mut">🧾 رسید بانکی</summary><div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button type="button" class="sec rcpdel" data-id="${t.id}">🗑 حذف رسید</button></details>` : ''}
     ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><button type="button" class="sec catsuggestion" hidden></button><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
-    <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><datalist id="dl"></datalist>
-    <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص / فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <div class="row"><input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><button type="button" class="sec contact-toggle-173m" aria-label="انتخاب مخاطب">＋</button></div><datalist id="dl"></datalist>
+    <div class="contact-picker-173m" hidden><select class="contact-group-173m"><option value="">ابتدا گروه را انتخاب کن</option>${['مشتری','راننده','دستیار','همکار','فروشنده','سایر'].map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select><select class="contact-person-173m"><option value="">انتخاب شخص</option></select></div>
+    <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص یا فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
     ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage"${!featureOn('assistant') ? ' hidden' : ''}${t.loan === 'wage' ? ' selected' : ''}>دستمزد / حقوق دستیار</option><option value="lent"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'lent' ? ' selected' : ''}>قرض دادم</option><option value="payback"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'payback' ? ' selected' : ''}>قرض پس دادم</option></select>` : ''}
     ${debit ? '' : `<div class="row" ${featureOn('loan') ? '' : 'hidden'}>${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
@@ -443,10 +444,33 @@ function pendingCard(t) {
     ${showCu ? ctBlock(t, D, cat0) : ''}
     ${debit || !featureOn('assistant') ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-    <div ${featureOn('reminder') ? '' : 'hidden'}><div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}</div>
+    <details ${featureOn('reminder') ? '' : 'hidden'}><summary class="mut">یادآوری (اختیاری): تاریخ</summary><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}</details>
     <div class="row"><button class="ok">ذخیره</button>${editing.has(String(t.id)) ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
+document.addEventListener('click', event => {
+  const button = event.target.closest('.contact-toggle-173m');
+  if (!button) return;
+  const picker = button.closest('.card')?.querySelector('.contact-picker-173m');
+  if (picker) picker.hidden = !picker.hidden;
+});
+document.addEventListener('change', event => {
+  const card = event.target.closest('.card[data-id]');
+  if (!card) return;
+  const contacts = load('ppl', []);
+  if (!Array.isArray(contacts)) return;
+  if (event.target.matches('.contact-group-173m')) {
+    const group = event.target.value, select = card.querySelector('.contact-person-173m');
+    select.innerHTML = '<option value="">انتخاب شخص</option>' + contacts.map((person,index)=>({person,index})).filter(({person}) => group && (person.tags || []).includes(group)).map(({person,index})=>`<option value="${index}">${esc(person.name || '')}</option>`).join('');
+  }
+  if (event.target.matches('.contact-person-173m') && event.target.value !== '') {
+    const person = contacts[Number(event.target.value)]; if (!person) return;
+    const set = (selector,value) => { const input=card.querySelector(selector); if(input && value && !input.value.trim()) { input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); } };
+    set('.p',person.name); set('.cu',person.name);
+    const source=tx.find(t=>String(t.id)===card.dataset.id), invoice=source?.invoicePaymentId && invoiceList().find(i=>String(i.id)===String(source.invoicePaymentId));
+    set('.cph',invoice?.phone || person.phone); set('.sv',(invoice?.lines || []).map(x=>x.name).filter(Boolean).join('، '));
+  }
+});
 
 function svChips() {
   const L = lsj('svq', []); return L.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${L.map(n => `<button type="button" class="sec sqn" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
@@ -458,7 +482,7 @@ function recentCust() {
 }
 function ctBlock(t, D, cat) {
   const ct = D.ct ?? (t.ctype || (!t.pending ? '' : defaultCustomerType()));
-  return `<div class="ctbox${cat === 'فروش' ? ' hide' : ''}" data-ct="${ct}"><div class="mut">نوع مشتری (برای فروش کالا لازم نیست)</div><div class="row" style="gap:6px;margin:6px 0"><button type="button" class="sec ctb${ct === 'driver' ? ' on' : ''}" data-v="driver">🚚 راننده</button><button type="button" class="sec ctb${ct === 'normal' ? ' on' : ''}" data-v="normal">🧑 مشتری عادی</button>${lsj('ctypes', []).map(x => `<button type="button" class="sec ctb${ct === x ? ' on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div><input class="cph" inputmode="tel" value="${esc(D.ph ?? (t.cphone || ''))}" placeholder="شماره تماس (اختیاری)"></div>`;
+  return `<details class="ctbox${cat === 'فروش' ? ' hide' : ''}" data-ct="${ct}"><summary class="mut">نوع مشتری (برای فروش کالا لازم نیست)</summary><div class="row" style="gap:6px;margin:6px 0"><button type="button" class="sec ctb${ct === 'driver' ? ' on' : ''}" data-v="driver">🚚 راننده</button><button type="button" class="sec ctb${ct === 'normal' ? ' on' : ''}" data-v="normal">🧑 مشتری عادی</button>${lsj('ctypes', []).map(x => `<button type="button" class="sec ctb${ct === x ? ' on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div><input class="cph" inputmode="tel" value="${esc(D.ph ?? (t.cphone || ''))}" placeholder="شماره تماس (اختیاری)"></details>`;
 }
 const lcat = k => k === 'wage' || k === 'share' ? 'کارکرد همکار' : 'قرض';
 const LOAN = { wage: ['پرداخت دستمزد', 1], lent: ['قرض دادم', 1], payback: ['بازپرداخت قرضِ خودم', 1], repaid: ['قرضم را پس گرفتم', -1], share: ['کارکرد / سهم همکار', -1], borrowed: ['قرض گرفتم', -1] };
@@ -470,14 +494,14 @@ function colBlock(t, D) {
   const c = cols(), names = Object.keys(c), sel = D.co ?? (t.colleague || ''), pct = Number(D.pc ?? (t.pct ?? c[sel] ?? 0)) || 0;
   const mode = D.shareMode ?? (t.shareMode || 'percent');
   const fixed = D.shareAmount ?? (t.shareMode === 'fixed' ? Math.round((t.shareAmount || 0) / 10) : '');
-  return `<div class="colbox"><b>🤝 دستیار در این کار</b>
+  return `<details class="colbox"><summary><b>🤝 دستیار در این کار</b></summary>
     <select class="co"><option value="">بدون دستیار</option>${names.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)} (${(c[n] || 0).toLocaleString('fa-IR')}٪)</option>`).join('')}<option value="__new">+ دستیار جدید…</option></select>
     <input class="cn hide" placeholder="نام دستیار جدید">
     <select class="sharemode${sel ? '' : ' hide'}"><option value="percent"${mode === 'percent' ? ' selected' : ''}>سهم درصدی</option><option value="fixed"${mode === 'fixed' ? ' selected' : ''}>مبلغ ثابت (تومان)</option></select>
     <div class="pcrow${sel && mode === 'percent' ? '' : ' hide'}"><span>درصد سهم از کل مبلغ واریزی</span>
       <span class="pcb"><button type="button" class="sec pa" data-d="-1">▼</button><b class="pv" data-v="${pct}">${Number(pct).toLocaleString('fa-IR')}٪</b><button type="button" class="sec pa" data-d="1">▲</button></span></div>
     <input class="sharefixed${sel && mode === 'fixed' ? '' : ' hide'}" type="text" inputmode="numeric" value="${esc(fixed)}" placeholder="مبلغ سهم دستیار (تومان)">
-    <div class="mut cs"></div></div>`;
+    <div class="mut cs"></div></details>`;
 }
 function colRefresh(card) {
   const v = card.querySelector('.pv'); if (!v) return;
@@ -1142,7 +1166,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-15T13:08:13Z'; const BUILD_VERSION = '۱۷۳l';
+const BUILD = '2026-11-15T14:04:03Z'; const BUILD_VERSION = '۱۷۳m';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1194,9 +1218,9 @@ function rowHtml(t, statusMap) {
   const direction = typeof transactionView173g === 'function' ? transactionView173g(t) : null;
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b style="white-space:nowrap" class="${direction ? direction.color : t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (direction ? direction.sign : t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
-  ${t.invoicePaymentId ? `<div class="mut">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => i.id === t.invoicePaymentId) || {}).number || t.invoicePaymentId)}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${featureOn('invoice') && (t.customer || t.service) ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
+  ${t.invoicePaymentId ? `<button type="button" class="sec invoice-jump-173m" data-invoice-id="${esc(t.invoicePaymentId)}">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) || {}).number || t.invoicePaymentId)}</button>` : ''}
   ${featureOn('assistant') && t.colleague && t.shareAmount && !tx.some(row => row.ghost && row.loan === 'share' && String(row.parent) === String(t.id) && row.person === t.colleague) ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
@@ -1363,6 +1387,7 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'pdftable' || e.target.id === 'pdflinear') { pdfPerson(lp, e.target.id === 'pdflinear' ? 'linear' : 'table'); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
+  const invoiceJump = e.target.closest('.invoice-jump-173m'); if (invoiceJump) { const invoiceId = invoiceJump.dataset.invoiceId; if (!featureOn('invoice')) { alert('برای دیدن فاکتور ابتدا بخش فاکتور را در تنظیمات روشن کن.'); return; } if (!invoiceList().some(i => String(i.id) === invoiceId)) { alert('فاکتور مرتبط پیدا نشد.'); return; } topic = 'invoices'; tab = 'report'; render(); const result = [...document.querySelectorAll('#inv-results .invoice-result')].find(node => node.dataset.invoiceId === invoiceId); if (result) { result.open = true; result.scrollIntoView({behavior:'smooth',block:'start'}); } return; }
   const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; if (topic !== 'sales') topic = 'invoices'; tab = 'report'; render(); const card = document.getElementById('invoice-card'); document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
   if (e.target.id === 'welcome-later') { welcomeDismissed = true; const card = document.getElementById('welcome-sync'); if (card) card.hidden = true; return; }
   if (e.target.id === 'welcome-google' && !(load('directSyncState', null)?.id && load('directSyncState', null)?.base && load('directSyncState', null)?.email)) { const group = document.getElementById('settings-advanced'), card = document.getElementById('easy-setup'); if (group && card) { group.open = true; card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
