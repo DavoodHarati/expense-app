@@ -366,7 +366,9 @@ function setDesc(id, desc, cat, ex) {
     }
     if (ex.remDate) { rem.push({ id: Date.now(), type: 'custom', title: desc || t.customer || 'یادآوری', date: ex.remDate, amount: Math.round(t.amount / 10), alerts: [3, 1], before: 3, count: 0, rep: '' }); saveRem(); }
   }
-  save(); render();
+  save();
+  try { const result=contactSaveFacts173p([{name:t.customer,phone:t.cphone,role:t.ctype==='driver'?'راننده':'مشتری'},{name:t.seller,role:'فروشنده'},{name:t.person,role:t.loan==='wage'?'همکار':'سایر'},{name:t.colleague,role:'دستیار'}]); if(result.skipped.length) banner='تراکنش ذخیره شد؛ مخاطب مشابه را در بخش مخاطبین بررسی کن.'; } catch (_) { banner='تراکنش ذخیره شد؛ ذخیرهٔ مخاطب را بررسی کن.'; }
+  render();
 }
 
 const drafts = {}, editing = new Set(), editSnapshots = {};
@@ -465,10 +467,10 @@ document.addEventListener('change', event => {
   }
   if (event.target.matches('.contact-person-173m') && event.target.value !== '') {
     const person = contacts[Number(event.target.value)]; if (!person) return;
-    const set = (selector,value) => { const input=card.querySelector(selector); if(input && value && !input.value.trim()) { input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); } };
-    set('.p',person.name); set('.cu',person.name);
+    const set = (selector,value,replace=false) => { const input=card.querySelector(selector); if(input && value && (replace || !input.value.trim())) { input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); } };
+    set('.p',person.name,true); set('.cu',person.name,true);
     const source=tx.find(t=>String(t.id)===card.dataset.id), invoice=source?.invoicePaymentId && invoiceList().find(i=>String(i.id)===String(source.invoicePaymentId));
-    set('.cph',invoice?.phone || person.phone); set('.sv',(invoice?.lines || []).map(x=>x.name).filter(Boolean).join('، '));
+    set('.cph',person.phone || invoice?.phone,true); set('.sv',(invoice?.lines || []).map(x=>x.name).filter(Boolean).join('، '));
   }
 });
 
@@ -629,7 +631,7 @@ function _render() {
         const panel = document.getElementById('invoice-search-panel'); panel.open = false;
         panel.querySelector('summary b').textContent = 'فیلتر ماه و وضعیت';
         panel.after(document.getElementById('inv-results'));
-        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-show-all').checked = true;
+        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-types-170').insertAdjacentHTML('afterend', '<div id="invoice-summary-173p" class="invoice-summary-173p" aria-live="polite"></div>'); document.getElementById('inv-show-all').checked = true;
          const duplicateTools = document.createElement('details'); duplicateTools.className = 'card'; duplicateTools.innerHTML = '<summary>ابزار بررسی فاکتورها</summary>'; duplicateTools.append(document.getElementById('invoice-check-duplicates-172'), document.getElementById('invoice-duplicates-172')); panel.after(duplicateTools);
         const ledger = el.querySelector('.invoice-ledger'); if (ledger) ledger.before(document.getElementById('invoice-card'));
         invoiceShowList('');
@@ -709,7 +711,7 @@ function _render() {
       if (!Object.values(accounts).includes(acc)) accounts['manual:' + acc] = acc;
       const key = Object.keys(accounts).find(k => accounts[k] === acc);
       tx.unshift({ id: Date.now(), bank: acc, account: key, type: lk ? (LOAN[lk][1] > 0 ? 'debit' : 'credit') : mv, amount: a * 10, balance: null, date: `${chosenDate} ${g('hour')}:${g('minute')}`, desc: $('#md').value, note: document.getElementById('manual-note-164')?.value.trim() || '', link: document.getElementById('manual-link-164')?.value.trim() || '', cat: lk ? lcat(lk) : $('#mc').value, pending: false, ...(lk ? { loan: lk, person: $('#mp').value.trim() } : {}) });
-      save(); addSaved164('manual');
+      save(); if(lk) { try { const result=contactSaveFacts173p([{name:$('#mp').value.trim(),role:document.querySelector('.manual-contact-group-173p')?.value || (lk==='wage'?'همکار':'سایر')}]); if(result.skipped.length) alert('تراکنش ذخیره شد؛ نام مشابه را در مخاطبین بررسی کن.'); } catch (_) { alert('تراکنش ذخیره شد؛ مخاطب ذخیره نشد.'); } } addSaved164('manual');
     };
   } else {
     el.innerHTML = `
@@ -1170,7 +1172,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-15T15:20:31Z'; const BUILD_VERSION = '۱۷۳o';
+const BUILD = '2026-11-15T15:33:53Z'; const BUILD_VERSION = '۱۷۳p';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1203,18 +1205,18 @@ function loansHtml() {
   const loan = p => amountOf(L.filter(t => t.person === p && !isWage(t)));
   const combined = p => wage(p) + loan(p);
   if (lp && names.includes(lp)) {
-    const isCo = CO[lp] !== undefined, w = wage(lp), l = loan(lp), all = combined(lp);
+    const isCo = CO[lp] !== undefined || L.some(t => t.person === lp && isWage(t)), w = wage(lp), l = loan(lp), all = combined(lp);
     const rows = ordTx(L.filter(t => t.person === lp));
     const workStatus = new Map(workPayments(lp, L).rows.map(x => [String(x.j.id), x]));
     const result = all > 0 ? 'او به من بدهکار است: ' + toman(all) : all < 0 ? 'من به او بدهکارم: ' + toman(-all) : 'حساب صاف است';
     return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div>${esc(lp)}</div><div style="margin-top:12px;font-size:13px;opacity:.85">${isCo ? (w > 0 ? 'پیش‌پرداخت دستمزد' : w < 0 ? 'دستمزد پرداخت‌نشده' : 'حساب دستمزد') : 'دستمزد'}</div><div class="big">${isCo && w ? toman(Math.abs(w)) + ' <small>تومان</small>' : 'تسویه'}</div><div style="margin-top:12px;font-size:13px;opacity:.85">قرض</div><div style="font-size:20px;font-weight:700">${balanceText(l, 'loan')}</div>${isCo ? `<label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="combinebalances" type="checkbox" style="width:auto;margin:0" ${showAssistantTotal ? 'checked' : ''}> نمایش جمع دو حساب</label><div class="combinedbalance" ${showAssistantTotal ? '' : 'hidden'} style="margin-top:6px">جمع دو حساب: <b>${result}${all ? ' تومان' : ''}</b><div style="font-size:12px">فقط نمایش جمع است؛ قرض و دستمزد جدا می‌مانند.</div></div>` : ''}</div>
-    <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
+    <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? (CO[lp] ?? '') : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
     ${isCo && featureOn('assistant') ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="text" inputmode="numeric" placeholder="مبلغ سهم (تومان)">${persianDateFields('wdt')}<button id="wadd">ثبت کارکرد</button></details>` : ''}
     <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent" ${featureOn('loan') ? '' : 'hidden'}>قرض: او به من بدهکار است</option><option value="borrowed" ${featureOn('loan') ? '' : 'hidden'}>قرض: من به او بدهکارم</option></select><input id="manualamount" type="text" inputmode="numeric" placeholder="مبلغ به تومان">${persianDateFields('manualdate')}<input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
     <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.filter(t => !(isCo && t.loan === 'share')).map(t => rowHtml(t, workStatus)).join('')}`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
-  return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined, w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${co ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
+  return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined || L.some(t => t.person === p && isWage(t)), w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${CO[p] !== undefined ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
 }
 function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
@@ -1368,7 +1370,7 @@ document.addEventListener('click', async e => {
     const kind = $('#manualkind').value, amount = (invoiceDigits($('#manualamount').value) || 0) * 10;
     const dt = $('#manualdate').value.trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/');
     const m = dt.match(/^(1[34]\d{2})\/(\d{1,2})\/(\d{1,2})$/);
-    if (!['share', 'wage', 'lent', 'borrowed'].includes(kind) || ((kind === 'share' || kind === 'wage') && cols()[lp] === undefined)) { alert('نوع حساب را انتخاب کن'); return; }
+    if (!['share', 'wage', 'lent', 'borrowed'].includes(kind) || ((kind === 'share' || kind === 'wage') && cols()[lp] === undefined && !tx.some(t=>t.person===lp && isWage(t)))) { alert('نوع حساب را انتخاب کن'); return; }
     if (!Number.isSafeInteger(amount) || amount <= 0) { alert('مبلغ معتبر به تومان وارد کن'); return; }
     if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > (+m[2] <= 6 ? 31 : 30)) { alert('تاریخ شمسی معتبر وارد کن'); return; }
     const date = `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nowStr().slice(11)}`;
@@ -1445,7 +1447,7 @@ document.addEventListener('click', async e => {
   }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.seller = card.querySelector('.p').value.trim() || t0.seller || ''; t0.loan = ''; t0.person = ''; } }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.type === 'debit' && !t0.loan) t0.seller = card.querySelector('.p').value.trim(); }
-  if (e.target.classList.contains('ok')) { const original = tx.find(x => x.id === id) || {}, keep = !featureOn('invoice'); delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { preserveBiz: keep, customer: keep ? original.customer : card.querySelector('.cu')?.value.trim(), service: keep ? original.service : card.querySelector('.sv')?.value.trim(), ctype: keep ? original.ctype : card.querySelector('.ctbox')?.dataset.ct || '', cphone: keep ? original.cphone : card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value }); }
+  if (e.target.classList.contains('ok')) { const original = tx.find(x => x.id === id) || {}, keep = !featureOn('invoice'); delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { preserveBiz: keep, contactGroup: card.querySelector('.contact-group-173m')?.value || '', customer: keep ? original.customer : card.querySelector('.cu')?.value.trim(), service: keep ? original.service : card.querySelector('.sv')?.value.trim(), ctype: keep ? original.ctype : card.querySelector('.ctbox')?.dataset.ct || '', cphone: keep ? original.cphone : card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value }); }
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { delete editSnapshots[id]; delete drafts[id]; editing.delete(String(id)); render(); return; }
@@ -2098,6 +2100,29 @@ const ptags = () => [...new Set([...PT0, ...ppl.flatMap(p => p.tags || [])])];
 const pfa = s => String(s || '').replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c));
 function carModels() { try { const v = JSON.parse(localStorage.getItem('carModels')); return Array.isArray(v) ? v : ['اسکانیا', 'ولوو']; } catch { return ['اسکانیا', 'ولوو']; } }
 const idDigits = s => pfa(s).replace(/\D/g, '');
+// نام یکسان یا شمارهٔ مشترک به‌تنهایی مجوز ادغام دو شخص نیست.
+function contactMergeFacts173p(contacts, facts) {
+  const skipped=[]; let changed=false;
+  for(const fact of facts) {
+    const name=String(fact.name||'').trim(), role=String(fact.role||'').trim(); if(!name) continue;
+    const phone=idDigits(fact.phone||''), account=idDigits(fact.account||'');
+    const sameName=contacts.filter(p=>contactNames(p).includes(nrm(name)));
+    const samePhone=phone ? contacts.filter(p=>[p.phone,...(Array.isArray(p.phones)?p.phones:[])].some(v=>idDigits(v)===phone)) : [];
+    const sameAccount=account ? contacts.filter(p=>[...(Array.isArray(p.cards)?p.cards:[]),...(Array.isArray(p.bankAccounts)?p.bankAccounts:[])].some(v=>idDigits(v)===account)) : [];
+    if(sameName.length>1 || samePhone.some(p=>!contactNames(p).includes(nrm(name))) || sameAccount.some(p=>!contactNames(p).includes(nrm(name)))) { skipped.push(name); continue; }
+    let person=sameName[0];
+    if(person && phone && person.phone && ![person.phone,...(Array.isArray(person.phones)?person.phones:[])].some(v=>idDigits(v)===phone)) { skipped.push(name); continue; }
+    if(!person) { person={id:Date.now()+Math.random(),name,phone:'',cards:[],tags:[],cars:[],note:'',links:[]}; contacts.push(person); changed=true; }
+    if(phone && !person.phone) { person.phone=phone; changed=true; }
+    if(role && !(person.tags||[]).includes(role)) { person.tags=Array.isArray(person.tags)?person.tags:[]; person.tags.push(role); changed=true; }
+    if(account) { const key=account.length===16?'cards':'bankAccounts'; person[key]=Array.isArray(person[key])?person[key]:[]; if(!person[key].some(v=>idDigits(v)===account)){person[key].push(account);changed=true;} }
+  }
+  return {changed,skipped};
+}
+function contactSaveFacts173p(facts) {
+  ppl=load('ppl',[]); if(!Array.isArray(ppl)) return {changed:false,skipped:[]};
+  const result=contactMergeFacts173p(ppl,facts); if(result.changed) savePpl(); return result;
+}
 function contactFacts() {
   const out = [];
   tx.filter(t => !t.ghost).forEach(t => {
@@ -2173,6 +2198,7 @@ function contactsHtml() {
         <div class="mut" style="margin-top:8px">${(p.tags || []).map(esc).join(' · ') || 'بدون برچسب'}</div>
         ${phones.length ? `<div style="margin-top:8px">تلفن: <span dir="ltr">${phones.map(esc).join('، ')}</span></div>` : ''}
         ${cards.length ? `<div style="margin-top:8px">شماره کارت: ${cards.map(c => `<div dir="ltr" style="text-align:right">${esc(c)}</div>`).join('')}</div>` : ''}
+        ${Array.isArray(p.bankAccounts) && p.bankAccounts.length ? `<div style="margin-top:8px">شماره حساب: ${p.bankAccounts.map(c => `<div dir="ltr" style="text-align:right">${esc(c)}</div>`).join('')}</div>` : ''}
         ${featureOn('vehicle') && cars.length ? `<div style="margin-top:8px"><b>🚚 ماشین‌ها</b>${cars.map(c => `<div class="mut">${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}</div>` : ''}
         ${p.note ? `<div style="margin-top:8px;white-space:pre-wrap">یادداشت: ${esc(p.note)}</div>` : ''}
         <button class="sec" id="pback" style="margin-top:10px">بازگشت به مخاطبین</button></div>${contactHistory(p)}`;
