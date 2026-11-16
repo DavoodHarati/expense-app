@@ -117,6 +117,61 @@ function invoiceSetPaymentLink(transaction, invoiceId) {
   if (invoiceId && transaction.invoicePaymentId && transaction.invoicePaymentId !== invoiceId) throw new Error('این تراکنش به فاکتور دیگری سنجاق شده است.');
   if (invoiceId) transaction.invoicePaymentId = invoiceId; else delete transaction.invoicePaymentId;
 }
+function invoiceDepositSuggestions178(item, rows, rejected = []) {
+  if (!item || rows.some(t => !t.ghost && String(t.invoicePaymentId || '') === String(item.id))) return [];
+  const total = Number(item.total) * 10;
+  if (!Number.isSafeInteger(total) || total <= 0) return [];
+  const normalize = s => String(s || '').replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/\s+/g,' ').trim().toLowerCase();
+  const names = [item.customer,item.ownerName].map(normalize).filter(n => n.length >= 3);
+  return rows.filter(t => !t.ghost && t.type === 'credit' && !t.invoicePaymentId && !rejected.includes(String(item.id)+'|'+String(t.id)))
+    .map(t => { const amount=Number(t.amount), exact=amount===total, text=normalize([t.desc,t.customer,t.seller,t.raw].join(' ')), name=names.some(n=>text.includes(n)); return {t,exact,name,delta:Math.abs(amount-total)}; })
+    .filter(x=>x.exact || (x.name && x.delta <= total * .05))
+    .sort((a,b)=>Number(b.name)-Number(a.name) || Number(b.exact)-Number(a.exact) || a.delta-b.delta).slice(0,3);
+}
+function invoiceSharePlan178(item, transaction, rows) {
+  if (!item || !transaction || Number(transaction.amount) !== Number(item.total) * 10) return {kind:'skip', reason:'مبلغ واریز با کل فاکتور برابر نیست؛ سهم‌ها خودکار یکسان نمی‌شوند.'};
+  if (rows.some(t=>t !== transaction && !t.ghost && String(t.invoicePaymentId||'')===String(item.id))) return {kind:'skip',reason:'فاکتور چند واریز دارد؛ سهم‌ها خودکار تغییر نکردند.'};
+  if (rows.some(r=>r.ghost && r.loan==='share' && ((r.invoiceId && String(r.invoiceId)===String(item.id)) || (r.parent != null && String(r.parent)===String(transaction.id))))) return {kind:'skip',reason:'کارکرد ثبت‌شده وجود دارد؛ برای جلوگیری از تغییر یا تکرار، سهم‌ها خودکار تغییر نکردند.'};
+  const a = item.assistant && Number(item.share)>0 ? {name:item.assistant,mode:item.shareMode || 'fixed',value:item.shareValue,amount:Number(item.share)*10} : null;
+  const b = transaction.colleague && Number(transaction.shareAmount)>0 ? {name:transaction.colleague,mode:transaction.shareMode || 'percent',value:transaction.shareMode==='fixed'? Number(transaction.shareAmount)/10 : Number(transaction.pct),amount:Number(transaction.shareAmount)} : null;
+  if (!a && !b) return {kind:'none'};
+  if (a && b && a.name===b.name && a.amount===b.amount && a.mode===b.mode && (a.mode!=='percent' || Number(a.value)===Number(b.value))) return {kind:'none'};
+  return {kind:a && b?'conflict':a?'invoice':'transaction',invoice:a,transaction:b};
+}
+function invoicePinWithShare178(item, transaction) {
+  const list=invoiceList(), target=list.find(i=>String(i.id)===String(item.id));
+  if (!target) throw new Error('فاکتور پیدا نشد.');
+  if (!transaction || transaction.ghost || transaction.type!=='credit' || (transaction.invoicePaymentId && String(transaction.invoicePaymentId)!==String(item.id))) throw new Error('این واریز قابل سنجاق به فاکتور نیست.');
+  const plan=invoiceSharePlan178(target,transaction,tx); let source=plan.kind, note='';
+  if (plan.kind==='conflict') {
+    const answer=prompt('سهم دستیار متفاوت است. برای استفاده از سهم فاکتور عدد ۱ و برای استفاده از سهم تراکنش عدد ۲ را وارد کن. برای ادامه بدون تغییر سهم، انصراف را بزن.');
+    if (answer==='۱' || answer==='1') source='invoice'; else if(answer==='۲' || answer==='2') source='transaction'; else source='none';
+  } else if (plan.kind==='invoice' || plan.kind==='transaction') {
+    if (!confirm('سهم دستیار فقط در '+(plan.kind==='invoice'?'فاکتور':'تراکنش')+' ثبت شده است. سهم به طرف دیگر هم منتقل شود؟')) source='none';
+  } else if(plan.kind==='skip') note=plan.reason;
+  let updatedInvoice=null, updatedTransaction=null;
+  if(source==='invoice') {
+    const a=plan.invoice;
+    if(!Number.isSafeInteger(a.amount) || a.amount<=0 || a.amount>Number(transaction.amount) || (a.mode==='percent' && (!(Number(a.value)>0) || Number(a.value)>100))) note='سهم فاکتور معتبر نیست؛ سهم خودکار کپی نشد.';
+    else updatedTransaction={colleague:a.name,shareMode:a.mode,pct:a.mode==='percent'?Number(a.value):0,shareAmount:a.amount};
+  }
+  if(source==='transaction') {
+    const b=plan.transaction;
+    if(target.accounting?.status==='confirmed' && !confirm('تغییر سهم، تأیید قبلی فاکتور را به حالت انتظار برمی‌گرداند. ادامه شود؟')) source='none';
+    if(source==='transaction') {
+      const share=b.amount/10;
+      if(!Number.isSafeInteger(share)) note='مبلغ سهم به تومان کامل نیست؛ سهم خودکار کپی نشد.';
+      else {
+        const accounting=target.accounting ? {...invoiceAccount(Number(target.total),String(target.accounting.materials ?? 0),String(target.accounting.ownerPercent ?? 100),share),status:'pending'} : target.accounting;
+        updatedInvoice={assistant:b.name,share:share,shareMode:b.mode,shareValue:String(b.value),accounting};
+      }
+    }
+  }
+  if(updatedInvoice) { Object.assign(target,updatedInvoice); invoiceSaveData('invoices',list); }
+  if(updatedTransaction) Object.assign(transaction,updatedTransaction);
+  invoiceSetPaymentLink(transaction,item.id); save();
+  return note;
+}
 // Display a historical percent only when the linked payment proves the same
 // assistant and amount. No invoice or transaction is changed by this lookup.
 function invoiceDisplayPercent177(item, transactions) {
@@ -337,7 +392,9 @@ function invoiceShowList(query = '') {
     const eligible = tx.filter(t => !t.ghost && t.type === 'credit' && !t.invoicePaymentId);
     const links = payment.payments.map(t => '<div class="mut">' + esc(t.bank || accName(t.account) || 'بانک نامشخص') + ' · ' + esc(t.date || '') + ' · ' + (Number(t.amount)/10).toLocaleString('fa-IR') + ' تومان' + (t.receipt || t.raw ? '<div style="white-space:pre-wrap;overflow-wrap:anywhere">🧾 ' + esc(t.receipt || t.raw) + '</div>' : '') + ' <button type="button" class="sec invoice-tx-jump" data-tid="' + esc(t.id) + '">↩ رفتن به تراکنش</button> <button type="button" class="sec invoice-unpin" data-id="' + esc(item.id) + '" data-tid="' + esc(t.id) + '">برداشتن سنجاق</button></div>').join('');
     const options = eligible.map(t => '<option value="' + esc(t.id) + '">' + esc(t.bank || accName(t.account) || 'بانک') + ' · ' + esc(t.date || '') + ' · ' + (Number(t.amount)/10).toLocaleString('fa-IR') + ' تومان</option>').join('');
-    const paymentControls = '<details class="invoice-account-box"><summary>سنجاق واریز · ' + paymentLabel + '</summary>' + (payment.payments.length ? payment.amount.toLocaleString('fa-IR') + ' تومان' : '') + links + '<label>سنجاق واریز<select class="invoice-payment-choice"><option value="">انتخاب تراکنش واریزی</option>' + options + '</select></label><button type="button" class="sec invoice-pin" data-id="' + esc(item.id) + '">سنجاق تراکنش</button></details>';
+    const rejected178=load('invoiceReject178',[]), suggestions178=invoiceDepositSuggestions178(item,tx,Array.isArray(rejected178)?rejected178:[]);
+    const suggested178=suggestions178.map(x=>'<div class="card"><b>💡 پیشنهاد واریز · '+(x.name && x.exact?'شباهت زیاد':'نیاز به بررسی')+'</b><div class="mut">'+esc(x.t.date||'')+' · '+(Number(x.t.amount)/10).toLocaleString('fa-IR')+' تومان · '+esc(x.t.customer || x.t.desc || accName(x.t.account) || '')+'</div><button type="button" class="invoice-suggest-yes-178" data-id="'+esc(item.id)+'" data-tid="'+esc(x.t.id)+'">بله، سنجاق کن</button> <button type="button" class="sec invoice-suggest-no-178" data-id="'+esc(item.id)+'" data-tid="'+esc(x.t.id)+'">نه</button></div>').join('');
+    const paymentControls = '<details class="invoice-account-box"><summary>سنجاق واریز · ' + paymentLabel + (suggestions178.length?' · 💡 پیشنهاد':'') + '</summary>' + (payment.payments.length ? payment.amount.toLocaleString('fa-IR') + ' تومان' : '') + links + suggested178 + '<label>سنجاق واریز<select class="invoice-payment-choice"><option value="">انتخاب تراکنش واریزی</option>' + options + '</select></label><button type="button" class="sec invoice-pin" data-id="' + esc(item.id) + '">سنجاق تراکنش</button></details>';
 
     return `<details class="invoice-result" style="border-right:4px solid ${invoiceKindColor(item)}"><summary><span style="color:${invoiceKindColor(item)}">${esc(invoiceKind(item))}${item.proforma ? ' · پیش‌فاکتور' : ''}</span> · <b>${esc(item.customer || 'بدون نام')}</b> · ${esc(item.number)} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان</summary><div class="mut">${esc(item.date)} · ${esc(item.phone)}${item.ownerName || item.ownerPhone ? ' · صاحب خودرو: ' + esc(item.ownerName || 'نام ثبت نشده') + (item.ownerPhone ? ' · ' + esc(item.ownerPhone) : '') : ''} · ${esc(item.plate)} · ${esc(item.model)} · ${esc(item.color)} · ${esc(item.carType)}</div><div class="mut">تسویه: ${esc(invoicePaymentLabel(item.payment?.method))}${item.payment?.recipient ? ' · دریافت‌کننده: ' + esc(item.payment.recipient) : ''}${item.payment?.account ? ' · کارت / حساب: ' + esc(item.payment.account) : ''}${item.payment?.note ? ' · ' + esc(item.payment.note) : ''}</div><div>${(item.lines || []).map(line => `<div>${esc(line.name)} · ${Number(line.quantity).toLocaleString('fa-IR')} × ${Number(line.price).toLocaleString('fa-IR')} تومان</div>`).join('')}</div>${paymentControls}<div class="mut">مانده: ${Math.max(0,(Number(item.total)||0)-payment.amount).toLocaleString('fa-IR')} تومان${payment.payments.length ? '' : ' (بدون واریز سنجاق‌شده)'}</div><div class="invoice-account-box"><b style="color:${confirmed ? '#15803d' : '#a16207'}">${confirmed ? '✓ تأییدشده' : '⏳ در انتظار تأیید'}</b>${account ? `<div class="mut">لوازم: ${Number(account.materials).toLocaleString('fa-IR')} · سهم من: ${Number(account.ownerPercent).toLocaleString('fa-IR')}٪ · سهم پیش از دستیار: ${Number(account.ownerGross).toLocaleString('fa-IR')} · دستیار${displayPct177 !== null ? ' (' + displayPct177.toLocaleString('fa-IR') + '٪)' : ''}: ${Number(item.share || 0).toLocaleString('fa-IR')} · سهم نهایی من: <b>${Number(account.ownerNet).toLocaleString('fa-IR')} تومان</b></div>` : '<div class="mut">برای تعیین لوازم و سهم، فاکتور قدیمی را ویرایش و ذخیره کن.</div>'}${account && !confirmed ? `<button type="button" class="invoice-confirm" data-id="${esc(item.id)}">تأیید و ثبت در حساب فاکتورها</button>` : ''}</div>${item.assistant ? `<div class="mut">دستیار: ${esc(item.assistant)}${displayPct177 !== null ? ' (' + displayPct177.toLocaleString('fa-IR') + '٪)' : ''} · سهم ${Number(item.share || 0).toLocaleString('fa-IR')} تومان${invoiceWorkRegistered173m(item, tx) ? ' ✓' : ''}${invoiceWorkRegistered173m(item, tx) ? ' · <b style="color:#15803d">✓ ثبت شده در کارکرد</b>' : ' · <b style="color:#c0392b">در کارکرد ثبت نشده</b>'}</div><button type="button" class="sec invoice-work" data-id="${esc(item.id)}">ثبت سهم در کارکرد دستیار</button>` : ''}<div class="invoice-actions"><button type="button" class="sec invoice-edit" data-id="${esc(item.id)}">ویرایش فاکتور</button><button type="button" class="sec invoice-print" data-id="${esc(item.id)}">نمایش و چاپ</button><button type="button" class="sec invoice-delete" data-id="${esc(item.id)}">حذف</button><button type="button" class="sec invoice-close-173g">بستن</button></div></details>`;
   }).join('') : '<div class="mut">فاکتوری پیدا نشد.</div>');
@@ -383,7 +440,7 @@ function invoiceBind() {
   get('inv-owner-presets-170').addEventListener('click', event => { const button = event.target.closest('[data-owner-percent]'); if (!button) return; if (button.dataset.ownerPercent === 'custom') get('inv-owner-percent').focus(); else { get('inv-owner-percent').value = button.dataset.ownerPercent; invoiceRefreshTotal(); } });
   get('inv-owner-fixed-170').addEventListener('input', event => { invoiceAmountInput(event.target); invoiceRefreshTotal(); });
   const searchPanel170 = get('invoice-search-panel');
-  searchPanel170.querySelector('summary').insertAdjacentHTML('afterend', '<button type="button" class="sec" id="invoice-check-duplicates-172">بررسی تکراری‌های فاکتور</button><div id="invoice-duplicates-172" aria-live="polite"></div>');
+  searchPanel170.querySelector('summary').insertAdjacentHTML('afterend', '<button type="button" class="sec" id="invoice-check-duplicates-172">بررسی تکراری‌های فاکتور</button><button type="button" class="sec" id="invoice-suggestions-178">💡 پیشنهاد واریز برای فاکتورها</button><div id="invoice-duplicates-172" aria-live="polite"></div>');
   const showDuplicates172 = () => {
     const groups = invoiceDuplicates172(tx), box = get('invoice-duplicates-172');
     box.innerHTML = groups.length ? groups.map((rows, index) => '<div class="invoice-account-box"><b>فاکتور ' + esc(rows[0].invoiceId) + ' · ' + esc(invoiceRowType172(rows[0])) + '</b><div class="mut">هیچ ردیفی حذف نمی‌شود. برای به‌روزرسانی خودکار، یک ردیف اصلی انتخاب کن؛ بقیه را جداگانه بررسی کن.</div>' + rows.map((row, rowIndex) => '<div class="row"><span>' + esc(row.person || 'بدون نام') + ' · ' + (Number(row.amount || 0) / 10).toLocaleString('fa-IR') + ' تومان · ' + esc(row.date || '') + (row.invoicePrimary172 ? ' · اصلی' : '') + '</span><button type="button" class="sec invoice-primary-172" data-group="' + index + '" data-row="' + rowIndex + '">انتخاب اصلی</button></div>').join('') + '</div>').join('') : '<div class="mut">ردیف تکراری مربوط به فاکتور پیدا نشد.</div>';
@@ -467,7 +524,10 @@ function invoiceBind() {
     const day = event.target.closest('.inv-day'); if (day) { get('inv-date').value = invoiceDate(Number(day.dataset.days)); dateSelectors(); return; }
     const remove = event.target.closest('.inv-remove-item'); if (remove) { if (document.querySelectorAll('#invoice-lines .invoice-line').length > 1) remove.closest('.invoice-line').remove(); else alert('حداقل یک ردیف لازم است'); invoiceRefreshTotal(); return; }
     const catalog = event.target.closest('.inv-save-item'); if (catalog) { const row = catalog.closest('.invoice-line'), name = row.querySelector('.inv-item').value.trim(), price = invoiceDigits(row.querySelector('.inv-price').value); if (!name || price === null) { alert('نام و قیمت را وارد کن'); return; } const items = invoiceCatalog(), old = items.find(item => item.name === name); if (old && !confirm('قیمت ثبت‌شده برای «' + name + '» تغییر کند؟')) return; if (old) old.price = price; else items.push({ name, price }); invoiceSaveData('invoiceCatalog', items); get('invoice-items').innerHTML = invoiceOptions([...load('svq', []), ...items.map(item => item.name)]); get('inv-message').textContent = 'نام و قیمت در فهرست ذخیره شد.'; return; }
-    const pin = event.target.closest('.invoice-pin'); if (pin) { const select = pin.parentElement.querySelector('.invoice-payment-choice'), item = invoiceList().find(x=>String(x.id)===pin.dataset.id), transaction = tx.find(t=>String(t.id)===select.value); if (!item || !transaction) { alert('یک واریز انتخاب کن.'); return; } try { invoiceSetPaymentLink(transaction, item.id); save(); invoiceShowList(get('inv-search').value); } catch(error) { alert(error.message); } return; }
+    const suggestYes=event.target.closest('.invoice-suggest-yes-178'); if(suggestYes) { const item=invoiceList().find(i=>String(i.id)===suggestYes.dataset.id), t=tx.find(x=>String(x.id)===suggestYes.dataset.tid); if(!item || !t || !confirm('این واریز مربوط به فاکتور '+item.number+' است؟')) return; try { const note=invoicePinWithShare178(item,t); invoiceShowList(get('inv-search').value); if(note) alert(note); } catch(error){alert(error.message);} return; }
+    const suggestNo=event.target.closest('.invoice-suggest-no-178'); if(suggestNo) { const rejected=load('invoiceReject178',[]), key=suggestNo.dataset.id+'|'+suggestNo.dataset.tid, list=Array.isArray(rejected)?rejected:[]; if(!list.includes(key)) list.push(key); localStorage.setItem('invoiceReject178',JSON.stringify(list)); invoiceShowList(get('inv-search').value); return; }
+    if(event.target.closest('#invoice-suggestions-178')) { const boxes=[...card.querySelectorAll('.invoice-suggest-yes-178')]; if(!boxes.length){alert('پیشنهادی در فاکتورهای نمایش‌داده‌شده پیدا نشد.');return;} boxes.forEach(b=>{const result=b.closest('.invoice-result'); if(result)result.open=true; const details=b.closest('details');if(details)details.open=true;}); boxes[0].scrollIntoView({behavior:'smooth',block:'center'}); return; }
+    const pin = event.target.closest('.invoice-pin'); if (pin) { const select = pin.parentElement.querySelector('.invoice-payment-choice'), item = invoiceList().find(x=>String(x.id)===pin.dataset.id), transaction = tx.find(t=>String(t.id)===select.value); if (!item || !transaction) { alert('یک واریز انتخاب کن.'); return; } try { const note=invoicePinWithShare178(item,transaction); invoiceShowList(get('inv-search').value); if(note) alert(note); } catch(error) { alert(error.message); } return; }
     const unpin = event.target.closest('.invoice-unpin'); if (unpin) { const transaction = tx.find(t=>String(t.id)===unpin.dataset.tid && String(t.invoicePaymentId)===unpin.dataset.id); if (!transaction) return; invoiceSetPaymentLink(transaction, ''); save(); invoiceShowList(get('inv-search').value); return; }
     const edit = event.target.closest('.invoice-edit'); if (edit) {
       event.preventDefault();
