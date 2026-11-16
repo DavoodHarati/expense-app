@@ -442,8 +442,7 @@ function pendingCard(t) {
     <div class="mut bh"></div>
     ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage"${!featureOn('assistant') ? ' hidden' : ''}${t.loan === 'wage' ? ' selected' : ''}>دستمزد / حقوق دستیار</option><option value="lent"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'lent' ? ' selected' : ''}>قرض دادم</option><option value="payback"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'payback' ? ' selected' : ''}>قرض پس دادم</option></select>` : ''}
     ${debit ? '' : `<div class="row" ${featureOn('loan') ? '' : 'hidden'}>${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
-    ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
-    ${showCu ? ctBlock(t, D, cat0) : ''}
+    ${showCu ? `<details class="transaction-customer-177"><summary><b>مشخصات مشتری / راننده و خدمت</b>${t.customer ? ' · ' + esc(t.customer) : ''}</summary><input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}${ctBlock(t, D, cat0)}</details>` : ''}
     ${debit || !featureOn('assistant') ? '' : colBlock(t, D)}
     <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <details ${featureOn('reminder') ? '' : 'hidden'}><summary class="mut">یادآوری (اختیاری): تاریخ</summary><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}</details>
@@ -1002,10 +1001,12 @@ function settingsAccordion170(el) {
 
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
 function invoiceStartEditing() {
-  if (tab !== 'report' || (topic !== 'invoices' && topic !== 'sales')) return;
+  if ((tab !== 'report' && tab !== 'home') || (topic !== 'invoices' && topic !== 'sales')) return;
   tab = 'add'; addMode164 = 'invoice';
   navigationRender163();
   document.getElementById('invoice-form-fields').hidden = false;
+  document.getElementById('app').classList.remove('invoice-page-173e', 'invoice-report-page-173e');
+  document.getElementById('invoice-card').open = true;
   const ledger = document.querySelector('.invoice-ledger'); if (ledger) ledger.hidden = true;
   document.querySelector('#invoice-card > summary b').textContent = '🧾 ویرایش فاکتور';
 }
@@ -1172,7 +1173,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-15T19:22:16Z'; const BUILD_VERSION = '۱۷۶';
+const BUILD = '2026-11-16T13:40:10Z'; const BUILD_VERSION = '۱۷۷';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1222,12 +1223,15 @@ function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
   const work = statusMap instanceof Map ? statusMap.get(String(t.id)) : null;
   const direction = typeof transactionView173g === 'function' ? transactionView173g(t) : null;
+  const linkedInvoice177 = t.invoicePaymentId && typeof invoiceList === 'function' ? invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) : null;
+  const ownerPercent177 = linkedInvoice177?.accounting?.ownerPercent;
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b style="white-space:nowrap" class="${direction ? direction.color : t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (direction ? direction.sign : t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
   ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${featureOn('invoice') && (t.customer || t.service) ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
   ${t.invoicePaymentId ? `<button type="button" class="sec invoice-jump-173m" data-invoice-id="${esc(t.invoicePaymentId)}">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) || {}).number || t.invoicePaymentId)}</button>` : ''}
   ${featureOn('assistant') && t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
+  ${linkedInvoice177 && ownerPercent177 != null && Number.isFinite(Number(ownerPercent177)) ? `<div class="mut">درصد سهم من در فاکتور: ${Number(ownerPercent177).toLocaleString('fa-IR')}٪</div>` : ''}
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
