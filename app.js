@@ -442,11 +442,11 @@ function pendingCard(t) {
     <div class="mut bh"></div>
     ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage"${!featureOn('assistant') ? ' hidden' : ''}${t.loan === 'wage' ? ' selected' : ''}>دستمزد / حقوق دستیار</option><option value="lent"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'lent' ? ' selected' : ''}>قرض دادم</option><option value="payback"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'payback' ? ' selected' : ''}>قرض پس دادم</option></select>` : ''}
     ${debit ? '' : `<div class="row" ${featureOn('loan') ? '' : 'hidden'}>${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
-    ${showCu ? `<details class="transaction-customer-177"><summary><b>مشخصات مشتری / راننده و خدمت</b>${t.customer ? ' · ' + esc(t.customer) : ''}</summary><input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}${ctBlock(t, D, cat0)}</details>` : ''}
+    ${showCu ? `<details class="transaction-customer-177"><summary><b>👤 مشخصات مشتری / راننده و خدمت</b>${t.customer ? ' · ' + esc(t.customer) : ''}</summary><input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}${ctBlock(t, D, cat0)}</details>` : ''}
     ${debit || !featureOn('assistant') ? '' : colBlock(t, D)}
     ${debit ? '' : '<div class="mut">واریز راننده را «مشتری» ثبت کن؛ این مبلغ یک تراکنش بانکی است. سهم تو جداگانه در حساب همان فاکتور نمایش داده می‌شود.</div>'}
     <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-    <details ${featureOn('reminder') ? '' : 'hidden'}><summary class="mut">یادآوری (اختیاری): تاریخ</summary><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}</details>
+    <details class="entry-section-180" ${featureOn('reminder') ? '' : 'hidden'}><summary><b>🔔 یادآوری (اختیاری)</b></summary><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}</details>
     <div class="row"><button class="ok">ذخیره</button>${editing.has(String(t.id)) ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
@@ -498,7 +498,7 @@ function colBlock(t, D) {
   const c = cols(), names = [...new Set([...Object.keys(c),t.colleague].filter(Boolean))], sel = D.co ?? (t.colleague || ''), pct = Number(D.pc ?? (t.pct ?? c[sel] ?? 0)) || 0;
   const mode = D.shareMode ?? (t.shareMode || 'percent');
   const fixed = D.shareAmount ?? (t.shareMode === 'fixed' ? Math.round((t.shareAmount || 0) / 10) : '');
-  return `<details class="colbox"><summary><b>🤝 دستیار در این کار</b></summary>
+  return `<details class="colbox entry-section-180"><summary><b>🤝 دستیار در این کار</b></summary>
     <select class="co"><option value="">بدون دستیار</option>${names.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)} (${(c[n] || 0).toLocaleString('fa-IR')}٪)</option>`).join('')}<option value="__new">+ دستیار جدید…</option></select>
     <input class="cn hide" placeholder="نام دستیار جدید">
     <select class="sharemode${sel ? '' : ' hide'}"><option value="percent"${mode === 'percent' ? ' selected' : ''}>سهم درصدی</option><option value="fixed"${mode === 'fixed' ? ' selected' : ''}>مبلغ ثابت (تومان)</option></select>
@@ -1169,14 +1169,14 @@ function workList(p, L) {
   const un = rows.filter(r => r.left > 0), pd = rows.filter(r => r.left === 0);
   const sum = un.reduce((s, r) => s + r.left, 0);
   if (!rows.length) return '';
-  return `<details class="card" open><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
+  return `<details class="card"><summary><b>🧾 کارکردها</b> <span class="mut">(${un.length.toLocaleString('fa-IR')} پرداخت‌نشده · ${pd.length.toLocaleString('fa-IR')} پرداخت‌شده)</span></summary>
   <div class="mut" style="margin:4px 0">پرداخت‌ها به‌ترتیب تاریخ روی قدیمی‌ترین کارها حساب می‌شوند.${pool > 0 ? ' پیش‌پرداخت مازاد: ' + toman(pool) + ' تومان.' : ''}</div>
   ${un.length ? `<b class="red">پرداخت‌نشده · ${toman(sum)} تومان</b>${un.map(row).join('')}` : ''}
   ${pd.length ? `<b class="grn">✓ پرداخت‌شده (${pd.length.toLocaleString('fa-IR')})</b>${pd.map(row).join('')}` : ''}</details>`;
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-16T14:21:03Z'; const BUILD_VERSION = '۱۷۹';
+const BUILD = '2026-11-16T15:54:57Z'; const BUILD_VERSION = '۱۸۰';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1217,10 +1217,25 @@ function loansHtml() {
     <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? (CO[lp] ?? '') : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
     ${isCo && featureOn('assistant') ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="text" inputmode="numeric" placeholder="مبلغ سهم (تومان)">${persianDateFields('wdt')}<button id="wadd">ثبت کارکرد</button></details>` : ''}
     <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent" ${featureOn('loan') ? '' : 'hidden'}>قرض: او به من بدهکار است</option><option value="borrowed" ${featureOn('loan') ? '' : 'hidden'}>قرض: من به او بدهکارم</option></select><input id="manualamount" type="text" inputmode="numeric" placeholder="مبلغ به تومان">${persianDateFields('manualdate')}<input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
-    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}<details class="card"><summary><b>همه گردش‌های حساب (${rows.length.toLocaleString('fa-IR')})</b></summary><div class="mut">همان ردیف‌های بالا هستند و دوباره به حساب اضافه نمی‌شوند.</div>${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}</details>`;
+    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}<details class="card" open><summary><b>همه گردش‌های حساب (${rows.length.toLocaleString('fa-IR')})</b></summary><div class="mut">همان ردیف‌های بالا هستند و دوباره به حساب اضافه نمی‌شوند.</div>${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}</details>`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
   return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined || L.some(t => t.person === p && isWage(t)), w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${CO[p] !== undefined ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
+}
+function workDescription180(row, transactions, invoices) {
+  let description = row.desc || '';
+  if (row.loan !== 'share') return description;
+  const parent = transactions.find(entry => row.parent != null && String(entry.id) === String(row.parent));
+  const invoiceId = row.invoiceId || parent?.invoicePaymentId;
+  const invoice = invoiceId && invoices.find(entry => String(entry.id) === String(invoiceId));
+  if (!invoice || invoice.assistant !== row.person || Number(invoice.share) * 10 !== Number(row.amount)) return description;
+  const percent = typeof invoiceDisplayPercent177 === 'function' ? invoiceDisplayPercent177(invoice, transactions) : null;
+  if (percent !== null && !/سهم\s*[۰-۹٠-٩\d]+\s*٪/.test(description)) description += ' · سهم ' + Number(percent).toLocaleString('fa-IR') + '٪';
+  const customer = invoice.customer || parent?.customer;
+  if (customer && !description.includes(customer)) description += ' · ' + customer;
+  const services = (invoice.lines || []).map(line => line.name).filter(Boolean).join('، ') || parent?.service;
+  if (services && !description.includes(services)) description += ' · خدمت: ' + services;
+  return description.replace(/^ · /, '');
 }
 function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
@@ -1228,8 +1243,9 @@ function rowHtml(t, statusMap) {
   const direction = typeof transactionView173g === 'function' ? transactionView173g(t) : null;
   const linkedInvoice177 = t.invoicePaymentId && typeof invoiceList === 'function' ? invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) : null;
   const ownerPercent177 = linkedInvoice177?.accounting?.ownerPercent;
+  const workDescription = workDescription180(t, tx, typeof invoiceList === 'function' ? invoiceList() : []);
   return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b style="white-space:nowrap" class="${direction ? direction.color : t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (direction ? direction.sign : t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
-  ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
+  ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${workDescription && !workDescription.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(workDescription) ? ' · ' + esc(workDescription) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
   ${featureOn('invoice') && (t.customer || t.service) ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
   ${t.invoicePaymentId ? `<button type="button" class="sec invoice-jump-173m" data-invoice-id="${esc(t.invoicePaymentId)}">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) || {}).number || t.invoicePaymentId)}</button>` : ''}
