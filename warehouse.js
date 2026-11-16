@@ -13,9 +13,33 @@ const stock=(d,id)=>d.moves.filter(m=>m.item===id).reduce((n,m)=>n+m.qty,0);
 let L=[];
 window.warehouseInvoiceSet=l=>{L=(l||[]).map(x=>({...x}));paint();};
 window.warehouseInvoiceGet=()=>L.filter(x=>x.item&&x.qty>0);
+window.warehouseInvoiceValidate182=()=>{for(const x of L){if(!x.item||!Number.isSafeInteger(x.qty)||x.qty<=0||!Number.isSafeInteger(x.price)||x.price<0||!Number.isSafeInteger(x.buy)||x.buy<0)throw new Error('کالا، تعداد و قیمت همه ردیف‌های انبار را کامل کن یا ردیف اضافی را بردار.');}};
 window.warehouseInvoiceMaterials=()=>warehouseInvoiceGet().reduce((n,x)=>n+x.qty*x.price,0);
 window.warehouseInvoiceCommit=(ref,date)=>{const d=db();d.moves=d.moves.filter(m=>m.ref!==ref);warehouseInvoiceGet().forEach(x=>d.moves.push({id:uid('m'),item:x.item,qty:-x.qty,type:'out',ref,date:date||today(),price:x.buy}));put(d);};
 window.warehouseInvoiceRelease=ref=>{const d=db();d.moves=d.moves.filter(m=>m.ref!==ref);put(d);};
+// Build the complete replacement before writing either storage key.
+window.warehousePlanPurchase182=(invoice, original)=>{
+  const d=JSON.parse(JSON.stringify(original || db()));
+  if(!Array.isArray(d.items)||!Array.isArray(d.moves)||!Array.isArray(d.groups)) throw new Error('اطلاعات انبار نامعتبر است؛ ابتدا پشتیبان را بررسی کن.');
+  const old=d.moves.filter(m=>String(m.ref)===String(invoice.id));
+  const touched=new Set(old.map(m=>m.item));
+  d.moves=d.moves.filter(m=>String(m.ref)!==String(invoice.id));
+  if(!invoice.proforma){
+    const entries=invoice.kind==='خرید اجناس انبار'
+      ? (invoice.lines||[]).map(x=>({item:x.warehouseItem,qty:x.quantity,price:x.price,type:'purchase'}))
+      : (invoice.wh||[]).map(x=>({item:x.item,qty:-x.qty,price:x.buy,type:'out'}));
+    for(const entry of entries){
+      if(!d.items.some(i=>i.id===entry.item)) throw new Error('کالای هر ردیف را از انبار انتخاب کن.');
+      if(!Number.isSafeInteger(entry.qty)||!entry.qty||!Number.isSafeInteger(Number(entry.price))||Number(entry.price)<0) throw new Error('تعداد و قیمت کالا معتبر نیست.');
+      touched.add(entry.item);
+      d.moves.push({id:uid('m'),item:entry.item,qty:entry.qty,type:entry.type,ref:invoice.id,date:invoice.date,price:Number(entry.price)});
+    }
+  }
+  for(const id of touched) if(stock(d,id)<0) throw new Error('موجودی کالا کافی نیست؛ تعداد مصرف یا خرید را بررسی کن.');
+  return d;
+};
+window.warehouseSavePlan182=d=>put(d);
+window.warehouseProducts182=()=>db().items.map(x=>({...x}));
 window.warehouseInvoiceHtml=()=>'<div id="inv-wh" style="margin:8px 0"></div>';
 function paint(){const box=document.getElementById('inv-wh');if(!box)return;const d=db();
   box.innerHTML='<b>📦 لوازم از انبار</b>'+L.map((x,i)=>{const it=d.items.find(v=>v.id===x.item);
@@ -36,21 +60,26 @@ const css=`<style>.wh181 .whc{background:#fff;border:1px solid #d9e6e2;border-ra
 function wk(date){const [y,m,dd]=String(date).split('/').map(Number);if(!y)return '';const doy=(m<=6?(m-1)*31:186+(m-7)*30)+dd;return y+' · هفته '+fa(Math.ceil(doy/7));}
 function report(d){
   const inv=typeof invoiceList==='function'?invoiceList():[];const mp=new Map();
-  inv.forEach(i=>{if(i.proforma)return;const key=per==='day'?i.date:per==='week'?wk(i.date):String(i.date||'').slice(0,7);if(!key)return;
+  inv.forEach(i=>{if(i.proforma||i.kind==='خرید اجناس انبار')return;const key=per==='day'?i.date:per==='week'?wk(i.date):String(i.date||'').slice(0,7);if(!key)return;
     const r=mp.get(key)||{n:0,total:0,profit:0,gm:0,gc:0};const exp=i.kind==='هزینه';r.n++;r.total+=exp?0:Number(i.total)||0;r.profit+=exp?-(Number(i.total)||0):Number(i.accounting?.ownerNet)||0;
     (i.wh||[]).forEach(x=>{r.gc+=x.qty*x.buy;r.gm+=x.qty*(x.price-x.buy);});mp.set(key,r);});
   const rows=[...mp.entries()].sort((a,b)=>a[0]<b[0]?1:-1).slice(0,40);
   const tot=rows.reduce((a,[,r])=>({n:a.n+r.n,total:a.total+r.total,profit:a.profit+r.profit,gm:a.gm+r.gm,gc:a.gc+r.gc}),{n:0,total:0,profit:0,gm:0,gc:0});
   const c=v=>v<0?'neg':'pos';const tr=(k,r)=>`<tr><td>${k}</td><td>${fa(r.n)}</td><td>${fa(r.total)}</td><td>${fa(r.gc)}</td><td class="${c(r.gm)}">${fa(r.gm)}</td><td class="${c(r.profit)}"><b>${fa(r.profit)}</b></td></tr>`;
-  const byItem=new Map();inv.forEach(i=>(i.wh||[]).forEach(x=>{const r=byItem.get(x.item)||{q:0,m:0};r.q+=x.qty;r.m+=x.qty*(x.price-x.buy);byItem.set(x.item,r);}));
+  const byItem=new Map();inv.filter(i=>!i.proforma&&i.kind!=='خرید اجناس انبار').forEach(i=>(i.wh||[]).forEach(x=>{const r=byItem.get(x.item)||{q:0,m:0};r.q+=x.qty;r.m+=x.qty*(x.price-x.buy);byItem.set(x.item,r);}));
   return `<div class="chips">${[['day','روزانه'],['week','هفتگی'],['month','ماهانه']].map(([k,t])=>`<button class="chip ${per===k?'on':''}" data-wh="per" data-v="${k}">${t}</button>`).join('')}</div>
   <div class="whc" style="overflow-x:auto"><table><tr><th>دوره</th><th>فاکتور</th><th>فروش</th><th>هزینه کالا</th><th>سود کالا</th><th>سود خالص</th></tr>${rows.map(([k,r])=>tr(k,r)).join('')||'<tr><td colspan=6>فاکتوری نیست</td></tr>'}${rows.length?tr('جمع',tot):''}</table><div class="mut">سود خالص = سهم تو پس از کسر لوازم و سهم دستیار؛ سود کالا = (قیمت انتخابی − قیمت خرید) × تعداد. هفته‌ها از اول فروردین شمرده می‌شوند.</div></div>
   <div class="whc"><b>پرفروش‌ها و سودشان</b>${[...byItem.entries()].sort((a,b)=>b[1].m-a[1].m).slice(0,10).map(([id,r])=>`<div class="mv"><span>${E(d.items.find(i=>i.id===id)?.name||'حذف‌شده')} · ${fa(r.q)} عدد</span><b class="${c(r.m)}">${fa(r.m)}</b></div>`).join('')||'<div class="mut">هنوز کالایی در فاکتور نیست</div>'}</div>`;}
 window.warehouseHtml=function(){
   const d=db(),s=q.trim(),items=d.items.filter(i=>(!gf||i.g===gf)&&(!s||(i.name+' '+(i.brand||'')).includes(s)));
   const vb=d.items.reduce((n,i)=>n+Math.max(0,stock(d,i.id))*(i.buy||0),0),vs=d.items.reduce((n,i)=>n+Math.max(0,stock(d,i.id))*(i.sell||0),0);
-  const top=`<div class="card noacc"><b>📦 انبار</b><div class="mut">ارزش موجودی: ${fa(vb)} (خرید) · ${fa(vs)} (فروش) · سود بالقوه ${fa(vs-vb)} تومان</div><div class="chips"><button class="chip ${view==='stock'?'on':''}" data-wh="view" data-v="stock">موجودی</button><button class="chip ${view==='report'?'on':''}" data-wh="view" data-v="report">گزارش سود</button></div></div>`;
+  const top=`<div class="card noacc"><b>📦 انبار</b><div class="mut">ارزش موجودی: ${fa(vb)} (خرید) · ${fa(vs)} (فروش) · سود بالقوه ${fa(vs-vb)} تومان</div><div class="chips"><button class="chip ${view==='stock'?'on':''}" data-wh="view" data-v="stock">موجودی</button><button class="chip ${view==='invoices'?'on':''}" data-wh="view" data-v="invoices">فاکتورهای انبار</button><button class="chip ${view==='report'?'on':''}" data-wh="view" data-v="report">گزارش سود</button></div></div>`;
   if(view==='report')return css+`<div class="wh181">${top}${report(d)}</div>`;
+  if(view==='invoices'){
+    const invoices=typeof invoiceList==='function'?invoiceList().filter(i=>i.kind==='خرید اجناس انبار'):[];
+    const found=invoices.filter(i=>!s||[i.number,i.customer,i.date,...(i.lines||[]).map(x=>x.name)].some(x=>String(x||'').includes(s)));
+    return css+`<div class="wh181">${top}<div class="whc"><input id="wh-q" value="${E(q)}" placeholder="جست‌وجوی شماره فاکتور، کالا، نام یا تاریخ">${found.map(i=>`<div class="mv"><span><b>فاکتور ${E(i.number)}</b> · ${E(i.date)} · ${E(i.customer||'بدون نام')}<br>${(i.lines||[]).map(x=>E(x.name)+' × '+fa(x.quantity)).join('، ')}</span><b>${fa(i.total)} تومان</b></div>`).join('')||'<div class="mut">فاکتوری پیدا نشد.</div>'}<button type="button" class="sec invoice-open-list" data-filter="stock">بررسی در فاکتورها</button></div></div>`;
+  }
   const card=i=>{const n=stock(d,i.id),g=d.groups.find(x=>x.id===i.g),mv=d.moves.filter(m=>m.item===i.id).slice(-8).reverse();
     return `<div class="whc"><div class="whh"><div><b>${E(i.name)}${i.brand?' · '+E(i.brand):''}</b><br><small class="mut">${E(g?.name||'بدون گروه')} · خرید ${fa(i.buy)} · فروش ${fa(i.sell)} · سود هر عدد ${fa(i.sell-i.buy)}</small></div><div class="whq ${n<=0?'zero':n<=(i.min||0)?'low':''}">${fa(n)}</div></div>
     <div class="whr"><button class="sec" data-wh="buy" data-id="${i.id}">🛒 خرید</button><button class="sec" data-wh="in" data-id="${i.id}">＋ دستی</button><button class="sec" data-wh="out" data-id="${i.id}">－ دستی</button><button class="sec" data-wh="open" data-id="${i.id}">گردش/ویرایش</button></div>
@@ -67,6 +96,6 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-wh]');if(!
   if(a==='buy'){const n=dg(prompt('تعداد خریداری‌شده؟'));if(!n)return;const it=d.items.find(x=>x.id===id),p=dg(prompt('قیمت خرید هر عدد (تومان)؟',it.buy||''));mv(n,'buy',{price:p});if(p)it.buy=p;put(d);render();return;}
   if(a==='in'||a==='out'){const n=dg(prompt(a==='in'?'تعداد افزوده‌شده؟':'تعداد کسرشده؟'));if(!n)return;mv(a==='in'?n:-n,'manual',{note:prompt('توضیح (اختیاری)')||''});put(d);render();return;}
   if(a==='save'){const it=d.items.find(x=>x.id===id);if(it){it.name=v('wh-edn')||it.name;it.brand=v('wh-edb');it.buy=dg(v('wh-edp'));it.sell=dg(v('wh-edq'));put(d);render();}return;}
-  if(a==='del'){if(!confirm('کالا و گردش‌هایش حذف شود؟'))return;d.items=d.items.filter(x=>x.id!==id);d.moves=d.moves.filter(m=>m.item!==id);open='';put(d);render();}
+  if(a==='del'){if(d.moves.some(m=>m.item===id&&m.ref)){alert('این کالا به فاکتور متصل است؛ ابتدا فاکتورهای مرتبط را بررسی کن.');return;}if(!confirm('کالا و گردش‌هایش حذف شود؟'))return;d.items=d.items.filter(x=>x.id!==id);d.moves=d.moves.filter(m=>m.item!==id);open='';put(d);render();}
 });
 })();

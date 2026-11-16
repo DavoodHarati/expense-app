@@ -5,32 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="هزینه‌ها">
-<meta name="theme-color" content="#0e7569">
-<style>
-html,body{background:#0f766e}#splash-173g{position:fixed;inset:0;z-index:99999;background:radial-gradient(circle at 50% 35%,#14968a,#0f766e 70%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;padding:24px;color:#fff;opacity:1;transition:opacity .2s ease;font-family:inherit}#splash-173g.splash-hidden{opacity:0;pointer-events:none}.splash-icon-173h{width:110px;height:110px;border-radius:28px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:58px;color:#0f766e;box-shadow:0 12px 30px #0003;animation:splash-pop .9s cubic-bezier(.2,.9,.3,1.2) both,splash-breathe 2s ease-in-out .9s infinite}#splash-173g strong{font-size:22px}.splash-bar-173h{width:120px;height:4px;border-radius:4px;background:#ffffff40;overflow:hidden}.splash-bar-173h:after{content:'';display:block;height:100%;width:40%;background:#fff;border-radius:4px;animation:splash-slide 1.2s ease-in-out infinite}.splash-tip-173h{max-width:320px;background:#ffffff21;border-radius:14px;padding:12px 16px;text-align:center;direction:rtl;line-height:1.7;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;transition:opacity .25s}.splash-tip-173h[hidden],#splash-fallback-173g[hidden]{display:none}.splash-tip-173h.fading{opacity:0}#splash-fallback-173g{text-align:center}#splash-fallback-173g button{display:block;margin:10px auto;min-height:44px}@keyframes splash-pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}@keyframes splash-breathe{50%{transform:scale(1.06)}}@keyframes splash-slide{from{transform:translateX(-100%)}to{transform:translateX(260%)}}@media(prefers-reduced-motion:reduce){#splash-173g *,#splash-173g{animation:none!important;transition:none!important}}
- .section-nav-173n{position:sticky;top:64px;bottom:auto;left:auto;right:auto;z-index:5;display:flex;gap:6px;padding:7px 10px;background:#fff;border:0;border-bottom:1px solid #e5e7eb}.section-nav-173n button:not(.nav-add){flex:1;min-width:0;min-height:44px;display:flex;flex-direction:row;gap:4px;border-radius:18px;background:#edf3f2;color:#405652;font-size:17px}.section-nav-173n button small{font-size:12px}.section-nav-173n button.on{background:#0f766e;color:white}.search-panel-173e{top:0}.invoice-report-page-173e #invoice-search-panel{display:none}.invoice-report-page-173e #inv-overview-170,.invoice-report-page-173e #inv-results>.mut:first-child{display:none}#home-direct-start{font-size:11px;min-height:36px;padding:6px 10px}
-</style>
-<style>
-#topics{box-shadow:inset 12px 0 12px -12px #51645d88;scrollbar-width:thin}#topics button:disabled{opacity:.45}.diary-chips,.add-sections{display:none!important}#app>details.card{margin-bottom:7px;padding:10px 12px}#app>details.card>summary{min-height:44px;font-weight:700}nav button{min-height:44px;flex:1}#app>details.card button{min-height:44px}
-</style>
-<style>
-.invoice-types-170{display:flex;gap:7px;overflow-x:auto;padding:10px 0}.invoice-types-170[hidden]{display:none}.invoice-types-170 button{min-height:44px;white-space:nowrap;border-radius:20px;background:#e9f4f0;color:#166451}.invoice-types-170 button[aria-pressed=true]{background:#0f766e;color:white}.invoice-types-170 [data-invoice-type=sale]{color:#2563c3}.invoice-types-170 [data-invoice-type=expense]{color:#b83f78}.invoice-types-170 [aria-pressed=true]{color:white}.invoice-overview-170{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin:10px 0}.invoice-overview-170>div{background:#edf8f3;border-radius:12px;padding:10px;font-size:12px}.invoice-overview-170 b{display:block;margin-top:4px;color:#126653;font-size:14px}.invoice-result{border-radius:16px;box-shadow:0 3px 12px #0e42300d}.invoice-result summary{min-height:74px}.invoice-card-name-170{display:flex;justify-content:space-between;gap:8px;width:100%}.invoice-card-name-170 small{color:#61756d}.invoice-amount-170{display:block;width:100%;font-size:18px;color:#165d50}.invoice-tags-170{display:flex;gap:8px;flex-wrap:wrap;font-size:12px}.invoice-status-170{padding:2px 8px;border-radius:12px;background:#eef2f0}.status-paid{background:#ddf6e8;color:#147345}.status-unpaid,.status-partial{background:#fff0dc;color:#9a5500}.status-proforma{background:#eee7f8;color:#70428e}.invoice-report-170 label{display:block}.invoice-bar-170{height:8px;border-radius:8px;background:#e6efec;overflow:hidden}.invoice-bar-170 span{display:block;height:100%;background:#0f766e}.invoice-report-170 b{display:block;margin-top:10px}#connection-hub-168{margin:0;padding:4px}
-</style>
+<meta name="theme-color" content="#0f766e">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.svg">
 <title>هزینه‌ها</title>
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--tx:#1b1f23;--mut:#6b7280;--pri:#0f766e;--red:#dc2626;--grn:#16a34a}
 *{box-sizing:border-box}
-body{margin:0;font-family:Vazirmatn,-apple-system,Tahoma,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:140px}
+body{margin:0;font-family:-apple-system,Tahoma,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:140px}
 header{background:var(--pri);color:#fff;padding:calc(env(safe-area-inset-top) + 14px) 16px 14px;font-weight:700}
 main{padding:12px}
 .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px #0001}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.hub-choices-168{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:14px 0}
-.hub-choice-168{min-height:90px;border:1px solid #a7ded0;background:#e7f8f1;color:#155e4e;border-radius:16px;padding:14px;text-align:right;box-shadow:0 2px 8px #087b5214}
-.hub-choice-168 strong,.hub-choice-168 span{display:block;pointer-events:none}.hub-choice-168 span{font-size:12px;margin-top:7px}.hub-choice-168.selected{background:#087b65;color:white;border-color:#087b65}
-.hub-step-168{background:#f1faf6;color:#126a57;border-radius:12px;padding:10px;margin:12px 0 7px;font-weight:700}.hub-action-168,.sheet-open-168{display:inline-flex;align-items:center;justify-content:center;min-height:44px;background:#0f766e;color:#fff;border-radius:12px;padding:10px 14px;margin:4px;text-decoration:none}.hub-action-168:disabled{opacity:.45}.hub-selected-168,.hub-notice-168{background:#e7f6ef;color:#155e4e;border-radius:12px;padding:10px;margin:10px 0;font-size:13px}.hub-notice-168{background:#fff6df;color:#704d00}
 .mut{color:var(--mut);font-size:13px}
 .red{color:var(--red)}.grn{color:var(--grn)}
 button,input,textarea,select{font:inherit}
@@ -59,7 +45,6 @@ details.dragging{box-shadow:0 8px 24px #0004;position:relative;z-index:5;opacity
 .card{border:1px solid #eef0f2}
 details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
 .colbox{background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:10px;margin:8px 0}
-.entry-section-180,.transaction-customer-177{border:1px solid #cfe3de;border-radius:14px;background:#f7fbfa;padding:0 12px;margin:10px 0}.entry-section-180>summary,.transaction-customer-177>summary{min-height:54px;display:flex;align-items:center;color:#0f766e;font-size:16px;cursor:pointer}.entry-section-180>summary::before,.transaction-customer-177>summary::before{content:'▸';margin-left:8px}.entry-section-180[open]>summary::before,.transaction-customer-177[open]>summary::before{content:'▾'}.entry-section-180[open],.transaction-customer-177[open]{padding-bottom:12px}.entry-section-180 select,.entry-section-180 button,.transaction-customer-177 select,.transaction-customer-177 button{min-height:44px}
 .pcrow{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px}
 .pcb{display:flex;align-items:center;gap:10px}.pcb b{font-size:20px;min-width:52px;text-align:center;color:var(--pri)}
 .pcb button{padding:8px 14px;touch-action:manipulation}
@@ -67,39 +52,9 @@ details.acc input,details.acc select,details.acc textarea{background:#fafbfb}
 <style>
 .topic-nav{display:flex;gap:7px;overflow-x:auto;padding:10px 12px;background:#fff;border-bottom:1px solid #e5e7eb;scrollbar-width:none;position:sticky;top:0;z-index:4}.topic-nav::-webkit-scrollbar{display:none}.topic-nav button{flex:0 0 auto;background:#edf3f2;color:#405652;padding:9px 13px;font-size:13px;white-space:nowrap}.topic-nav button.on{background:#0f766e;color:#fff;font-weight:700}.topic-heading{color:#0f766e;font-size:13px;margin:2px 3px 12px}.topic-actions{display:flex;gap:8px;flex-wrap:wrap}.topic-actions button{flex:1;min-width:125px}.topic-summary{background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;border-radius:16px;padding:16px;margin-bottom:12px}.topic-summary b{font-size:22px}.topic-nav[hidden]{display:none}
 </style>
-<style>.invoice-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:10px 0}.invoice-category-grid button{font-size:13px;padding:10px 8px;line-height:1.6}#invoice-card{font-size:14px;line-height:1.7}#invoice-card .mut,.invoice-ledger .mut{font-size:12px;line-height:1.75}#invoice-card input,#invoice-card select{font-size:16px}#invoice-card summary b,#inv-total{font-size:16px;color:#0f766e}.invoice-result summary b,.invoice-ledger-grid b{font-size:15px}</style><style>.diary-chips,.add-sections{display:flex;gap:8px;overflow-x:auto;padding:8px 12px;background:#fff}.diary-chips[hidden],.add-sections[hidden]{display:none}.diary-chips button,.add-sections button,.topic-nav button,nav button{min-height:44px}.diary-chips button,.add-sections button{white-space:nowrap;border-radius:22px;background:#edf3f2;color:#405652}.diary-chips button.on,.add-sections button.on{background:#0f766e;color:white}.nav-add{font-size:19px!important;font-weight:700;color:#0f766e!important}</style><style>.add-grid-164{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.add-grid-164[hidden]{display:none}.add-tile-164{display:flex;min-height:145px;align-items:flex-start;flex-direction:column;gap:10px;text-align:right;background:#fff;color:#15352f;border:1px solid #e1ece9;border-radius:18px;padding:15px;box-shadow:0 2px 8px #1231}.add-icon-164{width:72px;height:72px;border-radius:16px;background:color-mix(in srgb,var(--tile) 12%,white);color:var(--tile);display:grid;place-items:center}.add-icon-164 svg{width:36px;height:36px}.add-tile-164 b{display:block;font-size:17px;font-weight:800}.add-tile-164 small{display:block;font-size:12px;color:#64756f;margin-top:3px}.add-filter-164{display:flex;gap:8px}.add-filter-164 button,.add-back-164,.add-saved-164 button,.manual-more-164 summary{min-height:44px}.manual-more-164{padding:10px 0}.manual-more-164 summary{cursor:pointer;font-weight:bold;padding:10px 0}.add-saved-164 .row{margin-top:15px}.add-saved-164 button{flex:1}@supports not (background:color-mix(in srgb,red 12%,white)){.add-icon-164{background:#edf5f2}}</style><style>.invoice-report-page-173e .invoice-bar-170{display:none}</style><style>#invoice-card .invoice-result summary .inv-card-head-173g b{color:inherit}.contact-toggle-173m{width:auto;min-width:44px;min-height:44px;flex:none}.invoice-jump-173m{margin-top:6px;text-align:right}</style></head>
+<style>.invoice-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:10px 0}.invoice-category-grid button{font-size:13px;padding:10px 8px;line-height:1.6}#invoice-card{font-size:14px;line-height:1.7}#invoice-card .mut,.invoice-ledger .mut{font-size:12px;line-height:1.75}#invoice-card input,#invoice-card select{font-size:16px}#invoice-card summary b,#inv-total{font-size:16px;color:#0f766e}.invoice-result summary b,.invoice-ledger-grid b{font-size:15px}</style></head>
 <body>
-<div id="splash-173g" role="status" aria-label="در حال باز کردن برنامه"><span class="splash-icon-173h" aria-hidden="true">₸</span><strong>هزینه‌ها</strong><span class="splash-bar-173h" aria-hidden="true"></span><div id="splash-tip-173h" class="splash-tip-173h" hidden></div><div id="splash-fallback-173g" hidden><span>در حال اتصال…</span><button type="button" onclick="location.reload()">تلاش دوباره</button></div></div>
-<script>
-let splashDone173g=false;
-const splashStarted173h=Date.now();
-function splashChoose173h(tips, previous, random=Math.random){if(!Array.isArray(tips)||!tips.length)return -1;if(tips.length===1)return 0;const valid=Number.isInteger(previous)&&previous>=0&&previous<tips.length;let index=Math.floor(random()*(tips.length-(valid?1:0)));if(valid&&index>=previous)index++;return index;}
-function splashShowTip173h(fade){const box=document.getElementById('splash-tip-173h');if(!box||typeof SPLASH_TIPS==='undefined'||!Array.isArray(SPLASH_TIPS)||!SPLASH_TIPS.length)return;let previous=null;try{const saved=localStorage.getItem('splashTip173h');if(saved!==null)previous=Number(saved);}catch(_){}const index=splashChoose173h(SPLASH_TIPS,previous);try{localStorage.setItem('splashTip173h',String(index));}catch(_){}const show=()=>{box.textContent=SPLASH_TIPS[index];box.hidden=false;box.classList.remove('fading');};if(fade&&!box.hidden){box.classList.add('fading');setTimeout(show,250);}else show();}
-const splashTimer173g=setTimeout(()=>{if(splashDone173g)return;splashShowTip173h(true);const fallback=document.getElementById('splash-fallback-173g');if(fallback)fallback.hidden=false;},4000);
-function splashComplete173g(){if(splashDone173g)return;splashDone173g=true;clearTimeout(splashTimer173g);setTimeout(()=>{const splash=document.getElementById('splash-173g');if(splash){splash.classList.add('splash-hidden');setTimeout(()=>splash.remove(),200);}},Math.max(0,1500-(Date.now()-splashStarted173h)));}
-</script>
-<script src="splash-tips.js?v=181" onload="splashShowTip173h(false)"></script>
-<style>
-.header-173a{display:flex;align-items:center;gap:8px;background:#0e7569;padding:calc(env(safe-area-inset-top) + 7px) 12px 7px;font-weight:600}
-.header-173a #title{flex:1;text-align:right}.header-actions-173a{display:flex;align-items:center;gap:0;direction:rtl}
-.header-icon-173a{width:44px;height:44px;display:grid;place-items:center;background:transparent;padding:0}.header-icon-173a span{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#ffffff26;font-size:17px}.header-icon-173a:disabled{opacity:.65}
-#add-hub-164 .add-grid-164{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px;margin:0}
-#add-hub-164 .add-tile-164{min-height:100px;align-items:center;justify-content:center;gap:4px;text-align:center;background:#fff;border:0;border-radius:16px;padding:18px 8px;box-shadow:none;font-size:13px}
-#add-hub-164 .add-icon-164{width:34px;height:34px;background:transparent;color:var(--tile);border-radius:0;font-size:26px}#add-hub-164 .add-tile-164 b{font-size:13px;font-weight:600}#add-hub-164 .add-tile-164 small{display:none}
-.add-group-label-173b{margin:10px 14px 0;font-size:12px;color:#6b7b84}.add-row-173b{background:#fff;border-radius:14px;margin:8px 12px;padding:0 14px}.add-row-173b>summary{min-height:48px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:14px;list-style:none}.add-row-173b>summary::-webkit-details-marker{display:none}.add-form-173b{padding:0 0 12px}.add-form-173b>.card{box-shadow:none;padding:6px 0;margin:0}.add-form-173b .add-close-173b{min-height:44px;margin-top:8px}
-.search-panel-173e{position:fixed;inset:0;z-index:30;background:var(--bg);overflow:auto;padding:calc(env(safe-area-inset-top) + 12px) 12px calc(env(safe-area-inset-bottom) + 16px)}.search-panel-173e[hidden]{display:none}.search-controls-173e{display:flex;align-items:center;gap:6px}.search-controls-173e input{flex:1;min-width:0}.search-controls-173e button{min-width:44px;min-height:44px}.search-result-173e{background:var(--card);border-radius:14px;padding:12px;margin:8px 0;overflow-wrap:anywhere}
-.dashboard-173e{min-width:0}.dashboard-173e .dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.dashboard-173e .dashboard-grid>div{min-width:0;background:var(--card);border-radius:14px;padding:12px;overflow-wrap:anywhere}.dashboard-173e .dashboard-grid b{display:block;font-size:16px}.invoice-result summary{min-width:0;overflow-wrap:anywhere}.invoice-card-name-170,.invoice-amount-170,.invoice-tags-170{min-width:0;overflow-wrap:anywhere}.invoice-page-173e>.topic-summary,.invoice-report-page-173e .invoice-ledger .invoice-open-list{display:none}.invoice-report-page-173e #invoice-card>summary{display:none}.invoice-report-page-173e #invoice-search-panel>summary{min-height:44px;cursor:pointer}
-#topics [data-topic=receipts]{display:none!important}#add-hub-164 .add-tile-164[data-add-mode=invoice]{grid-column:1 / -1}.add-subrow-173c{background:#f4f6f8;border-radius:14px;margin:8px 0;padding:0 12px}.add-subrow-173c>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.add-subrow-173c .card{box-shadow:none;margin:0}.add-section-173c{margin:12px 0}.add-summary-173c{padding:8px 0;border-bottom:1px solid #eef1f3}
-nav{align-items:center;justify-content:space-around;z-index:5;padding:8px 0 calc(8px + env(safe-area-inset-bottom));direction:rtl}
-nav button:not(.nav-add){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;min-height:44px;font-size:20px}nav button small{font-size:12px}
-nav button.nav-add,nav button.nav-add.on{flex:none;width:46px;height:46px;min-height:46px;margin:-22px 12px 0;border-radius:50%;background:#0e7569;color:#fff!important;box-shadow:0 3px 8px #0e756955;padding:0;display:grid;place-items:center;font-size:26px!important;font-weight:300;line-height:1}
-
-.invoice-report-page-173e .invoice-bar-170,.invoice-report-page-173e .invoice-ledger{display:none}.invoice-table-173f{display:grid;grid-template-columns:minmax(45px,.65fr) minmax(70px,1.1fr) minmax(70px,1fr) minmax(54px,.8fr);gap:4px;align-items:center;font-size:12px}.invoice-table-head-173f{padding:10px 6px;background:#e3ebea;border-radius:10px;font-weight:bold}.invoice-report-page-173e .invoice-result summary{min-height:54px}.invoice-table-173f>*{overflow-wrap:anywhere;min-width:0}.search-result-173e button{width:100%;text-align:right;background:transparent;color:inherit;padding:0}.search-result-173e .mut{margin-top:5px}.invoice-result summary>span{display:block}.inv-card-head-173g,.inv-card-bottom-173g{display:flex!important;justify-content:space-between;align-items:center;gap:8px}.inv-card-bottom-173g button{min-height:44px;padding:6px 12px}.invoice-result summary .mut{display:block;font-size:12px;margin-top:4px;overflow-wrap:anywhere}
-.search-panel-173e.search-page-173o{position:static;inset:auto;overflow:visible;padding:12px;background:var(--bg);min-height:50vh}.search-page-173o[hidden],#app[hidden]{display:none}.search-heading-173o{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}.search-heading-173o b{font-size:18px;color:#0f766e}.search-heading-173o button{min-height:44px}.search-controls-173e{background:var(--card);padding:5px;border-radius:14px;box-shadow:0 2px 8px #1231}.search-controls-173e input{border:0;min-height:44px}.search-filters-173o{margin:10px 0}.search-filters-173o summary{min-height:44px;display:flex;align-items:center;color:#0f766e;font-weight:700;cursor:pointer}.search-filters-173o summary:before{content:'▾';margin-left:8px}.search-filter-grid-173o{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.search-filter-grid-173o label{display:flex;flex-direction:column;gap:4px;color:#52645f;font-size:12px}.search-filter-grid-173o select{width:100%;min-height:44px}.search-result-173e{border:1px solid #e2ece8;box-shadow:0 2px 7px #1231}.search-result-173e button{min-height:44px}.search-meta-173o{margin:10px 2px;color:#64748b;font-size:12px}
-.invoice-summary-173p{background:linear-gradient(135deg,#0f766e,#115e59);color:white;border-radius:16px;padding:15px;margin:2px 0 14px;line-height:1.9}.invoice-summary-173p strong{display:block;font-size:23px}.invoice-summary-173p strong small{font-size:12px;font-weight:400}.invoice-summary-meta-173p{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px}.invoice-jump-173m{display:inline-flex;align-items:center;min-height:44px;padding:5px 8px!important;background:transparent!important;color:#64748b!important;font-size:11px!important;box-shadow:none!important}
-</style>
-<header class="header-173a"><span id="title">هزینه‌ها</span><div class="header-actions-173a"><button type="button" class="header-icon-173a" id="search-173a" aria-label="باز کردن جستجو"><span>🔍</span></button><button type="button" class="header-icon-173a" data-t="contacts" aria-label="اشخاص"><span>👤</span></button><button type="button" class="header-icon-173a" data-t="settings" aria-label="تنظیمات"><span>⚙️</span></button></div></header>
-<div class="diary-chips" id="diary-chips" hidden aria-label="بخش دفتر"><button type="button" data-t="report">گزارش</button><button type="button" data-t="contacts">اشخاص</button></div>
+<header id="title">هزینه‌ها</header>
 <div class="topic-nav" id="topics" aria-label="موضوع برنامه">
   <button type="button" data-topic="expenses">هزینه‌ها</button>
   <button type="button" data-topic="invoices">فاکتورها</button>
@@ -109,36 +64,25 @@ nav button.nav-add,nav button.nav-add.on{flex:none;width:46px;height:46px;min-he
   <button type="button" data-topic="warehouse">انبار</button>
   <button type="button" data-topic="reminders">یادآوری</button>
 </div>
-<nav class="section-nav-173n" aria-label="بخش موضوع">
-  <button type="button" data-t="home">⌂ <small>خانه</small></button>
-  <button type="button" data-t="report">▥ <small>گزارش</small></button>
-  <button type="button" data-t="add">＋ <small>ثبت</small></button>
-  <button type="button" id="section-search-173n">⌕ <small>جستجو</small></button>
-</nav>
-<section class="search-panel-173e search-page-173o" id="search-panel-173e" hidden><div class="search-heading-173o"><div><b id="search-title-173o">جست‌وجو</b><div class="mut" id="search-hint-173o"></div></div><button type="button" class="sec" id="search-close-173e">بازگشت</button></div><div class="search-controls-173e"><input id="search-input-173e" type="search" placeholder="شرح، مبلغ، نام یا تاریخ" aria-label="عبارت جست‌وجو"><button type="button" class="sec" id="search-clear-173e" aria-label="پاک کردن">✕</button></div><details class="card search-filters-173o"><summary>فیلترهای جست‌وجو</summary><div id="search-filters-173o"></div><button type="button" class="sec" id="search-reset-173o">پاک کردن فیلترها</button></details><div id="search-results-173e" aria-live="polite"></div></section>
-<div class="add-sections" id="add-sections" hidden aria-label="انتخاب بخش ثبت"><button type="button" data-add-topic="expenses">همه</button><button type="button" data-add-topic="receipts">رسید</button><button type="button" data-add-topic="invoices">فاکتورها</button><button type="button" data-add-topic="work">کارکردها</button><button type="button" data-add-topic="sales">فروش‌ها</button><button type="button" data-add-topic="reminders">یادآوری</button></div>
 <main id="app"></main>
+<nav>
+  <button data-t="home">خانه</button>
+  <button data-t="report">گزارش</button>
+  <button data-t="add">ثبت</button>
+  <button data-t="contacts">اشخاص</button>
+  <button data-t="settings">تنظیمات</button>
+</nav>
 <script src="xlsx.full.min.js"></script>
-<script src="sheet-safety.js?v=181"></script>
-<script src="account-owner-lock.js?v=181"></script>
-<script src="account-switch-backup.js?v=181"></script>
-<script src="account-switch.js?v=181"></script>
-<script src="parser.js?v=181"></script>
-<script src="direct-sync-core.js?v=181"></script>
-<script src="legacy-reference.js?v=181"></script>
-<script src="direct-sync-ui.js?v=181"></script>
-<script src="direct-sync-auto.js?v=181"></script>
-<script src="direct-sync-receive.js?v=181"></script>
-<script src="warehouse.js?v=181"></script>
-<script src="invoice.js?v=181"></script>
-<script src="legacy-inbox.js?v=181"></script>
-<script src="easy-google-setup.js?v=181"></script>
-<script src="features-157.js?v=181"></script>
-<script src="add-page-164.js?v=181"></script>
-<script src="connection-hub-168.js?v=181"></script>
-<script src="ui-v173e.js?v=181"></script>
-<script src="ui-v173f.js?v=181"></script>
-<script src="ui-v173g.js?v=181"></script>
-<script src="app.js?v=181"></script>
+<script src="parser.js?v=182"></script>
+<script src="direct-sync-core.js?v=182"></script>
+<script src="legacy-reference.js?v=182"></script>
+<script src="direct-sync-ui.js?v=182"></script>
+<script src="direct-sync-auto.js?v=182"></script>
+<script src="direct-sync-receive.js?v=182"></script>
+<script src="invoice.js?v=182"></script>
+<script src="warehouse.js?v=182"></script>
+<script src="legacy-inbox.js?v=182"></script>
+<script src="easy-google-setup.js?v=182"></script>
+<script src="app.js?v=182"></script>
 </body>
 </html>
