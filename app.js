@@ -8,7 +8,7 @@ const DEFAULT_INC = ['فروش', 'مشتری', 'حقوق', 'سایر'];
 const CATS = lsj('cats', [...DEFAULT_CATS]);
 const INC = lsj('icats', [...DEFAULT_INC]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'bizMode', 'budgets', 'features', 'dataOwner', 'layout', 'accountArchives', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'wh', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'bizMode', 'budgets', 'features', 'dataOwner', 'layout', 'accountArchives', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
 function makeFullBackup() {
   const data = {};
   BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
@@ -100,8 +100,10 @@ let banner = '';
 let tab = 'home', month = null, topic = 'expenses';
 const visibleRem157 = new Set();
 function bizEnabled() { const v = localStorage.getItem('bizMode'); return v === '1' || (v !== '0' && !!localStorage.getItem('job')); }
-const FEATURE_LABELS = { assistant: 'کارکرد همکار و دستیار', invoice: 'مشتری و فاکتور', loan: 'قرض و طلب', reminder: 'یادآور و اقساط', budget: 'بودجه', sms: 'پیامک بانکی', vehicle: 'خودرو (مدل، رنگ، نوع)' };
+const FEATURE_LABELS = { sales: 'فروش‌ها', warehouse: 'انبار', assistant: 'کارکرد همکار و دستیار', invoice: 'مشتری و فاکتور', loan: 'قرض و طلب', reminder: 'یادآور و اقساط', budget: 'بودجه', sms: 'پیامک بانکی', vehicle: 'خودرو (مدل، رنگ، نوع)' };
 const FEATURE_DESCRIPTIONS_173K = {
+  sales: 'موضوع فروش‌ها پنهان می‌شود؛ فاکتورها باقی می‌مانند.',
+  warehouse: 'موضوع انبار پنهان می‌شود؛ اطلاعاتش باقی می‌ماند.',
   assistant: 'ثبت همکار و کارکرد، سهم همکار در فاکتور و تراکنش و گزینه‌های دستمزد پنهان می‌شوند؛ موضوع کارکردها غیرفعال می‌شود.',
   invoice: 'ثبت فاکتور، اطلاعات مشتری و خدمت تراکنش و گزارش مشتری و خدمت پنهان می‌شوند؛ موضوع فاکتورها و فروش‌ها غیرفعال می‌شود.',
   loan: 'گزینه‌های قرض در ثبت و ویرایش تراکنش و خلاصه قرض‌ها پنهان می‌شوند.',
@@ -596,7 +598,7 @@ function render() {
   if (typeof splashComplete173g === 'function') splashComplete173g();
 }
 function _render2() { _render(); if ((topic === 'work' && tab !== 'contacts' && tab !== 'settings' && tab !== 'add') || tab === 'loans') { document.getElementById('app').insertAdjacentHTML('afterbegin', '<details class="card"><summary><b>پاک‌سازی سهم‌های تکراری</b></summary><div class="mut">ابتدا پیش‌نمایش را ببین؛ حذف فقط با تأیید و پس از پشتیبان انجام می‌شود.</div><button type="button" id="share-preview-173i">بررسی تکراری‌ها</button><div id="share-preview-box-173i"></div></details>'); } document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); addPage164(); }
-const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
+const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'sales', warehouse:'warehouse', work:'assistant', reminders:'reminder', receipts:'sms' };
 function navigationState163(currentTab, currentTopic, enabled) {
   const diary = currentTab === 'report' || currentTab === 'contacts';
   return { diary, add:currentTab === 'add', topic:TOPIC_FEATURE_163[currentTopic] && !enabled(TOPIC_FEATURE_163[currentTopic]) ? 'expenses' : currentTopic, visible:key => !TOPIC_FEATURE_163[key] || enabled(TOPIC_FEATURE_163[key]) };
@@ -613,7 +615,7 @@ function navigationScroll171(button, smooth = true) {
   if (button && typeof button.scrollIntoView === 'function') button.scrollIntoView({ inline:'center', block:'nearest', behavior:smooth ? 'smooth' : 'auto' });
 }
 function _render() {
-  const topicFeature = { invoices: 'invoice', sales: 'invoice', work: 'assistant', reminders: 'reminder', receipts: 'sms' };
+  const topicFeature = { invoices: 'invoice', sales: 'sales', warehouse: 'warehouse', work: 'assistant', reminders: 'reminder', receipts: 'sms' };
   if (topicFeature[topic] && !featureOn(topicFeature[topic])) topic = 'expenses';
   document.querySelectorAll('[data-topic]').forEach(b => { b.hidden = false; b.disabled = !!topicFeature[b.dataset.topic] && !featureOn(topicFeature[b.dataset.topic]); });
   navigationRender163();
@@ -640,6 +642,7 @@ function _render() {
       }
       return;
     }
+    if (topic === 'warehouse') { el.innerHTML = warehouseHtml(); warehouseBind(); return; }
     if (topic === 'receipts') {
       el.innerHTML = tab === 'add' ? '<div class="card"><b>ثبت رسید بانکی</b><textarea id="sms" rows="5" placeholder="متن پیامک رسید را اینجا بچسبان"></textarea><div class="topic-actions"><button id="go">ثبت رسید</button><button id="pst" class="sec">چسباندن</button></div><div id="msg" class="mut"></div></div>' : receiptArchiveHtml() + (tab === 'home' ? rcReviewHtml() : '');
       if (tab !== 'add') { receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); }
