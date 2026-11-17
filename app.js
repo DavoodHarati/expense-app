@@ -1179,7 +1179,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۹';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۹۰';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1253,6 +1253,7 @@ function rowHtml(t, statusMap) {
   ${featureOn('invoice') && (t.customer || t.service) ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
   ${t.invoicePaymentId ? `<button type="button" class="sec invoice-jump-173m" data-invoice-id="${esc(t.invoicePaymentId)}">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) || {}).number || t.invoicePaymentId)}</button>` : ''}
   ${featureOn('assistant') && t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
+  ${linkedInvoice177?.payment?.toOwnAccount ? `<div class="mut">${esc(INVENTORY_TEXT_FA.payOwnAccount)}</div>` : ''}
   ${linkedInvoice177 && ownerPercent177 != null && Number.isFinite(Number(ownerPercent177)) ? `<div class="mut">درصد سهم من در فاکتور: ${Number(ownerPercent177).toLocaleString('fa-IR')}٪</div>` : ''}
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
@@ -2020,7 +2021,7 @@ function dueList() {
   return rem.map(r => ({ r, ...nextDue(r) })).filter(x => !(x.days < 0 && (x.r.type === 'check' || !x.r.rep && x.r.type === 'custom') && x.r.done)).sort((a, b) => a.days - b.days);
 }
 function remBanner() {
-  const L = dueList().filter(x => x.days <= (x.r.before || 3) && x.days >= -30 && !x.r.done && !(tab === 'home' && topic === 'expenses' && (x.days === 3 || x.days === 1)));
+  const L = dueList().filter(x => x.days <= (x.r.before ?? 3) && x.days >= -30 && !x.r.done && !(tab === 'home' && topic === 'expenses' && (x.days === 3 || x.days === 1)));
   return L.length ? `<div class="card noacc" style="border:2px solid #ef4444"><b>⏰ یادآوری</b>${L.map(x => `<div class="row" style="margin-top:6px"><span>${esc(x.r.title)} — ${x.days < 0 ? Math.abs(x.days).toLocaleString('fa-IR') + ' روز گذشته' : x.days === 0 ? 'امروز' : x.days.toLocaleString('fa-IR') + ' روز دیگر'}</span><button class="sec rdn" data-i="${x.r.id}" style="padding:4px 10px">✓ انجام شد</button></div>`).join('')}</div>` : '';
 }
 function dueBanner157() {
