@@ -98,6 +98,11 @@ function addPage164() {
   if (chosen && chosen.tagName === 'DETAILS') chosen.open = true;
   if (addMode164 === 'invoice' && invoice) {
     invoice.hidden = false; invoice.open = true; const search = document.getElementById('invoice-search-panel'); if (search) search.hidden = true;
+    invoice.insertAdjacentHTML('beforeend', invoiceLedgerHtml());
+    const tools = document.createElement('details'); tools.className = 'card'; tools.id = 'invoice-review-tools-189';
+    const summary = document.createElement('summary'); summary.textContent = INVENTORY_TEXT_FA.invoiceReviewTools; tools.appendChild(summary);
+    for (const id of ['invoice-check-duplicates-172','invoice-suggestions-178','invoice-duplicates-172']) { const node = document.getElementById(id); if (node) tools.appendChild(node); }
+    invoice.appendChild(tools);
     const form = document.getElementById('invoice-form-fields');
     if (form) { form.insertAdjacentHTML('afterbegin','<div class="invoice-types-170" id="invoice-add-types-173n"><button type="button" data-kind="خدمات">خدمات</button><button type="button" data-kind="فروش">فروش</button><button type="button" data-kind="هزینه">هزینه</button><button type="button" data-kind="نسیه">نسیه</button></div>');
       if (featureOn('warehouse')) { const button = document.createElement('button'); button.type = 'button'; button.dataset.kind = 'inventory_purchase'; button.textContent = INVENTORY_TEXT_FA.purchaseKind; form.querySelector('#invoice-add-types-173n').appendChild(button); }

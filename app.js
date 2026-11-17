@@ -117,8 +117,8 @@ let welcomeDismissed = false;
 
 // انتقال بین حساب‌های خودم
 const toMin = d => { d = String(d).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)); const m = d.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/); if (!m) return 1e12; return ((+m[1] * 372 + +m[2] * 31 + +m[3]) * 24 + (+m[4] || 0)) * 60 + (+m[5] || 0); };
-function nowStr() {
-  const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tehran' }).formatToParts(new Date());
+function nowStr(value = new Date()) {
+  const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Tehran' }).formatToParts(value);
   const g = t => n.find(x => x.type === t).value;
   return `${g('year')}/${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`;
 }
@@ -638,8 +638,7 @@ function _render() {
         panel.querySelector('summary b').textContent = 'فیلتر ماه و وضعیت';
         panel.after(document.getElementById('inv-results'));
         panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-types-170').insertAdjacentHTML('afterend', '<div id="invoice-summary-173p" class="invoice-summary-173p" aria-live="polite"></div>'); document.getElementById('inv-show-all').checked = true;
-         const duplicateTools = document.createElement('details'); duplicateTools.className = 'card'; duplicateTools.innerHTML = '<summary>ابزار بررسی فاکتورها</summary>'; duplicateTools.append(document.getElementById('invoice-check-duplicates-172'), document.getElementById('invoice-suggestions-178'), document.getElementById('invoice-duplicates-172')); panel.after(duplicateTools);
-        const ledger = el.querySelector('.invoice-ledger'); if (ledger) ledger.before(document.getElementById('invoice-card'));
+        for (const id of ['invoice-check-duplicates-172','invoice-suggestions-178','invoice-duplicates-172']) document.getElementById(id)?.remove();
         invoiceShowList('');
       }
       return;
@@ -1144,14 +1143,14 @@ function homeSyncStatus() {
   return 'شیت قدیمی: ' + (!SYNC() ? 'وصل نیست' : dirty ? '⏳ تغییر ارسال‌نشده دارد' : ls ? '✅ آخرین ذخیره ' + fmt(ls) : 'هنوز چیزی ارسال نشده');
 }
 function statusCard() {
-  const l = log[0], lt = tx.reduce((m, t) => (t.id > (m?.id || 0) ? t : m), null);
+  const l = log[0], known = tx.filter(t => Number.isFinite(Number(t.createdAt)) && Number(t.createdAt) > 0 && Number(t.createdAt) <= Date.now() + 300000), lt = known.length ? known.reduce((m, t) => Number(t.createdAt) > Number(m.createdAt) ? t : m) : ordTx(tx)[0];
   const lastInvoice = (topic === 'invoices' || topic === 'sales') ? invoiceList().filter(i => topic !== 'sales' || i.kind === 'فروش').slice(-1)[0] : null;
   const lastWork = topic === 'work' ? tx.filter(t => t.loan && isWage(t)).slice(-1)[0] : null;
   const lastReminder = topic === 'reminders' ? rem.slice(-1)[0] : null;
   const subjectStatus = lastInvoice ? `آخرین فاکتور: ${esc(lastInvoice.customer || 'بدون نام')} · ${esc(lastInvoice.date || '')}` : lastWork ? `آخرین کارکرد: ${esc(lastWork.person || '')} · ${esc(lastWork.date || '')}` : lastReminder ? `آخرین یادآوری: ${esc(lastReminder.title || '')}` : topic !== 'expenses' ? 'هنوز موردی در این بخش ثبت نشده است.' : '';
   return `<div class="card"><b>آخرین وضعیت</b>
    <div class="mut" style="margin-top:6px">آخرین پیامک رسیده: ${l ? fmt(l.at) + ' · ' + (l.ok ? '✅ ' : '⚠️ ') + esc(l.msg) : 'هنوز نیامده'}</div>
-   <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? esc(lt.date || (lt.updatedAt ? fmt(lt.updatedAt) : '—')) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
+   <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? (known.length ? fmt(Number(lt.createdAt)) : esc(INVENTORY_TEXT_FA.transactionTimeUnknown) + (lt.date ? ' · ' + esc(INVENTORY_TEXT_FA.transactionBankDate) + ': ' + esc(lt.date) : '')) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
    <div class="mut" id="home-sync-status">${esc(homeSyncStatus())}</div>${subjectStatus ? `<div class="mut">${subjectStatus}</div>` : ''}
    ${load('directSyncState', null)?.id ? `<button type="button" id="home-direct-start" style="margin-top:8px" ${directAutoSession ? 'hidden' : ''}>اتصال خودکار به گوگل</button>` : ''}
    <div class="mut">${esc(syncMsg)}</div></div>`; }
@@ -1180,7 +1179,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۸';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۹';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -2007,7 +2006,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 /* ===== یادآوری‌ها (فقط روی همین دستگاه) ===== */
 const saveRem = () => { localStorage.setItem('rem', JSON.stringify(rem)); localStorage.setItem('dirty', '1'); push(); };
-const fa = d => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium' }).format(d);
+const fa = d => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium', timeZone:'Asia/Tehran' }).format(d);
 const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 function nextDue(r) {
   const t0 = new Date(); t0.setHours(0, 0, 0, 0);

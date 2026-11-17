@@ -15,6 +15,7 @@
     const old = new Map(previous.map(row => [String(row.id), row]));
     for (const row of rows) {
       const before = old.get(String(row.id));
+      if (!before && row.createdAt == null) row.createdAt = now;
       if (!before || content(row) !== content(before)) row.updatedAt = Math.max(now, version(before) + 1, version(row));
     }
   }

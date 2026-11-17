@@ -105,6 +105,16 @@ function invoicePaymentStatus(item, transactions) {
 function invoiceIsUnpaid173k(item, transactions) {
   return invoiceKind(item) !== 'inventory_purchase' && item.payment?.method === 'unpaid' && invoicePaymentStatus(item, transactions).status !== 'paid';
 }
+function invoiceUnpaidCount189(items, transactions) {
+  return items.filter(item => invoiceIsUnpaid173k(item, transactions)).length;
+}
+function invoiceUpdateUnpaidBadge189(items, transactions) {
+  const badge = document.getElementById('invoice-unpaid-count-189');
+  if (!badge) return;
+  const count = invoiceUnpaidCount189(items, transactions);
+  badge.textContent = count.toLocaleString('fa-IR');
+  badge.hidden = count === 0;
+}
 function invoiceWorkRegistered173m(item, transactions) {
   const paymentIds = new Set(transactions.filter(t => !t.ghost && t.type === 'credit' && String(t.invoicePaymentId || '') === String(item.id)).map(t => String(t.id)));
   const matches = transactions.filter(t => t.ghost === true && t.loan === 'share' && t.person === item.assistant && (String(t.invoiceId || '') === String(item.id) || (t.parent != null && paymentIds.has(String(t.parent)))));
@@ -384,6 +394,7 @@ function invoiceRefreshTotal() {
 }
 function invoiceShowList(query = '') {
   const box = document.getElementById('inv-results'); if (!box) return;
+  invoiceUpdateUnpaidBadge189(invoiceList(), tx);
   const term = nrm(pfa(query));
   const filter = document.getElementById('inv-filter')?.value || 'all';
   const filters = { states:[...document.querySelectorAll('#inv-multi-filters [data-state]:checked')].map(x=>x.dataset.state), kinds:[...document.querySelectorAll('#inv-multi-filters [data-kind]:checked')].map(x=>x.dataset.kind) };
@@ -470,6 +481,7 @@ function invoiceBind() {
   for (const id of ['inv-status-170','inv-month-170']) get(id).addEventListener('change', () => invoiceShowList(get('inv-search').value));
   get('inv-types-170').addEventListener('click', event => { const selected = event.target.closest('[data-invoice-type]'); if (!selected) return; get('inv-types-170').querySelectorAll('[data-invoice-type]').forEach(button => button.setAttribute('aria-pressed', String(button === selected))); invoiceShowList(get('inv-search').value); });
   get('inv-types-170').insertAdjacentHTML('beforeend', '<button type="button" data-invoice-type="unpaid" aria-pressed="false">نسیه</button>');
+  const unpaidBadge = document.createElement('span'); unpaidBadge.id = 'invoice-unpaid-count-189'; unpaidBadge.className = 'count-badge-189'; unpaidBadge.hidden = true; get('inv-types-170').querySelector('[data-invoice-type="unpaid"]').appendChild(unpaidBadge);
   if (featureOn('warehouse')) {
     const button = document.createElement('button'); button.type = 'button'; button.dataset.invoiceType = 'inventory_purchase'; button.setAttribute('aria-pressed', 'false'); button.textContent = INVENTORY_TEXT_FA.purchaseKind; get('inv-types-170').appendChild(button);
   }
@@ -551,7 +563,7 @@ function invoiceBind() {
     const catalog = event.target.closest('.inv-save-item'); if (catalog) { const row = catalog.closest('.invoice-line'), name = row.querySelector('.inv-item').value.trim(), price = invoiceDigits(row.querySelector('.inv-price').value); if (!name || price === null) { alert('نام و قیمت را وارد کن'); return; } const items = invoiceCatalog(), old = items.find(item => item.name === name); if (old && !confirm('قیمت ثبت‌شده برای «' + name + '» تغییر کند؟')) return; if (old) old.price = price; else items.push({ name, price }); invoiceSaveData('invoiceCatalog', items); get('invoice-items').innerHTML = invoiceOptions([...load('svq', []), ...items.map(item => item.name)]); get('inv-message').textContent = 'نام و قیمت در فهرست ذخیره شد.'; return; }
     const suggestYes=event.target.closest('.invoice-suggest-yes-178'); if(suggestYes) { const item=invoiceList().find(i=>String(i.id)===suggestYes.dataset.id), t=tx.find(x=>String(x.id)===suggestYes.dataset.tid); if(!item || !t || !confirm('این واریز مربوط به فاکتور '+item.number+' است؟')) return; try { const note=invoicePinWithShare178(item,t); invoiceShowList(get('inv-search').value); if(note) alert(note); } catch(error){alert(error.message);} return; }
     const suggestNo=event.target.closest('.invoice-suggest-no-178'); if(suggestNo) { const rejected=load('invoiceReject178',[]), key=suggestNo.dataset.id+'|'+suggestNo.dataset.tid, list=Array.isArray(rejected)?rejected:[]; if(!list.includes(key)) list.push(key); localStorage.setItem('invoiceReject178',JSON.stringify(list)); invoiceShowList(get('inv-search').value); return; }
-    if(event.target.closest('#invoice-suggestions-178')) { const boxes=[...card.querySelectorAll('.invoice-suggest-yes-178')]; if(!boxes.length){alert('پیشنهادی در فاکتورهای نمایش‌داده‌شده پیدا نشد.');return;} boxes.forEach(b=>{const result=b.closest('.invoice-result'); if(result)result.open=true; const details=b.closest('details');if(details)details.open=true;}); boxes[0].scrollIntoView({behavior:'smooth',block:'center'}); return; }
+    if(event.target.closest('#invoice-suggestions-178')) { searchPanel170.hidden = false; searchPanel170.open = true; const boxes=[...card.querySelectorAll('.invoice-suggest-yes-178')]; if(!boxes.length){alert('پیشنهادی در فاکتورهای نمایش‌داده‌شده پیدا نشد.');return;} boxes.forEach(b=>{const result=b.closest('.invoice-result'); if(result)result.open=true; const details=b.closest('details');if(details)details.open=true;}); boxes[0].scrollIntoView({behavior:'smooth',block:'center'}); return; }
     const pin = event.target.closest('.invoice-pin'); if (pin) { const select = pin.parentElement.querySelector('.invoice-payment-choice'), item = invoiceList().find(x=>String(x.id)===pin.dataset.id), transaction = tx.find(t=>String(t.id)===select.value); if (!item || !transaction) { alert('یک واریز انتخاب کن.'); return; } try { const note=invoicePinWithShare178(item,transaction); invoiceShowList(get('inv-search').value); if(note) alert(note); } catch(error) { alert(error.message); } return; }
     const unpin = event.target.closest('.invoice-unpin'); if (unpin) { const transaction = tx.find(t=>String(t.id)===unpin.dataset.tid && String(t.invoicePaymentId)===unpin.dataset.id); if (!transaction) return; invoiceSetPaymentLink(transaction, ''); save(); invoiceShowList(get('inv-search').value); return; }
     const edit = event.target.closest('.invoice-edit'); if (edit) {
