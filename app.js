@@ -1,16 +1,18 @@
+if (!accountSwitchRecover()) throw new Error('Account switch recovery failed');
 if (!directReceiveRecover()) throw new Error('Pending direct receive recovery failed');
 if (directReceiveRecovered) setTimeout(() => alert('دریافت قبلی کامل نشده بود؛ اطلاعات قبلی این دستگاه برگردانده شد.'), 0);
 const $ = s => document.querySelector(s);
 const lsj = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) && v.length ? v : d; } catch { return d; } };
-const DEFAULT_CATS = ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'];
+const DEFAULT_CATS = ['خرید', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط'];
 const DEFAULT_INC = ['فروش', 'مشتری', 'حقوق', 'سایر'];
 const CATS = lsj('cats', [...DEFAULT_CATS]);
 const INC = lsj('icats', [...DEFAULT_INC]);
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const BACKUP_KEYS = ['wh', 'showSales182', 'tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
+const BACKUP_KEYS = ['tx', 'accounts', 'rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cols', 'pjobs', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'defaultCustomerType', 'job', 'work', 'bizMode', 'budgets', 'features', 'dataOwner', 'layout', 'accountArchives', 'sel', 'ord', 'ord_settings', 'ord_add', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'legacyInboxImported'];
 function makeFullBackup() {
   const data = {};
   BACKUP_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) data[key] = value; });
+  if (!('dataOwner' in data)) data.dataOwner = '';
   if (!('tx' in data)) data.tx = JSON.stringify(tx);
   if (!('accounts' in data)) data.accounts = JSON.stringify(accounts);
   return { format: 'expense-app-backup', version: 1, createdAt: new Date().toISOString(), data };
@@ -22,12 +24,68 @@ function validateFullBackup(backup) {
   if (!Array.isArray(parse('tx'))) throw new Error('فهرست تراکنش‌ها معتبر نیست');
   const acc = parse('accounts'); if (!acc || typeof acc !== 'object' || Array.isArray(acc)) throw new Error('اطلاعات حساب‌ها معتبر نیست');
   for (const key of ['rem', 'log', 'ppl', 'pplIgnored', 'prc', 'receiptArchive', 'invoices', 'invoiceCatalog', 'cats', 'icats', 'ctypes', 'svq', 'carModels', 'carColors', 'carTypes', 'txDel', 'remDel', 'logDel', 'delAcc', 'nameRej', 'xrej', 'ord_settings', 'ord_add', 'legacyInboxImported']) if (key in backup.data && !Array.isArray(parse(key))) throw new Error('فهرست «' + key + '» معتبر نیست');
-  for (const key of ['cols', 'pjobs']) if (key in backup.data) { const value = parse(key); if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('اطلاعات «' + key + '» معتبر نیست'); }
+  for (const key of ['cols', 'pjobs', 'budgets', 'features']) if (key in backup.data) { const value = parse(key); if (!value || typeof value !== 'object' || Array.isArray(value) || (key === 'budgets' && Object.values(value).some(v => typeof v !== 'number' || !Number.isSafeInteger(v) || v < 0)) || (key === 'features' && Object.values(value).some(v => typeof v !== 'boolean'))) throw new Error('اطلاعات «' + key + '» معتبر نیست'); }
+  if ('accountArchives' in backup.data) { const archives = parse('accountArchives'); if (!Array.isArray(archives) || archives.some(a => !a || typeof a.id !== 'string' || typeof a.owner !== 'string' || !a.values || typeof a.values !== 'object' || Array.isArray(a.values) || Object.values(a.values).some(v => typeof v !== 'string') || !a.backup || !a.backup.data || 'accountArchives' in a.backup.data)) throw new Error('آرشیو حساب‌ها معتبر نیست'); for (const a of archives) validateFullBackup(a.backup); }
+  if ('bizMode' in backup.data && !['0', '1'].includes(backup.data.bizMode)) throw new Error('حالت کسب‌وکار معتبر نیست');
   return backup.data;
 }
 let tx = load('tx', []);
 tx.forEach(t => { if ((t.loan === 'wage' || t.loan === 'share') && t.cat === 'قرض') t.cat = 'کارکرد همکار'; });
 let accounts = load('accounts', {});
+// نسخهٔ کامل پیش از ادغام روی همین دستگاه می‌ماند؛ ادغام بدون ثبت آن شروع نمی‌شود.
+const CATEGORY_MERGE_BACKUP = 'categoryMerge155Backup';
+const CATEGORY_MERGE_MAP = { 'خرید': 'خرید', 'هزینه': 'خرید', 'سایر': 'خرید', 'سوپرمارکت': 'خرید' };
+function migrateCategoriesOnce() {
+  if (localStorage.getItem('categoryMerge155Done') === '1') return;
+  // اگر برنامه هنگام نوشتن بسته شد، اول وضعیت پیش از ادغام را برگردان.
+  const interrupted = localStorage.getItem('categoryMerge155InProgress');
+  if (interrupted) {
+    try {
+      const data = validateFullBackup(JSON.parse(localStorage.getItem(CATEGORY_MERGE_BACKUP))), journal = JSON.parse(interrupted);
+      localStorage.setItem('tx', data.tx);
+      if (data.cats === undefined) localStorage.removeItem('cats'); else localStorage.setItem('cats', data.cats);
+      if (journal.dirty === null) localStorage.removeItem('dirty'); else localStorage.setItem('dirty', journal.dirty);
+      tx = JSON.parse(data.tx); CATS.splice(0, CATS.length, ...lsj('cats', [...DEFAULT_CATS]));
+      localStorage.removeItem('categoryMerge155InProgress');
+    } catch (error) { console.error('بازگردانی ادغام ناتمام انجام نشد:', error); return; }
+  }
+  const oldTx = localStorage.getItem('tx'), oldCats = localStorage.getItem('cats'), oldDirty = localStorage.getItem('dirty');
+  try {
+    const saved = JSON.stringify(makeFullBackup());
+    validateFullBackup(JSON.parse(saved));
+    localStorage.setItem(CATEGORY_MERGE_BACKUP, saved);
+    if (localStorage.getItem(CATEGORY_MERGE_BACKUP) !== saved) throw new Error('پشتیبان ذخیره نشد');
+    localStorage.setItem('categoryMerge155InProgress', JSON.stringify({ dirty: oldDirty }));
+    const next = tx.map(t => t.type === 'debit' && !t.loan && !t.xfer && Object.prototype.hasOwnProperty.call(CATEGORY_MERGE_MAP, t.cat) ? { ...t, cat: CATEGORY_MERGE_MAP[t.cat] } : t);
+    const categories = [...new Set(CATS.map(c => Object.prototype.hasOwnProperty.call(CATEGORY_MERGE_MAP, c) ? CATEGORY_MERGE_MAP[c] : c))];
+    localStorage.setItem('tx', JSON.stringify(next));
+    localStorage.setItem('cats', JSON.stringify(categories));
+    localStorage.setItem('dirty', '1');
+    localStorage.setItem('categoryMerge155Done', '1');
+    localStorage.removeItem('categoryMerge155InProgress');
+    tx = next; CATS.splice(0, CATS.length, ...categories);
+  } catch (error) {
+    try { for (const [key, value] of [['tx', oldTx], ['cats', oldCats], ['dirty', oldDirty]]) value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value); localStorage.removeItem('categoryMerge155Done'); localStorage.removeItem('categoryMerge155InProgress'); } catch (_) {}
+    console.error('ادغام دسته‌ها انجام نشد:', error);
+  }
+}
+function restoreCategoriesBeforeMerge() {
+  const snapshot = JSON.parse(localStorage.getItem(CATEGORY_MERGE_BACKUP) || 'null');
+  const data = validateFullBackup(snapshot), before = JSON.parse(data.tx);
+  const oldById = new Map(before.map(t => [String(t.id), t]));
+  const restored = tx.map(t => { const old = oldById.get(String(t.id)); return old && old.type === 'debit' && !old.loan && !old.xfer && Object.prototype.hasOwnProperty.call(CATEGORY_MERGE_MAP, old.cat) && t.cat === CATEGORY_MERGE_MAP[old.cat] ? { ...t, cat: old.cat } : t; });
+  const oldCats = data.cats ? JSON.parse(data.cats) : ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'];
+  const categories = [...new Set([...oldCats, ...CATS])];
+  const oldTx = localStorage.getItem('tx'), currentCats = localStorage.getItem('cats'), oldDirty = localStorage.getItem('dirty');
+  try {
+    localStorage.setItem('tx', JSON.stringify(restored)); localStorage.setItem('cats', JSON.stringify(categories)); localStorage.setItem('dirty', '1');
+  } catch (error) {
+    for (const [key, value] of [['tx', oldTx], ['cats', currentCats], ['dirty', oldDirty]]) value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value);
+    throw error;
+  }
+  tx = restored; CATS.splice(0, CATS.length, ...categories);
+}
+migrateCategoriesOnce();
 const tomb = ids => { const g = JSON.parse(localStorage.getItem('txDel') || '[]'); ids.forEach(i => g.push(String(i))); localStorage.setItem('txDel', JSON.stringify([...new Set(g)].slice(-500))); };
 const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
@@ -40,6 +98,19 @@ let log = load('log', []);
 const saveLog = () => { localStorage.setItem('log', JSON.stringify(log.slice(0, 100))); localStorage.setItem('dirty', '1'); push(); };
 let banner = '';
 let tab = 'home', month = null, topic = 'expenses';
+const visibleRem157 = new Set();
+function bizEnabled() { const v = localStorage.getItem('bizMode'); return v === '1' || (v !== '0' && !!localStorage.getItem('job')); }
+const FEATURE_LABELS = { assistant: 'کارکرد همکار و دستیار', invoice: 'مشتری و فاکتور', loan: 'قرض و طلب', reminder: 'یادآور و اقساط', budget: 'بودجه', sms: 'پیامک بانکی', vehicle: 'خودرو (مدل، رنگ، نوع)' };
+const FEATURE_DESCRIPTIONS_173K = {
+  assistant: 'ثبت همکار و کارکرد، سهم همکار در فاکتور و تراکنش و گزینه‌های دستمزد پنهان می‌شوند؛ موضوع کارکردها غیرفعال می‌شود.',
+  invoice: 'ثبت فاکتور، اطلاعات مشتری و خدمت تراکنش و گزارش مشتری و خدمت پنهان می‌شوند؛ موضوع فاکتورها و فروش‌ها غیرفعال می‌شود.',
+  loan: 'گزینه‌های قرض در ثبت و ویرایش تراکنش و خلاصه قرض‌ها پنهان می‌شوند.',
+  reminder: 'ثبت یادآوری، هشدارهای خانه و تاریخ یادآوری در ویرایش تراکنش پنهان می‌شوند؛ موضوع یادآوری غیرفعال می‌شود.',
+  budget: 'بخش تنظیم بودجه پنهان می‌شود.',
+  sms: 'ثبت پیامک و رسید، بررسی رسیدها و صندوق پیامک قدیمی پنهان می‌شوند.',
+  vehicle: 'مشخصات خودرو در مخاطب و فاکتور و گزارش رانندگان پنهان می‌شوند.'
+};
+function featureOn(name) { const f = load('features', {}); return !f || typeof f !== 'object' || Array.isArray(f) || f[name] !== false; }
 let welcomeDismissed = false;
 
 // انتقال بین حساب‌های خودم
@@ -118,10 +189,10 @@ function receiptArchiveItems() {
 function receiptArchiveRender(query) {
   const box = document.getElementById('receipt-archive-results'); if (!box) return;
   const term = nrm(pfa(query || ''));
-  const items = receiptArchiveItems().map(item => {
+  const items = receiptArchiveItems().map((item, index) => {
     const match = tx.find(entry => entry.receipt === item.raw.slice(0, 1000));
     const parsed = parseReceipt(item.raw);
-    return { ...item, match, parsed };
+    return { ...item, index, match, parsed };
   }).filter(item => {
     const t = item.match, parsed = item.parsed;
     const fields = [item.raw, parsed && parsed.name, parsed && parsed.date, parsed && String(parsed.amount), parsed && String(Math.round(parsed.amount / 10)), t && t.date, t && t.account, t && accName(t.account), t && t.person, t && t.seller, t && t.desc, t && String(t.amount), t && String(Math.round(t.amount / 10))];
@@ -132,15 +203,46 @@ function receiptArchiveRender(query) {
     const name = rc && rc.name || t && (t.person || t.seller) || 'رسید';
     const amount = rc && rc.amount || t && t.amount;
     const date = rc && rc.date || t && t.date || '';
-    return `<details style="border-top:1px solid #e5e7eb;padding:10px 0"><summary><b>${esc(name)}</b>${amount ? ' · ' + toman(amount) + ' تومان' : ''}<span class="mut"> · ${t ? 'وصل‌شده به تراکنش' : 'بدون تراکنش متصل'}</span></summary><div class="mut">${esc(date)}${t ? ' · حساب: ' + esc(accName(t.account)) : ''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.raw)}</div></details>`;
+    return `<details data-receipt-index-173j="${item.index}" style="border-top:1px solid #e5e7eb;padding:10px 0"><summary><b>${esc(name)}</b>${amount ? ' · ' + toman(amount) + ' تومان' : ''}<span class="mut"> · ${t ? 'وصل‌شده به تراکنش' : 'بدون تراکنش متصل'}</span></summary><div class="mut">${esc(date)}${t ? ' · حساب: ' + esc(accName(t.account)) : ''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.raw)}</div>${!t && rc ? `<label>حساب<select class="receipt-create-account"><option value="">انتخاب حساب</option>${Object.keys(accounts).map(key => `<option value="${esc(key)}">${esc(accName(key))}</option>`).join('')}</select></label><button type="button" class="receipt-create-tx" data-index="${item.index}">ثبت به‌عنوان تراکنش</button>` : ''}</details>`;
   }).join('') : '<div class="mut">رسیدی پیدا نشد.</div>';
 }
 function receiptArchiveHtml() {
   return `<details class="card"><summary><b>🧾 آرشیو رسیدها</b></summary><div class="mut">رسیدهای موجود و رسیدهای جدید در این دستگاه نگهداری می‌شوند. جست‌وجو با نام، شماره حساب، مبلغ، تاریخ یا متن رسید است.</div><input id="receipt-archive-search" placeholder="جست‌وجوی رسید"><div id="receipt-archive-results"></div></details>`;
 }
+function receiptCreateTransaction(raw, account, approved) {
+  if (!approved) return false;
+  const rc = parseReceipt(raw), key = String(raw || '').trim().slice(0, 1000);
+  if (!rc || !account || !Object.prototype.hasOwnProperty.call(accounts, account)) throw new Error('رسید یا حساب معتبر نیست.');
+  if (tx.some(t => t.receipt === key)) throw new Error('این رسید قبلاً به تراکنش وصل شده است.');
+  if (tx.some(t => !t.ghost && t.type === 'debit' && t.account === account && t.amount === rc.amount && t.date === rc.date)) throw new Error('تراکنش مشابه وجود دارد؛ ابتدا آن را بررسی کن.');
+  tx.unshift({ id: Date.now() + Math.random(), bank: accName(account), account, type:'debit', amount:rc.amount, balance:null, date:rc.date, seller:rc.name, desc:'ثبت با تأیید از رسید', cat:'', pending:true, receipt:key });
+  save(); return true;
+}
+document.addEventListener('click', event => {
+  const button = event.target.closest('.receipt-create-tx'); if (!button) return;
+  const item = receiptArchiveItems()[Number(button.dataset.index)], select = button.parentElement.querySelector('.receipt-create-account');
+  if (!item || !select || !select.value) { alert('ابتدا حساب را انتخاب کن.'); return; }
+  try { if (receiptCreateTransaction(item.raw, select.value, confirm('این رسید به‌عنوان تراکنش برداشت ثبت شود؟'))) { receiptArchiveRender(document.getElementById('receipt-archive-search')?.value || ''); alert('تراکنش ثبت شد.'); } } catch (error) { alert(error.message); }
+});
+const RECEIPT_MATCH_172 = Object.freeze({ maxDaysMinutes: 4320, closeMinutes: 10, maxDifferenceRials: 1000000 });
+function rcTimestamp172(value) {
+  const text = String(value || '').replace(/[۰-۹]/g, c => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).replace(/[٠-٩]/g, c => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)));
+  const m = text.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31 || +m[4] > 23 || +m[5] > 59) return null;
+  return { day:m[1] + '/' + m[2].padStart(2,'0') + '/' + m[3].padStart(2,'0'), minutes:toMin(text) };
+}
 function rcCands(rc) {
-  const dist = t => Math.abs(toMin(t.date) - toMin(rc.date));
-  return tx.filter(t => t.type === 'debit' && !t.ghost && !t.xfer && !t.receipt && t.date && t.amount >= rc.amount && t.amount - rc.amount <= 1000000 && dist(t) <= 4320).sort((p, q) => dist(p) - dist(q));
+  const receiptTime = rcTimestamp172(rc.date); if (!receiptTime) return [];
+  const dist = t => Math.abs(rcTimestamp172(t.date).minutes - receiptTime.minutes);
+  const all = tx.filter(t => { const time = rcTimestamp172(t.date); return t.type === 'debit' && !t.ghost && !t.xfer && !t.receipt && time && Number.isFinite(t.amount) && t.amount >= rc.amount && t.amount - rc.amount <= RECEIPT_MATCH_172.maxDifferenceRials && Math.abs(time.minutes - receiptTime.minutes) <= RECEIPT_MATCH_172.maxDaysMinutes; }).sort((a,b) => dist(a) - dist(b));
+  const near = all.filter(t => rcTimestamp172(t.date).day === receiptTime.day && dist(t) <= RECEIPT_MATCH_172.closeMinutes);
+  return near.length ? near : all;
+}
+function rcAutoMatch172(rc, candidates) {
+  const receiptTime = rcTimestamp172(rc.date); if (!receiptTime || !rc.name || candidates.length !== 1) return null;
+  const t = candidates[0], time = rcTimestamp172(t.date);
+  const names = [t.seller, t.person, t.customer].filter(Boolean);
+  return time && time.day === receiptTime.day && Math.abs(time.minutes - receiptTime.minutes) <= RECEIPT_MATCH_172.closeMinutes && t.amount === rc.amount && names.some(name => nrm(name) === nrm(rc.name)) ? t : null;
 }
 function rcAttach(c, rc, raw) {
   const known = [...new Set([...Object.keys(cols()), ...Object.keys(pjobs()), ...tx.filter(t => t.person).map(t => t.person)])];
@@ -155,8 +257,9 @@ function rcTryPending() {
     const rc = parseReceipt(raw); if (!rc) return true;
     if (tx.some(t => t.receipt === String(raw).trim().slice(0, 1000))) return false;
     const cs = rcCands(rc);
-    if (cs.length === 1 && cs[0].amount - rc.amount <= 150000 && Math.abs(toMin(cs[0].date) - toMin(rc.date)) <= 30) {
-      rcAttach(cs[0], rc, raw); n++; return false;
+    const match = rcAutoMatch172(rc, cs);
+    if (match) {
+      rcAttach(match, rc, raw); n++; return false;
     }
     return true;
   });
@@ -167,8 +270,9 @@ function rcTryPending() {
 function rcReviewHtml() {
   return rcPending().map((raw, i) => {
     const rc = parseReceipt(raw); if (!rc) return '';
+    if (tx.some(t => t.receipt === String(raw).trim().slice(0, 1000))) return '';
     const cs = rcCands(rc); if (!cs.length) return '';
-    return `<div class="card" style="background:#eefaf6"><b>🧾 انتخاب تراکنش برای رسید</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div><div class="mut">گزینه درست را انتخاب کن؛ اختلاف مبلغ هم نمایش داده شده است.</div>${cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان · اختلاف ${toman(t.amount - rc.amount)} تومان<div class="mut">${esc(t.date)} · ${esc(accName(t.account))}</div></span><button class="rcchoose" data-ri="${i}" data-tid="${t.id}">این است</button></div>`).join('')}</div>`;
+    return `<div class="card" style="background:#eefaf6"><b>🧾 انتخاب تراکنش برای رسید</b><div>${toman(rc.amount)} تومان به «${esc(rc.name)}» · ${esc(rc.date)}</div><div class="mut">گزینه درست را انتخاب کن؛ اختلاف مبلغ هم نمایش داده شده است.</div>${cs.map(t => `<div class="row" style="margin-top:8px"><span>${toman(t.amount)} تومان · اختلاف ${toman(t.amount - rc.amount)} تومان<div class="mut"><b>${esc(t.date)}</b> · ${esc(accName(t.account))}</div></span><button class="rcchoose" data-ri="${i}" data-tid="${t.id}">این است</button></div>`).join('')}</div>`;
   }).join('');
 }
 function rcMessage(t, rc, already) {
@@ -185,6 +289,14 @@ document.addEventListener('click', e => {
   if (!t) { render(); return; }
   rcAttach(t, rc, raw); L.splice(+b.dataset.ri, 1); localStorage.setItem('prc', JSON.stringify(L)); save(); render();
 });
+function showReceiptResult172(message) {
+  const card = document.querySelector('.add-saved-164');
+  if (card && message) { const note = document.createElement('div'); note.textContent = message; card.appendChild(note); }
+}
+function bindReceiptEntry173c() {
+  $('#pst').onclick = async () => { try { $('#sms').value = await navigator.clipboard.readText(); } catch (_) { $('#msg').textContent = 'متن رسید را داخل کادر بچسبان.'; } };
+  $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { const message = $('#msg').textContent; $('#sms').value = ''; addSaved164('receipt'); showReceiptResult172(message); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
+}
 function receiptFlow(raw) {
   const rc = parseReceipt(raw); if (!rc) return false;
   const box = $('#msg'); if (!box) return false;
@@ -211,8 +323,9 @@ function addSms(raw) {
 }
 function addSms0(raw) {
   const p = parseSms(raw);
-  if (!p) return { ok: false, msg: 'قالب پیامک شناخته نشد' };
+  if (!p) return { ok: false, review: true, msg: 'نفهمیدم: قالب پیامک شناخته نشد؛ دستی بررسی کن' };
   if (p.ignored) return { ok: false, msg: 'پیامک رمز بود؛ نادیده گرفته شد' };
+  if (p.review) return { ok: false, review: true, msg: 'نفهمیدم: قالب ' + p.bank + ' آزمایشی است و باید دستی بررسی شود' };
   if (p.account && accounts[p.account] === undefined) { accounts[p.account] = /^\d{6,}$/.test(p.account) ? p.bank + ' …' + p.account.slice(-4) : p.bank; }
   const dup = tx.find(t => !t.ghost && t.type === p.type && t.amount === p.amount && t.date === p.date && (!t.account || !p.account || t.account === p.account));
   if (dup) return { ok: false, msg: 'تکراری بود' };
@@ -245,13 +358,17 @@ function setDesc(id, desc, cat, ex) {
   ex = ex || null;
   if (ex && ex.service) { const L = lsj('svq', []); if (!L.some(x => nrm(x) === nrm(ex.service))) { L.push(ex.service); localStorage.setItem('svq', JSON.stringify(L)); } }
   const t = tx.find(x => x.id === id);
-  t.desc = desc; t.cat = cat || t.cat || 'سایر'; t.pending = false;
+  t.desc = desc; t.cat = cat || t.cat || (t.type === 'debit' ? 'خرید' : 'سایر'); t.pending = false;
   if (ex) {
-    t.customer = ex.customer || ''; t.service = ex.service || '';
-    if (ex.ctype !== undefined) { const sale = t.cat === 'فروش'; t.ctype = sale || !t.customer ? '' : ex.ctype; t.cphone = sale ? '' : (ex.cphone || ''); }
+    if (!ex.preserveBiz) {
+      t.customer = ex.customer || ''; t.service = ex.service || '';
+      if (ex.ctype !== undefined) { const sale = t.cat === 'فروش'; t.ctype = sale || !t.customer ? '' : ex.ctype; t.cphone = sale ? '' : (ex.cphone || ''); }
+    }
     if (ex.remDate) { rem.push({ id: Date.now(), type: 'custom', title: desc || t.customer || 'یادآوری', date: ex.remDate, amount: Math.round(t.amount / 10), alerts: [3, 1], before: 3, count: 0, rep: '' }); saveRem(); }
   }
-  save(); render();
+  save();
+  try { const result=contactSaveFacts173p([{name:t.customer,phone:t.cphone,role:t.ctype==='driver'?'راننده':'مشتری'},{name:t.seller,role:'فروشنده'},{name:t.person,role:t.loan==='wage'?'همکار':'سایر'},{name:t.colleague,role:'دستیار'}]); if(result.skipped.length) banner='تراکنش ذخیره شد؛ مخاطب مشابه را در بخش مخاطبین بررسی کن.'; } catch (_) { banner='تراکنش ذخیره شد؛ ذخیرهٔ مخاطب را بررسی کن.'; }
+  render();
 }
 
 const drafts = {}, editing = new Set(), editSnapshots = {};
@@ -264,6 +381,26 @@ const defaultCustomerType = () => localStorage.getItem('defaultCustomerType') ||
 const salaryJob = () => ['معلم', 'کارمند', 'بازنشسته'].includes(job());
 const defIncCat = () => salaryJob() ? 'حقوق' : job() === 'فروشنده' ? 'فروش' : job() ? 'مشتری' : '';
 const nrm = s => String(s).replace(/\u064a/g, 'ی').replace(/\u0643/g, 'ک').replace(/[آأإ]/g, 'ا').replace(/[\s\u200c]/g, '').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).toLowerCase();
+// از دسته‌های ثبت‌شدهٔ قبلی پیشنهاد می‌سازد؛ انتخاب نهایی همچنان با کاربر است.
+function categorySuggestion(current, seller, description) {
+  const person = nrm(seller || ''), text = nrm(description || '');
+  if (!person && !text) return '';
+  const counts = new Map();
+  tx.forEach(item => {
+    if (String(item.id) === String(current.id) || item.type !== 'debit' || item.pending || item.ghost || item.loan || item.xfer || !CATS.includes(item.cat)) return;
+    if (person ? nrm(item.seller || '') !== person : nrm(item.desc || '') !== text) return;
+    counts.set(item.cat, (counts.get(item.cat) || 0) + 1);
+  });
+  const ranked = [...counts].sort((a, b) => b[1] - a[1]);
+  return ranked.length && ranked[0][1] >= 2 && (!ranked[1] || ranked[0][1] > ranked[1][1]) ? ranked[0][0] : '';
+}
+function updateCategorySuggestion(card) {
+  const button = card.querySelector('.catsuggestion'), item = tx.find(t => String(t.id) === card.dataset.id);
+  if (!button || !item) return;
+  const category = categorySuggestion(item, card.querySelector('.p')?.value, card.querySelector('.d')?.value);
+  button.hidden = !category; button.dataset.category = category;
+  button.textContent = category ? 'پیشنهاد دسته: ' + category : '';
+}
 function lev(a, b) { const m = []; for (let i = 0; i <= a.length; i++) { m[i] = [i]; } for (let j = 1; j <= b.length; j++) m[0][j] = j; for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return m[a.length][b.length]; }
 function nameSugs() {
   const rej = lsj('nameRej', []), out = [];
@@ -293,25 +430,51 @@ document.addEventListener('input', e => { const c = e.target.closest('.card[data
 function pendingCard(t) {
   const debit = t.type === 'debit';
   const D = drafts[t.id] || {}, cat0 = D.cat || t.cat || (debit ? '' : defIncCat());
-  const showCu = !debit && (!salaryJob() || t.customer || t.service);
+  const showCu = featureOn('invoice') && !debit;
   return `<div class="card" data-id="${t.id}" data-cat="${esc(cat0)}">
     <div><b class="${debit ? 'red' : 'grn'}">${toman(t.amount)} تومان ${debit ? 'کسر شد' : 'واریز شد'}</b></div>
     <div class="mut">${esc(accName(t.account))} · ${esc(t.date)}</div>
     ${t.receipt ? `<details><summary class="mut">🧾 رسید بانکی</summary><div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button type="button" class="sec rcpdel" data-id="${t.id}">🗑 حذف رسید</button></details>` : ''}
-    ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
-    <input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><datalist id="dl"></datalist>
-    <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص / فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    ${debit ? `<div>دسته‌بندی</div><select class="catsel"><option value="">انتخاب کن…</option>${CATS.map(c => `<option${c === cat0 ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select><button type="button" class="sec catsuggestion" hidden></button><div>شرح یا توضیحات (اختیاری)</div>` : '<div>از طرف کی / بابت چی؟</div>'}
+    <div class="row"><input class="d" list="dl" value="${esc(D.d ?? (t.desc || ''))}" placeholder="${debit ? 'توضیح بیشتر، اگر لازم است' : 'مثلاً: بابت کرایه'}"><button type="button" class="sec contact-toggle-173m" aria-label="انتخاب مخاطب">＋</button></div><datalist id="dl"></datalist>
+    <div class="contact-picker-173m" hidden><select class="contact-group-173m"><option value="">ابتدا گروه را انتخاب کن</option>${['مشتری','راننده','دستیار','همکار','فروشنده','سایر'].map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select><select class="contact-person-173m"><option value="">انتخاب شخص</option></select></div>
+    <input class="p" list="pl" value="${esc(D.p ?? (t.person || t.seller || ''))}" placeholder="نام شخص یا فروشنده"><datalist id="pl">${[...new Set([...Object.keys(cols()), ...people()])].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <div class="mut bh"></div>
-    ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage"${t.loan === 'wage' ? ' selected' : ''}>دستمزد / حقوق دستیار</option><option value="lent"${t.loan === 'lent' ? ' selected' : ''}>قرض دادم</option><option value="payback"${t.loan === 'payback' ? ' selected' : ''}>قرض پس دادم</option></select>` : ''}
-    ${debit ? '' : `<div class="row">${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
-    ${showCu ? `<input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}` : ''}
-    ${showCu ? ctBlock(t, D, cat0) : ''}
-    ${debit ? '' : colBlock(t, D)}
+    ${debit ? `<select class="cs"><option value="">انتخاب همکار / شخص…</option>${Object.keys(cols()).map(n => `<option>${esc(n)}</option>`).join('')}</select><select class="lk"><option value="">نوع پرداخت: فقط هزینه</option><option value="wage"${!featureOn('assistant') ? ' hidden' : ''}${t.loan === 'wage' ? ' selected' : ''}>دستمزد / حقوق دستیار</option><option value="lent"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'lent' ? ' selected' : ''}>قرض دادم</option><option value="payback"${!featureOn('loan') ? ' hidden' : ''}${t.loan === 'payback' ? ' selected' : ''}>قرض پس دادم</option></select>` : ''}
+    ${debit ? '' : `<div class="row" ${featureOn('loan') ? '' : 'hidden'}>${[['repaid', 'پس گرفتم'], ['borrowed', 'قرض گرفتم']].map(([k, l]) => `<button class="sec ln" data-k="${k}">${l}</button>`).join('')}</div>`}
+    ${showCu ? `<details class="transaction-customer-177"><summary><b>👤 مشخصات مشتری / راننده و خدمت</b>${t.customer ? ' · ' + esc(t.customer) : ''}</summary><input class="cu" value="${esc(D.cu ?? (t.customer || ''))}" list="customer-list-${t.id}" placeholder="نام مشتری / پرداخت‌کننده (اختیاری)"><datalist id="customer-list-${t.id}">${[...new Set([...tx.map(x => x.customer).filter(Boolean), ...load('ppl', []).filter(x => x.tags && (x.tags.includes('مشتری') || x.tags.includes('راننده'))).map(x => x.name)])].map(n => `<option value="${esc(n)}">`).join('')}</datalist><input class="sv" value="${esc(D.sv ?? (t.service || ''))}" placeholder="بابت چه خدمات/کالایی؟ ${work() ? '(مثلاً: ' + esc(work()) + ')' : '(اختیاری)'}">${svChips()}${ctBlock(t, D, cat0)}</details>` : ''}
+    ${debit || !featureOn('assistant') ? '' : colBlock(t, D)}
+    ${debit ? '' : '<div class="mut">واریز راننده را «مشتری» ثبت کن؛ این مبلغ یک تراکنش بانکی است. سهم تو جداگانه در حساب همان فاکتور نمایش داده می‌شود.</div>'}
     <div class="chips">${(debit ? [] : INC).map(c => `<button class="chip sec${c === cat0 ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-    <div class="mut">یادآوری (اختیاری): تاریخ</div><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}
+    <details class="entry-section-180" ${featureOn('reminder') ? '' : 'hidden'}><summary><b>🔔 یادآوری (اختیاری)</b></summary><input class="rdt" type="hidden" value="${esc(D.rdt || '')}">${persianDateFields('rdt-' + t.id, D.rdtPersian ?? isoToPersian(D.rdt || ''), 'rdtPersian')}</details>
     <div class="row"><button class="ok">ذخیره</button>${editing.has(String(t.id)) ? '<button class="sec cx">انصراف</button>' : '<button class="sec skip">بعداً</button>'}<button class="sec xf">انتقال خودم</button><button class="sec del">حذف</button></div>
   </div>`;
 }
+document.addEventListener('click', event => {
+  const button = event.target.closest('.contact-toggle-173m');
+  if (!button) return;
+  const picker = button.closest('.card')?.querySelector('.contact-picker-173m');
+  if (picker) picker.hidden = !picker.hidden;
+});
+document.addEventListener('change', event => {
+  const card = event.target.closest('.card[data-id]');
+  if (!card) return;
+  const contacts = load('ppl', []);
+  if (!Array.isArray(contacts)) return;
+  if (event.target.matches('.contact-group-173m')) {
+    const group = event.target.value, select = card.querySelector('.contact-person-173m');
+    select.innerHTML = '<option value="">انتخاب شخص</option>' + contacts.map((person,index)=>({person,index})).filter(({person}) => group && (person.tags || []).includes(group)).map(({person,index})=>`<option value="${index}">${esc(person.name || '')}</option>`).join('');
+  }
+  if (event.target.matches('.contact-person-173m') && event.target.value !== '') {
+    const person = contacts[Number(event.target.value)]; if (!person) return;
+    const set = (selector,value,replace=false) => { const input=card.querySelector(selector); if(input && value && (replace || !input.value.trim())) { input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); } };
+    set('.p',person.name,true); set('.cu',person.name,true);
+    const selectedGroup=card.querySelector('.contact-group-173m')?.value, typeBox=card.querySelector('.ctbox');
+    if(typeBox && (selectedGroup==='راننده' || selectedGroup==='مشتری')) { typeBox.dataset.ct=selectedGroup==='راننده'?'driver':'normal'; typeBox.querySelectorAll('.ctb').forEach(b=>b.classList.toggle('on',b.dataset.v===typeBox.dataset.ct)); (drafts[card.dataset.id]=drafts[card.dataset.id]||{}).ct=typeBox.dataset.ct; }
+    const source=tx.find(t=>String(t.id)===card.dataset.id), invoice=source?.invoicePaymentId && invoiceList().find(i=>String(i.id)===String(source.invoicePaymentId));
+    set('.cph',person.phone || invoice?.phone,true); set('.sv',(invoice?.lines || []).map(x=>x.name).filter(Boolean).join('، '));
+  }
+});
 
 function svChips() {
   const L = lsj('svq', []); return L.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${L.map(n => `<button type="button" class="sec sqn" data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
@@ -323,7 +486,7 @@ function recentCust() {
 }
 function ctBlock(t, D, cat) {
   const ct = D.ct ?? (t.ctype || (!t.pending ? '' : defaultCustomerType()));
-  return `<div class="ctbox${cat === 'فروش' ? ' hide' : ''}" data-ct="${ct}"><div class="mut">نوع مشتری (برای فروش کالا لازم نیست)</div><div class="row" style="gap:6px;margin:6px 0"><button type="button" class="sec ctb${ct === 'driver' ? ' on' : ''}" data-v="driver">🚚 راننده</button><button type="button" class="sec ctb${ct === 'normal' ? ' on' : ''}" data-v="normal">🧑 مشتری عادی</button>${lsj('ctypes', []).map(x => `<button type="button" class="sec ctb${ct === x ? ' on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div><input class="cph" inputmode="tel" value="${esc(D.ph ?? (t.cphone || ''))}" placeholder="شماره تماس (اختیاری)"></div>`;
+  return `<details class="ctbox${cat === 'فروش' ? ' hide' : ''}" data-ct="${ct}"><summary class="mut">نوع مشتری (برای فروش کالا لازم نیست)</summary><div class="row" style="gap:6px;margin:6px 0"><button type="button" class="sec ctb${ct === 'driver' ? ' on' : ''}" data-v="driver">🚚 راننده</button><button type="button" class="sec ctb${ct === 'normal' ? ' on' : ''}" data-v="normal">🧑 مشتری عادی</button>${lsj('ctypes', []).map(x => `<button type="button" class="sec ctb${ct === x ? ' on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div><input class="cph" inputmode="tel" value="${esc(D.ph ?? (t.cphone || ''))}" placeholder="شماره تماس (اختیاری)"></details>`;
 }
 const lcat = k => k === 'wage' || k === 'share' ? 'کارکرد همکار' : 'قرض';
 const LOAN = { wage: ['پرداخت دستمزد', 1], lent: ['قرض دادم', 1], payback: ['بازپرداخت قرضِ خودم', 1], repaid: ['قرضم را پس گرفتم', -1], share: ['کارکرد / سهم همکار', -1], borrowed: ['قرض گرفتم', -1] };
@@ -332,17 +495,17 @@ function cols() { try { return JSON.parse(localStorage.getItem('cols') || '{}');
 function setCols(o) { localStorage.setItem('cols', JSON.stringify(o)); }
 function shareOf(amount, pct) { return Math.round(amount * pct / 100); }
 function colBlock(t, D) {
-  const c = cols(), names = Object.keys(c), sel = D.co ?? (t.colleague || ''), pct = Number(D.pc ?? (t.pct ?? c[sel] ?? 0)) || 0;
+  const c = cols(), names = [...new Set([...Object.keys(c),t.colleague].filter(Boolean))], sel = D.co ?? (t.colleague || ''), pct = Number(D.pc ?? (t.pct ?? c[sel] ?? 0)) || 0;
   const mode = D.shareMode ?? (t.shareMode || 'percent');
   const fixed = D.shareAmount ?? (t.shareMode === 'fixed' ? Math.round((t.shareAmount || 0) / 10) : '');
-  return `<div class="colbox"><b>🤝 دستیار در این کار</b>
+  return `<details class="colbox entry-section-180"><summary><b>🤝 دستیار در این کار</b></summary>
     <select class="co"><option value="">بدون دستیار</option>${names.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)} (${(c[n] || 0).toLocaleString('fa-IR')}٪)</option>`).join('')}<option value="__new">+ دستیار جدید…</option></select>
     <input class="cn hide" placeholder="نام دستیار جدید">
     <select class="sharemode${sel ? '' : ' hide'}"><option value="percent"${mode === 'percent' ? ' selected' : ''}>سهم درصدی</option><option value="fixed"${mode === 'fixed' ? ' selected' : ''}>مبلغ ثابت (تومان)</option></select>
     <div class="pcrow${sel && mode === 'percent' ? '' : ' hide'}"><span>درصد سهم از کل مبلغ واریزی</span>
       <span class="pcb"><button type="button" class="sec pa" data-d="-1">▼</button><b class="pv" data-v="${pct}">${Number(pct).toLocaleString('fa-IR')}٪</b><button type="button" class="sec pa" data-d="1">▲</button></span></div>
     <input class="sharefixed${sel && mode === 'fixed' ? '' : ' hide'}" type="text" inputmode="numeric" value="${esc(fixed)}" placeholder="مبلغ سهم دستیار (تومان)">
-    <div class="mut cs"></div></div>`;
+    <div class="mut cs"></div></details>`;
 }
 function colRefresh(card) {
   const v = card.querySelector('.pv'); if (!v) return;
@@ -355,17 +518,51 @@ function colRefresh(card) {
   const sh = mode === 'fixed' ? (invoiceDigits(card.querySelector('.sharefixed').value) || 0) * 10 : shareOf(t.amount, p);
   card.querySelector('.cs').innerHTML = has && sh ? `سهم دستیار: <b>${toman(sh)}</b> تومان · خالصِ من: <b>${toman(t.amount - sh)}</b> تومان` : '';
 }
+function shareCheckTombs173i(ids) {
+  const saved = JSON.parse(localStorage.getItem('txDel') || '[]');
+  if (!Array.isArray(saved) || new Set([...saved.map(String), ...ids.map(String)]).size > 500) throw new Error('فهرست حذف‌های همگام‌سازی پر است؛ ابتدا همگام‌سازی را بررسی کن.');
+}
+function shareTomb173i(ids) {
+  shareCheckTombs173i(ids);
+  tomb(ids);
+}
 function applyShare(t, name, pct, mode, fixed) {
-  const old = tx.find(x => x.parent === t.id && x.loan === 'share');
-  tx = tx.filter(x => x.parent !== t.id || x.loan !== 'share');
-  t.colleague = ''; t.pct = 0; delete t.shareMode; delete t.shareAmount;
+  const names = [...new Set([t.colleague, name].filter(Boolean))], invoiceId = t.invoicePaymentId || '';
+  const found = [...new Set(names.flatMap(person => shareCandidates173i(tx, t, invoiceId, person)))];
+  if (found.length > 1) throw new Error('برای این واریز چند ردیف سهم وجود دارد؛ ابتدا از بخش کارکردها تکراری‌ها را بررسی کن.');
+  const old = found[0];
   const sh = mode === 'fixed' ? fixed : shareOf(t.amount, pct);
-  if (!name || !sh) return;
+  if ((!name || !sh) && old) shareTomb173i([old.id]);
+  t.colleague = ''; t.pct = 0; delete t.shareMode; delete t.shareAmount;
+  if (!name || !sh) { if (old) tx = tx.filter(x => x !== old); return; }
   t.colleague = name; t.pct = mode === 'percent' ? pct : 0; t.shareMode = mode; t.shareAmount = sh;
   const details = [t.customer && ((t.ctype === 'driver' ? 'راننده: ' : 'مشتری: ') + t.customer), t.service && ('خدمت: ' + t.service), t.desc && ('توضیح: ' + t.desc)].filter(Boolean).join(' · ');
   const basis = mode === 'fixed' ? 'مبلغ ثابت' : 'سهم ' + pct + '٪';
-  tx.push({ id: old ? old.id : Date.now() + Math.random(), parent: t.id, ghost: true, bank: t.bank, account: t.account, type: 'credit', amount: sh, balance: null, date: t.date, cat: 'کارکرد همکار', loan: 'share', person: name, desc: basis + (details ? ' · ' + details : ''), pending: false });
+  const updated = { id: old ? old.id : Date.now() + Math.random(), parent: t.id, ghost: true, bank: t.bank, account: t.account, type: 'credit', amount: sh, balance: null, date: t.date, cat: 'کارکرد همکار', loan: 'share', person: name, desc: basis + (details ? ' · ' + details : ''), pending: false };
+  if (old) Object.assign(old, updated); else tx.push(updated);
 }
+let sharePreviewSnapshot173i = '';
+document.addEventListener('click', event => {
+  if (event.target.id === 'share-preview-173i') {
+    const groups = shareDuplicateGroups173i(tx), box = document.getElementById('share-preview-box-173i');
+    sharePreviewSnapshot173i = JSON.stringify(groups.map(g => g.map(r => [String(r.id), r.person, r.amount, r.date, r.parent, r.invoiceId])));
+    box.innerHTML = groups.length ? '<b>' + groups.length.toLocaleString('fa-IR') + ' گروه تکراری</b>' + groups.map(g => '<div class="card"><b>' + esc(g[0].person) + '</b> · ' + esc(g[0].date || '') + ' · ' + toman(g[0].amount) + ' تومان<div class="mut">نگه‌داشتن ردیف ' + esc(String(g[0].id)) + '؛ حذف ' + g.slice(1).map(r => esc(String(r.id))).join('، ') + '</div></div>').join('') + '<button type="button" id="share-clean-173i">حذف موارد پیش‌نمایش‌شده</button>' : '<div class="mut">سهم تکراری با پیوند مشخص پیدا نشد.</div>';
+  }
+  if (event.target.id === 'share-clean-173i') {
+    const groups = shareDuplicateGroups173i(tx), snapshot = JSON.stringify(groups.map(g => g.map(r => [String(r.id), r.person, r.amount, r.date, r.parent, r.invoiceId])));
+    if (!groups.length || snapshot !== sharePreviewSnapshot173i) { alert('اطلاعات تغییر کرده است؛ دوباره بررسی کن.'); return; }
+    const remove = groups.flatMap(g => g.slice(1)), ids = remove.map(r => String(r.id));
+    if (new Set(ids).size !== ids.length || ids.some(id => tx.filter(r => String(r.id) === id).length !== 1)) { alert('شناسه‌های تکراری مبهم‌اند؛ پاک‌سازی انجام نشد.'); return; }
+    if (!confirm(ids.length.toLocaleString('fa-IR') + ' ردیف تکراری حذف شود؟ ابتدا پشتیبان محلی ثبت می‌شود. این تغییر می‌تواند همگام شود.')) return;
+    const oldTx = tx, oldDeleted = localStorage.getItem('txDel'), oldStored = localStorage.getItem('tx');
+    try {
+      const backup = JSON.stringify({ createdAt:new Date().toISOString(), tx:oldTx, txDel:oldDeleted });
+      const key = 'shareCleanupBackup173i-' + Date.now(); localStorage.setItem(key, backup);
+      if (localStorage.getItem(key) !== backup || !Array.isArray(JSON.parse(backup).tx)) throw new Error('ذخیرهٔ پشتیبان تأیید نشد');
+      shareTomb173i(ids); const removed = new Set(remove); tx = tx.filter(row => !removed.has(row)); save(); sharePreviewSnapshot173i = ''; render(); alert('ردیف‌های تکراری حذف و پشتیبان محلی ذخیره شد.');
+    } catch (error) { tx = oldTx; try { if (oldDeleted === null) localStorage.removeItem('txDel'); else localStorage.setItem('txDel', oldDeleted); if (oldStored === null) localStorage.removeItem('tx'); else localStorage.setItem('tx', oldStored); } catch (_) {} alert('پاک‌سازی کامل نشد: ' + error.message); }
+  }
+});
 function people() { return [...new Set(tx.filter(t => t.person).map(t => t.person))]; }
 function monthOf(t) { return t.date.slice(0, 7); }
 
@@ -395,40 +592,59 @@ function dkeys() {
 function render() {
   const y = window.scrollY, was = new Set(dkeys().filter(([d]) => d.open).map(x => x[1])), t0 = tab;
   _render2();
-  if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k)) d.open = true; }); window.scrollTo(0, y); }
+  if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k) && !(tab === 'add' && d.id === 'manual-more-164')) d.open = true; }); window.scrollTo(0, y); }
+  if (typeof splashComplete173g === 'function') splashComplete173g();
 }
-function _render2() { _render(); document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); }); }
-function _render() {
+function _render2() { _render(); if ((topic === 'work' && tab !== 'contacts' && tab !== 'settings' && tab !== 'add') || tab === 'loans') { document.getElementById('app').insertAdjacentHTML('afterbegin', '<details class="card"><summary><b>پاک‌سازی سهم‌های تکراری</b></summary><div class="mut">ابتدا پیش‌نمایش را ببین؛ حذف فقط با تأیید و پس از پشتیبان انجام می‌شود.</div><button type="button" id="share-preview-173i">بررسی تکراری‌ها</button><div id="share-preview-box-173i"></div></details>'); } document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); addPage164(); }
+const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
+function navigationState163(currentTab, currentTopic, enabled) {
+  const diary = currentTab === 'report' || currentTab === 'contacts';
+  return { diary, add:currentTab === 'add', topic:TOPIC_FEATURE_163[currentTopic] && !enabled(TOPIC_FEATURE_163[currentTopic]) ? 'expenses' : currentTopic, visible:key => !TOPIC_FEATURE_163[key] || enabled(TOPIC_FEATURE_163[key]) };
+}
+function navigationRender163() {
+  const state = navigationState163(tab, topic, featureOn); topic = state.topic;
+  const topics = document.getElementById('topics'), chips = document.getElementById('diary-chips'), add = document.getElementById('add-sections');
+  if (topics) { topics.hidden = false; const first = topics.querySelector('[data-topic="expenses"]'); if (first) first.textContent = 'هزینه‌ها'; }
+  if (chips) chips.hidden = true;
+  if (add) add.hidden = true;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+}
+function navigationScroll171(button, smooth = true) {
+  if (button && typeof button.scrollIntoView === 'function') button.scrollIntoView({ inline:'center', block:'nearest', behavior:smooth ? 'smooth' : 'auto' });
+}
+function _render() {
+  const topicFeature = { invoices: 'invoice', sales: 'invoice', work: 'assistant', reminders: 'reminder', receipts: 'sms' };
+  if (topicFeature[topic] && !featureOn(topicFeature[topic])) topic = 'expenses';
+  document.querySelectorAll('[data-topic]').forEach(b => { b.hidden = false; b.disabled = !!topicFeature[b.dataset.topic] && !featureOn(topicFeature[b.dataset.topic]); });
+  navigationRender163();
   document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
-  const salesButton = document.querySelector('[data-topic="sales"]');
-  if (salesButton) salesButton.hidden = localStorage.getItem('showSales182') !== '1';
   const el = $('#app');
+  el.classList.remove('invoice-page-173e', 'invoice-report-page-173e');
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
   if (tab === 'rem') { topic = 'reminders'; tab = 'home'; }
   if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
-    if (topic === 'warehouse') {
-      el.innerHTML = typeof warehouseHtml === 'function' ? warehouseHtml() : '<div class="card">انبار در دسترس نیست.</div>';
-      if (typeof warehouseBind === 'function') warehouseBind();
-      return;
-    }
     if ((topic === 'invoices' || topic === 'sales') && tab !== 'add') {
-      const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => item.payment?.method === 'unpaid');
-      el.innerHTML = tab === 'report' ? invoiceLedgerHtml(list) + invoiceHtml() : `<div class="topic-summary"><div>${salesOnly ? 'فروش کالا' : 'فاکتورها'}</div><b>${list.length.toLocaleString('fa-IR')} فاکتور</b><div>${confirmed.length.toLocaleString('fa-IR')} تأییدشده · ${unpaid.length.toLocaleString('fa-IR')} نسیه</div></div>${!salesOnly ? `<div class="card invoice-categories"><b>دسته‌های فاکتور</b><div class="invoice-category-grid"><button type="button" class="sec invoice-open-list" data-filter="service">🔧 خدمات (${list.filter(item => (item.kind || 'خدمات') === 'خدمات').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="sale">🛒 فروش (${list.filter(item => item.kind === 'فروش').length.toLocaleString('fa-IR')})</button><button type="button" class="sec invoice-open-list" data-filter="unpaid">📌 نسیه (${unpaid.length.toLocaleString('fa-IR')})</button></div><div class="mut">نسیه وضعیت پرداخت است و می‌تواند مربوط به خدمات یا فروش باشد.</div></div>` : ''}<div class="card"><b>آخرین ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</b>${list.slice(0, 10).map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number || '')}</b><div class="mut">${esc(item.date || '')} · ${Number(item.total || 0).toLocaleString('fa-IR')} تومان · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div></div>`).join('') || '<div class="mut">هنوز موردی ثبت نشده است.</div>'}<button class="invoice-open-list" type="button">جست‌وجو و گزارش ${salesOnly ? 'فروش‌ها' : 'فاکتورها'}</button></div>`;
-      if (tab === 'report') {
+      const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => invoiceIsUnpaid173k(item, tx));
+      el.innerHTML = (tab === 'home' ? statusCard() : '') + invoiceLedgerHtml(list) + invoiceHtml();
+      el.classList.add('invoice-page-173e', 'invoice-report-page-173e');
+      {
         invoiceBind(); document.getElementById('invoice-card').open = true;
         document.getElementById('invoice-form-fields').hidden = true;
-        document.getElementById('invoice-search-panel').open = true;
-        document.querySelector('#invoice-card > summary b').textContent = salesOnly ? '🔎 جست‌وجوی فروش‌ها' : '🔎 جست‌وجوی فاکتورها';
+        const panel = document.getElementById('invoice-search-panel'); panel.open = false;
+        panel.querySelector('summary b').textContent = 'فیلتر ماه و وضعیت';
+        panel.after(document.getElementById('inv-results'));
+        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-types-170').insertAdjacentHTML('afterend', '<div id="invoice-summary-173p" class="invoice-summary-173p" aria-live="polite"></div>'); document.getElementById('inv-show-all').checked = true;
+         const duplicateTools = document.createElement('details'); duplicateTools.className = 'card'; duplicateTools.innerHTML = '<summary>ابزار بررسی فاکتورها</summary>'; duplicateTools.append(document.getElementById('invoice-check-duplicates-172'), document.getElementById('invoice-suggestions-178'), document.getElementById('invoice-duplicates-172')); panel.after(duplicateTools);
+        const ledger = el.querySelector('.invoice-ledger'); if (ledger) ledger.before(document.getElementById('invoice-card'));
+        invoiceShowList('');
       }
       return;
     }
     if (topic === 'receipts') {
-      el.innerHTML = `${tab === 'add' ? '<div class="card"><b>ثبت رسید بانکی</b><textarea id="sms" rows="5" placeholder="متن پیامک رسید را اینجا بچسبان"></textarea><div class="topic-actions"><button id="go">ثبت رسید</button><button id="pst" class="sec">چسباندن</button></div><div id="msg" class="mut"></div></div>' : ''}${receiptArchiveHtml()}${tab === 'home' ? rcReviewHtml() : ''}`;
-      receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
+      el.innerHTML = tab === 'add' ? '<div class="card"><b>ثبت رسید بانکی</b><textarea id="sms" rows="5" placeholder="متن پیامک رسید را اینجا بچسبان"></textarea><div class="topic-actions"><button id="go">ثبت رسید</button><button id="pst" class="sec">چسباندن</button></div><div id="msg" class="mut"></div></div>' : receiptArchiveHtml() + (tab === 'home' ? rcReviewHtml() : '');
+      if (tab !== 'add') { receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value); }
       if (tab === 'add') {
-        $('#pst').onclick = async () => { try { $('#sms').value = await navigator.clipboard.readText(); } catch (_) { $('#msg').textContent = 'متن رسید را داخل کادر بچسبان.'; } };
-        $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; receiptArchiveRender(''); } else $('#msg').textContent = 'رسید شناخته نشد؛ متن پیامک رسید را بررسی کن.'; };
+        bindReceiptEntry173c();
       }
       return;
     }
@@ -436,11 +652,12 @@ function _render() {
       const relevant = tx.filter(item => item.loan && LOAN[item.loan] && isWage(item));
       const title = 'حساب دستیاران و کارکردها';
       const summary = tab === 'report' ? `<div class="topic-summary"><div>گزارش ${title}</div><b>${relevant.length.toLocaleString('fa-IR')} ردیف</b><div>جزئیات و مانده هر شخص جداگانه در حساب او نمایش داده می‌شود.</div></div>` : '';
-      el.innerHTML = summary + `<div class="topic-heading">${title} · برای ثبت یا مشاهده جزئیات، حساب شخص را باز کن.</div>` + loansHtml();
+      el.innerHTML = (tab === 'home' ? statusCard() : '') + summary + `<div class="topic-heading">${title} · برای ثبت یا مشاهده جزئیات، حساب شخص را باز کن.</div>` + loansHtml();
       return;
     }
     if (topic === 'reminders') {
-      el.innerHTML = remHtml(); accordion(el, 'rem'); remBind();
+      el.innerHTML = (tab === 'home' ? statusCard() : '') + remHtml() + (tab !== 'add' && featureOn('sms') ? rcReviewHtml() + receiptArchiveHtml() : ''); accordion(el, 'rem'); remBind();
+      const receiptSearch = document.getElementById('receipt-archive-search'); if (receiptSearch) { receiptArchiveRender(''); receiptSearch.oninput = e => receiptArchiveRender(e.target.value); }
       const form = $('#rt').closest('.card');
       if (tab === 'add') { [...el.children].forEach(child => { if (child !== form) child.hidden = true; }); form.open = true; }
       else form.hidden = true;
@@ -454,18 +671,19 @@ function _render() {
     el.innerHTML = receiptArchiveHtml() + remHtml(); accordion(el, 'rem'); remBind(); receiptArchiveRender(''); $('#receipt-archive-search').oninput = e => receiptArchiveRender(e.target.value);
   } else if (tab === 'contacts') {
     el.innerHTML = contactsHtml();
+    if (topic !== 'expenses' && cv === 'list' && pe === null) el.insertAdjacentHTML('afterbegin', '<div class="card mut">فقط مخاطبانی نمایش داده می‌شوند که ارتباطشان با این موضوع در اطلاعات ثبت شده است. برای دیدن همه، «هزینه‌ها» را در نوار بالا بزن.</div>');
   } else if (tab === 'loans') {
     el.innerHTML = loansHtml();
   } else if (tab === 'add') {
     el.innerHTML = `${invoiceHtml()}
-      <div class="card"><b>چسباندن پیامک</b>
+      <div class="card"><b>ثبت پیامک دستی <small>(کپی و پیست پیامک)</small></b>
         <textarea id="sms" rows="5" placeholder="متن پیامک بانکی را اینجا Paste کنید"></textarea>
-        <div class="row"><button id="go">تشخیص و افزودن</button><button id="pst" class="sec">📋 چسباندن</button></div><div id="msg" class="mut"></div></div>
-      <div class="card"><b>ثبت دستی (مثلاً بلو)</b>
+        <div class="row"><button id="go">ثبت پیامک دستی <small>(کپی و پیست پیامک)</small></button><button id="pst" class="sec">📋 چسباندن</button></div><div id="msg" class="mut"></div><button type="button" id="manual-open-159" style="background:#2563eb">ثبت تراکنش دستی</button></div>
+      <div class="card" id="manual-entry-159"><b>ثبت دستی (مثلاً بلو)</b>
         <input id="ma" type="text" inputmode="numeric" placeholder="مبلغ به تومان">
         <input id="md" placeholder="بابت چی؟">
         <select id="mc">${CATS.map(c => `<option>${c}</option>`).join('')}</select>
-        <select id="mt"><option value="debit">هزینه</option><option value="credit">واریز</option><option value="xfer">انتقال بین حساب‌های خودم</option>${Object.entries(LOAN).map(([k, v]) => `<option value="loan:${k}">${v[0]}</option>`).join('')}</select>
+        <select id="mt"><option value="debit">هزینه</option><option value="credit">واریز</option><option value="xfer">انتقال بین حساب‌های خودم</option>${Object.entries(LOAN).map(([k, v]) => `<option value="loan:${k}"${((k === 'wage' || k === 'share') ? !featureOn('assistant') : !featureOn('loan')) ? ' hidden' : ''}>${v[0]}</option>`).join('')}</select>
         <input id="mp" list="pl2" placeholder="نام شخص (برای قرض)"><datalist id="pl2">${people().map(p => `<option value="${esc(p)}">`).join('')}</datalist>
         <div id="xs" class="hide"><div class="mut">از حساب:</div><select id="xf">${allAccs().map(a => `<option value="${esc(a)}">${esc(accName(a))}</option>`).join('')}</select><div class="mut">به حساب:</div><select id="xt">${allAccs().map(a => `<option value="${esc(a)}">${esc(accName(a))}</option>`).join('')}</select></div>
         <input id="mac" placeholder="نام حساب" value="بلو">
@@ -474,26 +692,28 @@ function _render() {
     invoiceBind();
     if (topic === 'invoices' || topic === 'sales') { [...el.children].forEach(child => { if (child.id !== 'invoice-card') child.hidden = true; }); document.getElementById('invoice-card').open = true; if (topic === 'sales') { document.getElementById('inv-kind').value = 'فروش'; document.getElementById('inv-owner-fields').hidden = true; } }
     else document.getElementById('invoice-card').hidden = true;
+    $('#manual-open-159').onclick = () => { const card = document.getElementById('manual-entry-159'); if (!card) return; card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.getElementById('ma')?.focus({ preventScroll: true }); };
     $('#pst').onclick = async () => { try { const t = await navigator.clipboard.readText(); if (!t) { $('#msg').textContent = 'کلیپ‌بورد خالی است'; return; } $('#sms').value = t; $('#msg').textContent = 'چسبانده شد'; } catch (e) { $('#sms').focus(); $('#msg').textContent = 'اجازهٔ دسترسی به کلیپ‌بورد داده نشد؛ داخل کادر نگه دار و «Paste» بزن.'; } };
-    $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { $('#sms').value = ''; return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; } };
+    $('#go').onclick = () => { if (receiptFlow($('#sms').value)) { const message = $('#msg').textContent; $('#sms').value = ''; addSaved164('sms'); showReceiptResult172(message); return; } const r = addSms($('#sms').value); $('#msg').textContent = r.ok ? 'اضافه شد ✅' : r.msg; if (r.ok) { $('#sms').value = ''; addSaved164('sms'); } };
     $('#mt').onchange = () => $('#xs').classList.toggle('hide', $('#mt').value !== 'xfer');
     $('#mg').onclick = () => {
       const a = invoiceDigits($('#ma').value); if (!a || !Number.isSafeInteger(a * 10)) { alert('مبلغ معتبر به تومان وارد کن'); return; }
+      const chosenDate = document.getElementById('manual-date-164')?.value.trim() || invoiceDate(); if (!persianToIso(chosenDate)) { alert('تاریخ شمسی معتبر وارد کن'); return; }
       const mv = $('#mt').value, lk = mv.startsWith('loan:') ? mv.slice(5) : '';
       if (lk && !$('#mp').value.trim()) { alert('نام شخص را بنویس'); return; }
       if ($('#mt').value === 'xfer') {
         const f = $('#xf').value, to = $('#xt').value; if (f === to) { alert('مبدأ و مقصد یکی است'); return; }
-        const d = nowStr(), base = { bank: '', balance: null, date: d, pending: false, amount: a * 10 };
+        const d = chosenDate + ' ' + nowStr().slice(11), base = { bank: '', balance: null, date: d, pending: false, amount: a * 10 };
         const D = { ...base, id: Date.now(), account: f, type: 'debit' }, C = { ...base, id: Date.now() + 1, account: to, type: 'credit' };
-        markX(D, C); tx.unshift(D, C); save(); tab = 'home'; render(); return;
+        markX(D, C); tx.unshift(D, C); save(); addSaved164('manual'); return;
       }
       const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
       const g = t => n.find(x => x.type === t).value;
       const acc = $('#mac').value || 'دستی';
       if (!Object.values(accounts).includes(acc)) accounts['manual:' + acc] = acc;
       const key = Object.keys(accounts).find(k => accounts[k] === acc);
-      tx.unshift({ id: Date.now(), bank: acc, account: key, type: lk ? (LOAN[lk][1] > 0 ? 'debit' : 'credit') : mv, amount: a * 10, balance: null, date: `${g('year')}/${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`, desc: $('#md').value, cat: lk ? lcat(lk) : $('#mc').value, pending: false, ...(lk ? { loan: lk, person: $('#mp').value.trim() } : {}) });
-      save(); tab = 'home'; render();
+      tx.unshift({ id: Date.now(), bank: acc, account: key, type: lk ? (LOAN[lk][1] > 0 ? 'debit' : 'credit') : mv, amount: a * 10, balance: null, date: `${chosenDate} ${g('hour')}:${g('minute')}`, desc: $('#md').value, note: document.getElementById('manual-note-164')?.value.trim() || '', link: document.getElementById('manual-link-164')?.value.trim() || '', cat: lk ? lcat(lk) : $('#mc').value, pending: false, ...(lk ? { loan: lk, person: $('#mp').value.trim() } : {}) });
+      save(); if(lk) { try { const result=contactSaveFacts173p([{name:$('#mp').value.trim(),role:document.querySelector('.manual-contact-group-173p')?.value || (lk==='wage'?'همکار':'سایر')}]); if(result.skipped.length) alert('تراکنش ذخیره شد؛ نام مشابه را در مخاطبین بررسی کن.'); } catch (_) { alert('تراکنش ذخیره شد؛ مخاطب ذخیره نشد.'); } } addSaved164('manual');
     };
   } else {
     el.innerHTML = `
@@ -505,17 +725,17 @@ function _render() {
         <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><div class="mut">حساب‌های جدید از اولین پیامک خودکار ساخته می‌شوند؛ این فرم فقط برای نام‌گذاری زودتر است.</div><button class="sec" id="na">افزودن حساب</button></div>
       <div class="card"><b>پشتیبان‌گیری</b>
         <div class="mut">فایل پشتیبان کامل شامل اطلاعات شخصی و نشانی اتصال است؛ آن را در جای امن نگه دار.</div>
-        <div class="row" style="margin-top:8px"><button id="full-backup">دانلود پشتیبان کامل</button><button class="sec" id="full-restore">بازیابی پشتیبان کامل</button><input type="file" id="full-restore-file" accept=".json,application/json" class="hide"></div><div class="mut" id="full-backup-msg" aria-live="polite"></div>
+        <div class="row" style="margin-top:8px"><button id="full-backup">دانلود پشتیبان کامل</button><button class="sec" id="full-restore">بازیابی پشتیبان کامل</button><input type="file" id="full-restore-file" accept=".json,application/json" class="hide"></div><button type="button" class="sec" id="category-download">دانلود پشتیبان پیش از ادغام</button><button type="button" class="sec" id="category-restore">بازگردانی دسته‌ها به قبل از ادغام</button><div class="mut" id="full-backup-msg" aria-live="polite"></div>
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button id="bf">وارد کردن فایل بانک</button> <input type="file" id="bfi" accept=".xlsx" class="hide"> <button id="mgx" class="sec">ادغام (بدون حذف)</button> <button class="sec" id="im">بازیابی</button></div>
         <textarea id="bk" rows="4" placeholder="برای بازیابی، متن پشتیبان را اینجا بچسبانید"></textarea></div>`;
-    el.insertAdjacentHTML('afterbegin', `<div class="card"><b>همگام‌سازی با Google Sheets</b>
+    el.insertAdjacentHTML('afterbegin', `<div class="card" id="legacy-sync-settings"><b>همگام‌سازی با Google Sheets</b>
       <div class="mut">${esc(localStorage.getItem('legacySyncPaused') === '1' ? 'اتصال قدیمی روی این دستگاه متوقف است؛ نشانی قبلی نگهداری شده است.' : syncMsg || (SYNC() ? '' : 'آدرس وصل نشده'))}</div>
       ${localStorage.getItem('legacySyncPaused') === '1' ? '<div class="mut">اتصال قبلی متوقف می‌ماند؛ این دکمه فقط یک بار با آدرس اصلی جدید همگام‌سازی می‌کند.</div><button type="button" id="easy-main-sync">همگام‌سازی الان</button><div class="mut" id="easy-main-sync-status" aria-live="polite"></div>' : localStorage.getItem('syncLock') && SYNC() ? `<div class="mut">🔒 آدرس شیت یک بار وصل شد و قفل است (…${esc(SYNC().slice(-12))})</div><div class="row"><button id="sy">همگام‌سازی الان</button> <button class="sec" id="gs">باز کردن Google Sheet</button> <button class="sec" id="ul">تغییر آدرس</button></div>` : `<input id="su" placeholder="آدرس Web App (…/exec)" value="${esc(SYNC())}"><button id="sy">ذخیره و همگام‌سازی</button> <button class="sec" id="gs">باز کردن Google Sheet</button>`}<button type="button" class="sec" id="easy-main-use">استفاده از آدرس اصلی جدید</button></div>`);
     el.insertAdjacentHTML('beforeend', `<div class="card" id="google-test"><b>آزمایش ورود به گوگل</b><div class="mut">ورود به گوگل را آزمایش کن یا یک شیت آزمایشی خالی بساز. اطلاعات مالی به آن منتقل نمی‌شود و همگام‌سازی فعلی تغییر نمی‌کند.</div><button id="google-test-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-test-msg" aria-live="polite">${esc(googleTestMessage)}</div><button class="sec" id="google-sheet-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-sheet-test-msg" aria-live="polite">${esc(googleSheetMessage)}</div><button class="sec" id="google-write-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-write-test-msg" aria-live="polite">${esc(googleWriteMessage)}</div><button class="sec" id="google-data-test-btn" disabled style="margin-top:8px">در حال آماده‌سازی…</button><div class="mut" id="google-data-test-msg" aria-live="polite">${esc(googleDataMessage)}</div><div class="google-sheet-link">${googleSheetLink()}</div></div>`);
     prepareGoogleTest();
     el.insertAdjacentHTML('beforeend', `<div class="card" id="google-copy"><b>نسخه پشتیبان در گوگل</b><div class="mut">نسخه‌ای جدا از اطلاعات این دستگاه در شیت جدید ساخته می‌شود؛ همگام‌سازی خودکار فعال نیست.</div><button id="google-copy-btn" disabled>در حال آماده‌سازی…</button><div class="mut" id="google-copy-msg" aria-live="polite">${esc(googleCopyMessage)}</div><div id="google-copy-link">${googleCopyLink()}</div><hr><b>بازیابی نسخه گوگل</b><div class="mut">لینک شیت پشتیبان را وارد کن یا خالی بگذار تا آخرین شیت ساخته‌شده در این دستگاه بررسی شود. فایل بررسی‌شده دانلود می‌شود؛ سپس از بخش «پشتیبان‌گیری» آن را بازیابی کن.</div><input id="google-restore-url" type="url" placeholder="لینک شیت پشتیبان (اختیاری)" dir="ltr"><button id="google-restore-btn" disabled>در حال آماده‌سازی…</button><div id="google-restore-msg" class="mut" aria-live="polite"></div></div>`);
     prepareGoogleCopy();
-    el.insertAdjacentHTML('beforeend', `<div class="card" id="easy-setup"><b>ساخت اتصال آسان گوگل (آزمایشی)</b><div class="mut">یک شیت خالی و اسکریپت جدا فقط برای آزمایش ساخته می‌شود. هیچ اطلاعات مالی منتقل نمی‌شود و اتصال‌های قبلی تغییر نمی‌کنند. شاید گوگل اجازه‌های جداگانه بخواهد.</div><p><a href="https://script.google.com/home/usersettings" target="_blank" rel="noopener noreferrer">باز کردن تنظیمات دسترسی Apps Script</a></p><button type="button" id="easy-setup-start">ساخت اتصال آسان گوگل</button> <button type="button" id="easy-setup-reset" class="sec">پاک‌کردن وضعیت آزمایش</button><div class="mut" id="easy-setup-status" aria-live="polite"></div><div id="easy-setup-links"></div><div id="easy-authorize" hidden><hr><b>یک بار اجازه بده</b><div class="mut">با حساب سازنده اسکریپت وارد شو. در صفحه گوگل Review permissions را بزن. اگر هشدار نمایش داده شد، Advanced و Go to را بررسی کن؛ سپس اگر به برنامه اعتماد داری Allow را بزن. سپس برگرد و بررسی کن.</div><a id="easy-authorize-open" href="#" target="_blank" rel="noopener noreferrer">باز کردن صفحهٔ مجوز گوگل</a><button type="button" class="sec" id="easy-authorize-check">اجازه دادم، بررسی کن</button><div id="easy-authorize-status" class="mut" aria-live="polite"></div></div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="easy-setup"><b>ساخت اتصال آسان گوگل (آزمایشی)</b><div class="mut">یک شیت خالی و اسکریپت جدا فقط برای آزمایش ساخته می‌شود. هیچ اطلاعات مالی منتقل نمی‌شود و اتصال‌های قبلی تغییر نمی‌کنند. شاید گوگل اجازه‌های جداگانه بخواهد.</div><div id="easy-step-api" class="mut"></div><p><a href="https://script.google.com/home/usersettings" target="_blank" rel="noopener noreferrer">باز کردن تنظیمات دسترسی Apps Script</a></p><button type="button" id="easy-wizard-api">روشن کردم، ادامه</button><div id="easy-step-email" class="mut"></div><button type="button" id="easy-wizard-email-select" class="sec">انتخاب ایمیل</button><div id="easy-step-build" class="mut"></div><button type="button" id="easy-setup-start">ساخت اتصال آسان گوگل</button><div id="easy-step-auth" class="mut"></div><div id="easy-step-result" class="mut"></div><details><summary>پیشرفته</summary><button type="button" id="easy-setup-reset" class="sec">پاک‌کردن وضعیت آزمایش</button></details><div id="easy-admin" hidden></div><div class="mut" id="easy-setup-status" aria-live="polite"></div><div id="easy-setup-links"></div><dialog id="easy-auth-dialog" dir="rtl" style="max-width:90%;border:0;border-radius:16px;padding:20px"><b>با کدام حساب گوگل وارد می‌شوی؟</b><div class="mut">همان ایمیلی را بزن که اسکریپت با آن ساخته شد. برنامه حساب‌های باز Safari را نمی‌بیند؛ اگر گوگل دوباره پرسید، همان ایمیل را انتخاب کن.</div><label for="easy-auth-email">ایمیل گوگل</label><input id="easy-auth-email" type="email" dir="ltr" autocomplete="email"><button type="button" id="easy-auth-continue">ادامه</button> <button type="button" class="sec" id="easy-auth-cancel">انصراف</button><div id="easy-auth-error" class="mut" aria-live="polite"></div><a id="easy-auth-fallback" href="#" target="_self" rel="noopener noreferrer" hidden>باز کردن در همین صفحه</a></dialog><div id="easy-authorize" hidden><hr><b>یک بار اجازه بده</b><div class="mut">با حساب سازنده اسکریپت وارد شو. در صفحه گوگل Review permissions را بزن. اگر هشدار نمایش داده شد، Advanced و Go to را بررسی کن؛ سپس اگر به برنامه اعتماد داری Allow را بزن. سپس برگرد و بررسی کن.</div><button type="button" id="easy-authorize-open">باز کردن صفحهٔ مجوز گوگل</button><button type="button" class="sec" id="easy-authorize-check">اجازه دادم، بررسی کن</button><div id="easy-authorize-status" class="mut" aria-live="polite"></div></div></div>`);
     easySetupPrepare();
     el.insertAdjacentHTML('beforeend', `<div class="card" id="direct-sync"><b>اتصال مستقیم آزمایشی به شیت</b><div class="mut">ذخیره و دریافت دستی در شیتی جدا انجام می‌شود. نسخه‌های قبلی حفظ می‌شوند و تعارض دستگاه‌ها اعلام می‌شود. ادغام همه تعارض‌ها هنوز فعال نیست.</div><input id="direct-sync-url" type="url" dir="ltr" placeholder="لینک شیت اتصال مستقیم (برای دستگاه دیگر)"><div class="row"><button id="direct-sync-create" disabled>ساخت شیت جدا</button><button id="direct-sync-run" disabled>بررسی و همگام‌سازی دستی</button></div><button id="direct-sync-receive" disabled>دریافت مستقیم نسخه جدید</button><div class="mut">دریافت فقط وقتی مجاز است که اطلاعات دستگاه تغییر ارسال‌نشده نداشته باشد و اتصال قدیمی Apps Script غیرفعال باشد. نسخه قبلی در دستگاه نگهداری می‌شود.</div><div class="row"><button type="button" class="sec" id="direct-receive-previous">دانلود پشتیبان قبل از دریافت</button><button type="button" class="sec" id="direct-receive-clear">حذف پشتیبان محلی قبلی</button></div><button id="direct-sync-receipts" disabled>ارسال آرشیو رسیدها به شیت</button><div class="mut">رسیدها در برگه‌ای جدا و به‌صورت دستی اضافه می‌شوند؛ ابتدا همگام‌سازی دستی را انجام بده. وضعیت و حساب هر رسید مربوط به زمان ارسال است.</div><div class="mut" id="direct-sync-message" aria-live="polite"></div><div id="direct-sync-link"></div><hr><b>ارسال خودکار در این نشست</b><div class="mut">با اجازه تو، تا وقتی برنامه باز و دسترسی گوگل معتبر است، تغییرات این دستگاه به شیت افزوده می‌شود. دریافت خودکار اختیاری است؛ برای دریافت، فرم‌های باز را ببند و به صفحه خانه برو. پس از قطع موقت، نتیجه ارسال حتی بعد از بازشدن مجدد برنامه هم با فعال‌کردن اتصال بررسی می‌شود؛ تعارض یا پایان اعتبار دسترسی اتصال را متوقف می‌کند.</div><div class="row"><button type="button" id="direct-auto-start" disabled>فعال‌کردن ارسال خودکار</button><button type="button" id="direct-auto-stop" class="sec" disabled>توقف</button></div><div id="direct-auto-status" class="mut" aria-live="polite"></div></div>`);
     directSyncPrepare();
@@ -532,7 +752,22 @@ function _render() {
     $('#jobs').onchange = e => { localStorage.setItem('job', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#defaultct').onchange = e => { localStorage.setItem('defaultCustomerType', e.target.value); localStorage.setItem('dirty', '1'); push(); };
     $('#wk').onchange = e => { localStorage.setItem('work', e.target.value.trim()); localStorage.setItem('dirty', '1'); push(); };
-    const LDEF = { cats: ['خرید', 'هزینه', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط', 'سوپرمارکت', 'سایر'], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [], carModels: ['اسکانیا', 'ولوو'], carColors: [], carTypes: [] };
+    $('#jbc').insertAdjacentHTML('beforeend', `<label style="display:block;margin-top:12px"><input id="biz-toggle" type="checkbox" style="width:auto;vertical-align:middle" ${featureOn('invoice') && featureOn('assistant') ? 'checked' : ''}> حالت کسب‌وکار</label><div class="mut">با خاموش‌کردن، بخش‌های کسب‌وکار پنهان می‌شوند و اطلاعاتشان باقی می‌ماند.</div>`);
+    $('#biz-toggle').onchange = e => { const current = load('features', {}), next = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {}; next.invoice = e.target.checked; next.assistant = e.target.checked; localStorage.setItem('features', JSON.stringify(next)); localStorage.setItem('bizMode', e.target.checked ? '1' : '0'); localStorage.setItem('dirty', '1'); render(); };
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="features-settings"><b>چه بخش‌هایی را می‌خواهم؟</b><div class="mut">با برداشتن تیک، بخش فقط پنهان می‌شود و اطلاعاتش باقی می‌ماند.</div><div id="features-fields">${Object.entries(FEATURE_LABELS).map(([key, label]) => `<label style="display:block;margin:9px 0"><input type="checkbox" class="feature-toggle" data-feature-name="${key}" style="width:auto" ${featureOn(key) ? 'checked' : ''}> ${label}<small style="display:block;color:#777;font-size:12px;line-height:1.7;margin-right:24px">${FEATURE_DESCRIPTIONS_173K[key]}</small></label>`).join('')}</div></div>`);
+    $('#features-fields').onchange = e => { if (!e.target.classList.contains('feature-toggle')) return; const current = load('features', {}); const next = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {}; next[e.target.dataset.featureName] = e.target.checked; localStorage.setItem('features', JSON.stringify(next)); localStorage.setItem('dirty', '1'); render(); };
+    const budgetData = load('budgets', {}), budgets = budgetData && typeof budgetData === 'object' && !Array.isArray(budgetData) ? budgetData : {};
+    const budgetMonth = jd(new Date()).slice(0, 7), rows = budgetRows157(CATS, budgets, tx, budgetMonth);
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="budget-settings"><b>بودجهٔ ماهانه</b><div class="mut">سقف هر دسته به تومان؛ کادر خالی یعنی بدون سقف. این تنظیم در پشتیبان کامل و نسخهٔ اتصال مستقیم نگهداری می‌شود.</div><div id="budget-fields">${CATS.map(c => { const row = rows.find(r => r.category === c), color = row?.color === 'red' ? '#dc2626' : row?.color === 'yellow' ? '#d69e00' : '#0f766e'; return `<div style="margin-top:12px"><label>${esc(c)} <input class="budget-input" data-category="${esc(c)}" type="text" inputmode="numeric" value="${Number.isSafeInteger(budgets[c]) && budgets[c] > 0 ? budgets[c] : ''}" placeholder="بدون سقف"></label>${row ? `<div class="mut">خرج این ماه: ${Math.round(row.spent).toLocaleString('fa-IR')} از ${row.limit.toLocaleString('fa-IR')} تومان</div><div style="height:7px;background:#e5e7eb;border-radius:8px"><div style="height:100%;width:${Math.min(100, Math.max(0, row.ratio * 100))}%;background:${color};border-radius:8px"></div></div>` : ''}</div>`; }).join('')}</div><div class="mut" id="budget-status"></div></div>`);
+    $('#budget-fields').onchange = e => {
+      if (!e.target.classList.contains('budget-input')) return;
+      const text = e.target.value.trim(), value = text ? invoiceDigits(text) : 0;
+      if (value === null || !Number.isSafeInteger(value) || value < 0) { $('#budget-status').textContent = 'مبلغ معتبر به تومان وارد کن.'; return; }
+      const current = load('budgets', {}), next = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {};
+      if (value) next[e.target.dataset.category] = value; else delete next[e.target.dataset.category];
+      localStorage.setItem('budgets', JSON.stringify(next)); render();
+    };
+    const LDEF = { cats: [...DEFAULT_CATS], icats: ['فروش', 'مشتری', 'حقوق', 'سایر'], ctypes: [], svq: [], carModels: ['اسکانیا', 'ولوو'], carColors: [], carTypes: [] };
     const labList = k => k === 'cats' ? CATS : k === 'icats' ? INC : k === 'carModels' ? carModels() : lsj(k, []);
     const labHtml = () => [['cats', 'برچسب‌های هزینه'], ['icats', 'برچسب‌های درآمد'], ['ctypes', 'نوع مشتری (علاوه بر راننده و مشتری عادی)'], ['svq', 'عبارت‌های سریع «بابت چه خدمات/کالایی»'], ['carModels', 'مدل خودروهای رانندگان'], ['carColors', 'رنگ خودرو'], ['carTypes', 'نوع خودرو']].map(([k, n]) => `<div style="margin-top:14px;font-weight:700">${n}</div><div class="chips" style="margin-top:6px">${labList(k).map((c, i) => `<span class="chip sec" style="display:inline-flex;align-items:center;gap:8px">${esc(c)}${['svq', 'carModels', 'carColors', 'carTypes'].includes(k) ? `<button type="button" class="sec lbedit" data-k="${k}" data-i="${i}">ویرایش</button>` : ''}<b class="lbd" data-k="${k}" data-i="${i}" style="color:#dc2626;cursor:pointer;padding:0 4px;font-size:18px" role="button">×</b></span>`).join('') || '<span class="mut">خالی است</span>'}</div><div class="row" style="margin-top:8px"><input class="lbn" data-k="${k}" placeholder="برچسب جدید"><button class="lba" data-k="${k}">افزودن</button></div><div class="mut lbstatus" data-k="${k}" aria-live="polite"></div><div style="margin-top:4px"><a class="lbr mut" data-k="${k}" style="cursor:pointer;font-size:12px;text-decoration:underline">برگرداندن به حالت اولیه</a></div>`).join('');
     el.insertAdjacentHTML('beforeend', `<div class="card" id="lbc"><b>برچسب‌ها</b><div class="mut">با زدن × برچسب حذف می‌شود، با نوشتن نام و «افزودن» (یا Enter) اضافه می‌شود. همه‌جا همین‌ها دیده می‌شوند و بین دستگاه‌ها همگام می‌شوند.</div><div class="mut" id="lbm" style="color:#0f766e;min-height:18px"></div><div id="lbx">${labHtml()}</div></div>`);
@@ -598,8 +833,23 @@ function _render() {
         const url = URL.createObjectURL(blob), link = document.createElement('a');
         link.href = url; link.download = 'expense-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
         document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+        try { localStorage.setItem('lastBackupAt', String(Date.now())); } catch (_) {} refreshInfo159();
         $('#full-backup-msg').textContent = 'فایل آماده شد؛ در دانلودها یا فایل‌های گوشی ذخیره شدن آن را بررسی کن.';
       } catch (err) { $('#full-backup-msg').textContent = 'ساخت فایل ناموفق بود: ' + (err.message || err); }
+    };
+    $('#category-download').onclick = () => {
+      try {
+        const saved = localStorage.getItem(CATEGORY_MERGE_BACKUP); validateFullBackup(JSON.parse(saved || 'null'));
+        const url = URL.createObjectURL(new Blob([saved], { type: 'application/json' })), link = document.createElement('a');
+        link.href = url; link.download = 'expense-before-category-merge.json'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+        $('#full-backup-msg').textContent = 'فایل آماده شد؛ ذخیره‌شدن آن را در فایل‌های گوشی بررسی کن.';
+      } catch (err) { $('#full-backup-msg').textContent = 'پشتیبان پیش از ادغام پیدا نشد یا معتبر نیست.'; }
+    };
+    $('#category-restore').onclick = () => {
+      if (!localStorage.getItem(CATEGORY_MERGE_BACKUP)) { $('#full-backup-msg').textContent = 'پشتیبان پیش از ادغام در این دستگاه پیدا نشد.'; return; }
+      if (!confirm('دسته‌های ادغام‌شده به حالت قبلی برگردند؟ تراکنش‌های جدید حفظ می‌شوند. تغییرات دسته‌بندی ممکن است در همگام‌سازی بعدی ارسال شود.')) return;
+      try { restoreCategoriesBeforeMerge(); $('#full-backup-msg').textContent = 'دسته‌ها بازگردانده شدند.'; render(); }
+      catch (err) { $('#full-backup-msg').textContent = 'بازگردانی انجام نشد: ' + (err.message || err); }
     };
     $('#full-restore').onclick = () => $('#full-restore-file').click();
     $('#full-restore-file').onchange = async e => {
@@ -608,13 +858,16 @@ function _render() {
         const data = validateFullBackup(JSON.parse(await file.text())), count = JSON.parse(data.tx).length;
         if (!confirm('این فایل شامل ' + count.toLocaleString('fa-IR') + ' تراکنش است. بازیابی، اطلاعات فعلی این دستگاه را جایگزین می‌کند. ابتدا از اطلاعات فعلی پشتیبان گرفته‌ای؟')) return;
         if (!confirm('پس از بازیابی، اتصال شیت روی این دستگاه قطع می‌شود تا اطلاعات ناخواسته همگام نشوند. بازیابی انجام شود؟')) return;
-        const keys = [...new Set([...BACKUP_KEYS, 'dirty', 'lastSync', 'googleTestSheetPending'])], old = {};
+        if (googleTestBusy || directAutoRunning || legacyInFlight || localStorage.getItem('directAutoPending')) throw new Error('ابتدا عملیات اتصال قبلی و نتیجه ارسال بررسی‌نشده را تعیین تکلیف کن');
+        directAutoStop('اتصال برای بازیابی متوقف شد.');
+        const connectionKeys = ['directSyncState', 'legacyInboxAuto', 'legacyInboxUrl', 'easySetupExperimentV1', 'easy_wizard_api', 'easy_wizard_email', 'easy_wizard_verified', 'easy_auth_email', 'legacySyncPaused'];
+        const keys = [...new Set([...BACKUP_KEYS, ...connectionKeys, 'dirty', 'lastSync', 'googleTestSheetPending'])].filter(key => key !== 'accountArchives' || Object.prototype.hasOwnProperty.call(data, key)), old = {};
         keys.forEach(key => { old[key] = localStorage.getItem(key); });
         clearTimeout(pt); pulled = false;
         try {
           keys.forEach(key => localStorage.removeItem(key));
           Object.entries(data).forEach(([key, value]) => { if (!['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync'].includes(key)) localStorage.setItem(key, value); });
-          localStorage.setItem('noSync', '1'); localStorage.setItem('dirty', '1');
+          localStorage.setItem('noSync', '1'); localStorage.setItem('legacySyncPaused', '1'); localStorage.setItem('dirty', '1');
         } catch (err) {
           keys.forEach(key => { if (old[key] === null) localStorage.removeItem(key); else localStorage.setItem(key, old[key]); });
           throw err;
@@ -641,7 +894,7 @@ function _render() {
           const credit = deposit > 0;
           const amount = credit ? deposit : withdraw;
           if (!amount) return;
-          let cat = credit ? 'سایر' : (kind.includes('فروشگاه') ? 'خرید' : 'سایر');
+          let cat = credit ? 'سایر' : 'خرید';
           list.push({ id: Number(r[15]) || (Date.parse(d) + list.length), bank: 'سامان', account: '', type: credit ? 'credit' : 'debit', amount, balance: Number(r[1]) || 0, date: d.slice(0, 16), desc: kind || desc.slice(0, 60), cat, pending: false, raw: desc.slice(0, 2000) });
         });
         const add = list.filter(t => !ids.has(String(t.id)));
@@ -692,20 +945,71 @@ function _render() {
       const merge = g => { const sc = t => (t.receipt ? 4 : 0) + (t.person ? 2 : 0) + (t.desc ? 1 : 0) + (t.cat ? 1 : 0); const k = g.slice().sort((a, b) => sc(b) - sc(a))[0]; g.forEach(o => { if (o === k) return; for (const f in o) if (k[f] === undefined || k[f] === '' || k[f] === null) k[f] = o[f]; tx.forEach(c => { if (c.parent === o.id) c.parent = k.id; }); }); const ids = new Set(g.filter(o => o !== k).map(o => o.id)); tx = tx.filter(t => !ids.has(t.id)); };
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
-    el.insertAdjacentHTML('beforeend', '<div class="card"><label><input id="show-sales-182" type="checkbox" style="width:auto"> نمایش فروش‌ها در نوار موضوع‌ها</label></div>');
-    document.getElementById('show-sales-182').checked = localStorage.getItem('showSales182') === '1';
-    document.getElementById('show-sales-182').onchange = event => { localStorage.setItem('showSales182', event.target.checked ? '1' : '0'); render(); };
     accordion(el, 'settings');
+    settingsLayout(el);
+    el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div><div class="mut" style="margin-top:8px">نسخه ${BUILD_VERSION} · زمان آماده‌سازی: ${new Date(BUILD).toLocaleString('fa-IR', { dateStyle:'long', timeStyle:'short', timeZone:'Asia/Tehran' })}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
+    el.insertAdjacentHTML('afterbegin', '<div class="card" id="connection-hub-168"></div>');
+    hubRender(document.getElementById('connection-hub-168'));
+    const connectionGroup170 = document.createElement('details');
+    connectionGroup170.id = 'settings-connection-170'; connectionGroup170.className = 'card';
+    connectionGroup170.innerHTML = '<summary>اتصال به گوگل</summary>';
+    const connectionHub170 = document.getElementById('connection-hub-168');
+    connectionHub170.replaceWith(connectionGroup170); connectionGroup170.appendChild(connectionHub170);
+    const info170 = document.getElementById('settings-info'); if (info170) el.prepend(info170);
+    shortcutSettings173e(el);
+    settingsAccordion170(el);
+    ['legacy-sync-settings', 'welcome-sync'].forEach(id => { const card = document.getElementById(id); if (card) card.hidden = true; });
+    sheetRegistryRender();
+    refreshInfo159();
+    const budgetCard = document.getElementById('budget-settings'); if (budgetCard) budgetCard.hidden = !featureOn('budget');
+    const inboxCard = document.getElementById('legacy-inbox'); if (inboxCard) inboxCard.hidden = !featureOn('sms');
     el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ${BUILD_VERSION})<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
   }
 }
 
+// فقط جای کارت‌های موجود را عوض می‌کند؛ خود کارت‌ها و رویدادهایشان حفظ می‌شوند.
+function settingsLayout(el) {
+  const cards = [...el.children].filter(c => c.tagName === 'DETAILS');
+  const admin = el.querySelector ? el.querySelector('#easy-admin') : null;
+  const groups = [ ['settings-simple', 'ظاهر و ویژگی‌ها'], ['settings-tools', 'حساب و ابزارها'], ['settings-advanced', 'پشتیبان و تنظیمات پیشرفته'], ['settings-admin', 'مدیریت'], ['settings-experimental', 'ابزارهای آزمایشی'] ].map(([id, text]) => {
+    const group = document.createElement('details'); group.className = 'card'; group.id = id;
+    const summary = document.createElement('summary'); summary.textContent = text; group.appendChild(summary); return group;
+  });
+  const advanced = new Set(['legacy-sync-settings', 'google-test', 'google-copy', 'direct-sync', 'easy-setup', 'dpc']);
+  const experimental = new Set(['google-test', 'google-copy', 'direct-sync', 'easy-setup']);
+  const tools = new Set(['legacy-inbox', 'budget-settings']);
+  cards.forEach(card => {
+    const title = (card.querySelector('summary')?.textContent || '').trim();
+    const group = experimental.has(card.id) ? groups[4] : advanced.has(card.id) || /پشتیبان|بازگردانی|پاک.سازی|شروع از صفر|کد راه‌اندازی/.test(title) ? groups[2]
+      : tools.has(card.id) || /نام حساب|پیامک‌های دریافتی|یادآور/.test(title) ? groups[1] : groups[0];
+    group.appendChild(card);
+  });
+  if (admin) { groups[3].appendChild(admin); groups[3].hidden = admin.hidden; }
+  else groups[3].hidden = true;
+  const registry = document.createElement('div'); registry.id = 'sheet-registry-168'; groups[4].appendChild(registry);
+  groups.forEach(group => el.appendChild(group));
+}
+let settingsOpen170 = '';
+function settingsAccordion170(el) {
+  const groups = [...el.children].filter(node => node.tagName === 'DETAILS');
+  groups.forEach(group => {
+    group.open = !!settingsOpen170 && group.id === settingsOpen170;
+    group.addEventListener('toggle', () => {
+      if (!group.open) { if (settingsOpen170 === group.id) settingsOpen170 = ''; return; }
+      settingsOpen170 = group.id;
+      groups.forEach(other => { if (other !== group) other.open = false; });
+    });
+  });
+}
+
 // کارت‌ها را کشویی می‌کند و ترتیب پیش‌فرض/دلخواه (با ▲▼) را اعمال می‌کند
 function invoiceStartEditing() {
-  if (tab !== 'report' || (topic !== 'invoices' && topic !== 'sales')) return;
-  tab = 'add';
-  document.querySelectorAll('nav button').forEach(button => button.classList.toggle('on', button.dataset.t === tab));
+  if ((tab !== 'report' && tab !== 'home') || (topic !== 'invoices' && topic !== 'sales')) return;
+  tab = 'add'; addMode164 = 'invoice';
+  navigationRender163();
   document.getElementById('invoice-form-fields').hidden = false;
+  document.getElementById('app').classList.remove('invoice-page-173e', 'invoice-report-page-173e');
+  document.getElementById('invoice-card').open = true;
   const ledger = document.querySelector('.invoice-ledger'); if (ledger) ledger.hidden = true;
   document.querySelector('#invoice-card > summary b').textContent = '🧾 ویرایش فاکتور';
 }
@@ -776,7 +1080,57 @@ let ord = localStorage.getItem('ord') || 'sms';
 function ordTx(l) { return [...l].sort(ord === 'sms' ? (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id) : (a, b) => b.id - a.id); }
 function ordBar() { return `<div class="chips"><span class="mut" style="align-self:center">مرتب‌سازی:</span><button class="chip ordb ${ord === 'sms' ? 'on' : 'sec'}" data-o="sms">تاریخ پیامک</button><button class="chip ordb ${ord === 'entry' ? 'on' : 'sec'}" data-o="entry">زمان ورود به برنامه</button></div>`; }
 const fmt = ms => ms ? new Date(ms).toLocaleString('fa-IR') : '—';
+// اطلاعات نمایشی؛ ذخیره‌نشدن آن نباید روند اتصال را تغییر دهد.
+function noteSyncSuccess159() { try { localStorage.setItem('lastSyncOk', String(Date.now())); } catch (_) {} }
+function infoStatus159() {
+  if (typeof connectionStatus === 'function') {
+    const c = connectionStatus();
+    return { live:c.state === 'connected', state:c.state, stamp:c.checkedAt || 0, backup:Number(localStorage.getItem('lastBackupAt') || 0), email:c.email, sheetId:c.id, sheetLabel:'شیت', sheetUrl:c.id ? 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(c.id) + '/edit' : '', kind:c.label, error:c.reason, owner:localStorage.getItem('dataOwner') || '' };
+  }
+  const direct = load('directSyncState', null), easy = typeof easyState === 'function' ? easyState() : {};
+  const directLive = !!(directAutoSession && directAutoSession.expires > Date.now() && /^✅/.test(directAutoStatus));
+  const legacyLive = !directLive && !!(typeof pulled !== 'undefined' && pulled && /^✅/.test(syncMsg));
+  const live = !accountOwnerLocked() && (directLive || legacyLive);
+  const stamp = Math.max(Number(localStorage.getItem('lastSyncOk')) || 0, Number(localStorage.getItem('lastSync')) || 0);
+  const backup = Number(localStorage.getItem('lastBackupAt') || 0);
+  const legacyUrl = localStorage.getItem('sheetUrl') || '';
+  const hasDirect = !!(direct && direct.id), hasLegacy = !hasDirect && !!legacyUrl;
+  const email = hasDirect ? (direct.email || '') : hasLegacy ? '' : (easy.email || '');
+  const sheetId = hasDirect ? direct.id : hasLegacy ? '' : (easy.sheetId || '');
+  const sheetLabel = !hasDirect && !hasLegacy && sheetId ? 'شیت آزمایشی' : 'شیت';
+  const validSheet = /^[A-Za-z0-9_-]+$/.test(sheetId) ? 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(sheetId) + '/edit' : '';
+  const sheetUrl = validSheet || (/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+(?:\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/.test(legacyUrl) ? legacyUrl : '');
+  const kind = direct && direct.id ? 'مستقیم' : localStorage.getItem('legacySyncPaused') === '1' ? 'اتصال قدیمی متوقف است' : legacyLive ? 'قدیمی' : 'قطع یا بررسی‌نشده';
+  const error = accountOwnerLocked() ? ACCOUNT_OWNER_LOCK_MESSAGE : [directAutoStatus, syncMsg].find(x => typeof x === 'string' && /⚠️|ناموفق|قطع شد|قطع است/.test(x)) || '';
+  return { live, stamp, backup, email, sheetId, sheetLabel, sheetUrl, kind, error, owner: localStorage.getItem('dataOwner') || '' };
+}
+function settingsInfo159() {
+  const s = infoStatus159();
+  const stamp = s.stamp ? fmt(s.stamp) : 'هنوز ثبت نشده';
+  const backup = s.backup ? fmt(s.backup) + ' (آماده‌سازی فایل؛ ذخیره در گوشی را بررسی کن)' : 'هنوز بکاپی ثبت نشده';
+  const stateLabel = s.live ? 'وصل ✅' : s.state === 'error' ? 'قطع' : s.state === 'checking' ? 'در حال بررسی…' : 'بررسی‌نشده';
+  const stateColor = s.live ? '#087b52' : s.state === 'error' ? '#b42318' : '#667085';
+  return '<div style="color:' + stateColor + '"><b>' + stateLabel + '</b> · آخرین بررسی موفق: ' + esc(stamp) + (s.state === 'error' ? ' <button type="button" id="hub-fix">اصلاح اتصال</button>' : '') + '</div>' +
+    '<div class="mut">حساب گوگل: ' + esc(s.email || 'وصل نیست') + '</div>' +
+    '<div class="mut">' + esc(s.sheetLabel) + ': ' + (s.sheetUrl ? '<a class="sheet-open-168" target="_blank" rel="noopener noreferrer" href="' + esc(s.sheetUrl) + '">' + esc(s.sheetId ? 'باز کردن شیت (…' + s.sheetId.slice(-8) + ')' : 'باز کردن شیت') + '</a>' : 'وصل نیست') + '</div>' +
+    '<div class="mut">نوع اتصال: ' + esc(s.kind) + '</div>' +
+    '<div class="mut">آخرین خطای فعلی: ' + esc(s.error || 'ندارد') + '</div>' +
+    '<div class="mut">آخرین پشتیبان: ' + esc(backup) + '</div>' +
+    '<div class="mut">تراکنش‌ها: ' + tx.length.toLocaleString('fa-IR') + ' · حساب‌ها: ' + Object.keys(accounts).length.toLocaleString('fa-IR') + '</div>' +
+    '<div class="mut">مالک داده‌ها: ' + esc(s.owner || 'مشخص نشده') + '</div>' + (accountOwnerLocked() ? '<button type="button" id="account-switch-open">حل مشکل حساب</button>' : '') + (localStorage.getItem('accountArchives') ? '<label>آرشیو حساب قبلی <select id="account-archive-select">' + accountSwitchArchives().map((a, i) => '<option value="' + i + '">' + esc(a.owner) + ' · ' + esc(fmt(a.createdAt)) + '</option>').join('') + '</select></label><button type="button" class="sec" id="account-archive-download">دانلود آرشیو انتخاب‌شده</button><button type="button" class="sec" id="account-archive-restore">بازگرداندن این آرشیو</button><div class="mut">پیش از بازگردانی، از فضای فعلی پشتیبان گرفته می‌شود.</div>' : '');
+}
+function refreshInfo159() {
+  const info = document.getElementById('settings-info-content'); if (info) info.innerHTML = settingsInfo159();
+  const button = document.getElementById('welcome-google'); if (button) { const live = !!(directAutoSession && directAutoSession.expires > Date.now()); button.disabled = live; button.textContent = live ? 'ورود گوگل فعال است' : 'ورود به گوگل'; }
+}
+document.addEventListener('click', e => { if (e.target.id === 'account-switch-open') accountSwitchOpen(); if (e.target.id === 'account-archive-restore') accountSwitchRestoreClick(); if (e.target.id === 'account-archive-download') { try { accountSwitchDownloadArchive(Number(document.getElementById('account-archive-select').value)); } catch (error) { alert(error.message); } } });
 function homeSyncStatus() {
+  if (typeof connectionStatus === 'function') {
+    const c = connectionStatus();
+    const label = c.state === 'connected' ? 'وصل ✅' : c.state === 'error' ? 'قطع' : c.state === 'checking' ? 'در حال بررسی…' : 'بررسی‌نشده';
+    return label + ' · ' + c.label + (c.reason ? ' · ' + c.reason : '');
+  }
+  if (accountOwnerLocked()) return '⚠️ ' + ACCOUNT_OWNER_LOCK_MESSAGE;
   const direct = load('directSyncState', null);
   if (direct && direct.id && direct.base) {
     if (directAutoSession && Date.now() < directAutoSession.expires) return 'اتصال مستقیم: ' + directAutoStatus;
@@ -787,10 +1141,14 @@ function homeSyncStatus() {
 }
 function statusCard() {
   const l = log[0], lt = tx.reduce((m, t) => (t.id > (m?.id || 0) ? t : m), null);
+  const lastInvoice = (topic === 'invoices' || topic === 'sales') ? invoiceList().filter(i => topic !== 'sales' || i.kind === 'فروش').slice(-1)[0] : null;
+  const lastWork = topic === 'work' ? tx.filter(t => t.loan && isWage(t)).slice(-1)[0] : null;
+  const lastReminder = topic === 'reminders' ? rem.slice(-1)[0] : null;
+  const subjectStatus = lastInvoice ? `آخرین فاکتور: ${esc(lastInvoice.customer || 'بدون نام')} · ${esc(lastInvoice.date || '')}` : lastWork ? `آخرین کارکرد: ${esc(lastWork.person || '')} · ${esc(lastWork.date || '')}` : lastReminder ? `آخرین یادآوری: ${esc(lastReminder.title || '')}` : topic !== 'expenses' ? 'هنوز موردی در این بخش ثبت نشده است.' : '';
   return `<div class="card"><b>آخرین وضعیت</b>
    <div class="mut" style="margin-top:6px">آخرین پیامک رسیده: ${l ? fmt(l.at) + ' · ' + (l.ok ? '✅ ' : '⚠️ ') + esc(l.msg) : 'هنوز نیامده'}</div>
    <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? fmt(lt.id) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
-   <div class="mut" id="home-sync-status">${esc(homeSyncStatus())}</div>
+   <div class="mut" id="home-sync-status">${esc(homeSyncStatus())}</div>${subjectStatus ? `<div class="mut">${subjectStatus}</div>` : ''}
    ${load('directSyncState', null)?.id ? `<button type="button" id="home-direct-start" style="margin-top:8px" ${directAutoSession ? 'hidden' : ''}>اتصال خودکار به گوگل</button>` : ''}
    <div class="mut">${esc(syncMsg)}</div></div>`; }
 function workPayments(p, L) {
@@ -818,20 +1176,20 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-16T20:46:15Z'; const BUILD_VERSION = '۱۸۲';
+const BUILD = '2026-11-16T15:54:57Z'; const BUILD_VERSION = '۱۸۰';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
   const L = tx.filter(t => t.loan && t.person === p).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
-  const isCo = cols()[p] !== undefined; let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
+  const isCo = cols()[p] !== undefined || L.some(isWage); let bal = 0, wageBal = 0, loanBal = 0, sh = 0, pd = 0;
   const rows = L.map(t => { const v = LOAN[t.loan][1] * t.amount; bal += v; if (isWage(t)) wageBal += v; else loanBal += v; if (t.loan === 'share') sh += t.amount; if (t.loan === 'wage') pd += t.amount;
     const pr = t.parent ? tx.find(x => x.id === t.parent) : null; let d = t.desc && !Object.values(LOAN).some(x => x[0] === t.desc) ? t.desc : '';
     if (pr) { if (pr.service) d += ' · خدمات: ' + pr.service; if (pr.customer && !d.includes(pr.customer)) d += ' · مشتری: ' + pr.customer; }
     if (t.loan === 'wage' && t.receipt) d = (d ? d + ' · ' : '') + 'طبق رسید' + ((t.receipt || '').match(/\d{1,2}:\d{2}/) ? ' (ساعت ' + t.receipt.match(/\d{1,2}:\d{2}/)[0] + ')' : '');
-    return layout === 'linear' ? `<div class="lineitem"><div class="linetop"><b>${esc(LOAN[t.loan][0])}</b><strong>${toman(t.amount)} تومان</strong></div><div class="muted">${esc(t.date || '')}</div>${d ? `<div>${esc(d)}</div>` : ''}<div class="muted">مانده دستمزد: ${toman(wageBal)} تومان · مانده قرض: ${toman(loanBal)} تومان</div></div>` : `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'a' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(wageBal)}</td><td class="n">${toman(loanBal)}</td></tr>`; }).join('');
+    return layout === 'linear' ? `<div class="lineitem"><div class="linetop"><b>${esc(LOAN[t.loan][0])}</b><strong class="${t.loan === 'share' ? 'work-amount-173n' : t.loan === 'wage' ? 'wage-amount-173n' : ''}">${toman(t.amount)} تومان</strong></div><div class="muted">${esc(t.date || '')}</div>${d ? `<div>${esc(d)}</div>` : ''}<div class="muted">مانده دستمزد: ${toman(wageBal)} تومان · مانده قرض: ${toman(loanBal)} تومان</div></div>` : `<tr><td>${esc(String(t.date || '').slice(0, 10))}</td><td>${LOAN[t.loan][0]}</td><td>${esc(d)}</td><td class="n ${t.loan === 'share' ? 'work-amount-173n' : t.loan === 'wage' ? 'wage-amount-173n' : 'b'}">${toman(t.amount).toLocaleString('fa-IR')}</td><td class="n">${toman(wageBal)}</td><td class="n">${toman(loanBal)}</td></tr>`; }).join('');
   const f = n => toman(Math.abs(n)).toLocaleString('fa-IR');
   const st = bal > 0 ? 'پیش‌پرداخت: ' + f(bal) : bal < 0 ? (isCo ? 'مانده دستمزد: ' : 'بدهی: ') + f(bal) : 'تسویه کامل';
-  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>@page{margin:16mm}body{font-family:Tahoma,sans-serif;padding:20px;color:#24332f;line-height:1.7}h2{margin:0;color:#0f766e;font-size:23px}.intro{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.intro div{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th{background:#e7f4f1;color:#115e59}td,th{border-bottom:1px solid #dce9e5;padding:9px 6px;text-align:right;vertical-align:top}tr{page-break-inside:avoid}tr:nth-child(even){background:#f7faf9}.n{text-align:left;white-space:nowrap}.a{color:#16803d}.b{color:#bd3636}.lineitem{padding:12px 0;border-bottom:1px solid #dce9e5;page-break-inside:avoid}.linetop{display:flex;justify-content:space-between;gap:12px}.linetop strong{color:#0f766e;white-space:nowrap}.muted{font-size:11px;color:#64748b}.s{margin-top:18px;font-size:13px;line-height:2;background:#f0f8f5;border-right:4px solid #0f766e;padding:12px 16px}</style></head><body><div class="intro"><h2>صورت‌حساب ${esc(p)}</h2><div>گزارش کارکرد، پرداخت و قرض · تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })}</div></div>
+  const h = `<html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>حساب ${esc(p)}</title><style>@page{margin:16mm}body{font-family:Tahoma,sans-serif;padding:20px;color:#24332f;line-height:1.7}h2{margin:0;color:#0f766e;font-size:23px}.intro{border-bottom:3px solid #0f766e;padding-bottom:14px;margin-bottom:18px}.intro div{color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:11px}th{background:#e7f4f1;color:#115e59}td,th{border-bottom:1px solid #dce9e5;padding:9px 6px;text-align:right;vertical-align:top}tr{page-break-inside:avoid}tr:nth-child(even){background:#f7faf9}.n{text-align:left;white-space:nowrap}.a{color:#16803d}.b{color:#bd3636}.lineitem{padding:12px 0;border-bottom:1px solid #dce9e5;page-break-inside:avoid}.linetop{display:flex;justify-content:space-between;gap:12px}.linetop strong{color:#0f766e;white-space:nowrap}.work-amount-173n{color:#64748b!important}.wage-amount-173n{color:#16803d!important}.muted{font-size:11px;color:#64748b}.s{margin-top:18px;font-size:13px;line-height:2;background:#f0f8f5;border-right:4px solid #0f766e;padding:12px 16px}</style></head><body><div class="intro"><h2>صورت‌حساب ${esc(p)}</h2><div>گزارش کارکرد، پرداخت و قرض · تاریخ تهیه: ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })}</div></div>
   ${layout === 'linear' ? (rows || '<div class="muted">ردیفی ثبت نشده است.</div>') : `<table><tr><th>تاریخ</th><th>نوع</th><th>شرح</th><th>مبلغ (تومان)</th><th>مانده دستمزد</th><th>مانده قرض</th></tr>${rows}</table>`}
   <div class="s"><b>جمع و مانده حساب</b><br>${isCo ? `مجموع کارکرد: <b>${f(sh)}</b><br>پرداخت دستمزد: <b>${f(pd)}</b><br>مانده دستمزد: <b>${wageBal > 0 ? 'پیش‌پرداخت' : wageBal < 0 ? 'بدهی من' : 'تسویه'} ${f(wageBal)}</b><br>مانده قرض: <b>${loanBal > 0 ? 'طلب من' : loanBal < 0 ? 'بدهی من' : 'تسویه'} ${f(loanBal)}</b>${showAssistantTotal ? `<br>جمع دو حساب: <b>${bal > 0 ? 'طلب من' : bal < 0 ? 'بدهی من' : 'تسویه'} ${f(bal)} تومان</b>` : ''}` : `وضعیت: <b>${st} تومان</b>`}</div></body></html>`;
   const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column';
@@ -845,51 +1203,72 @@ function balanceText(v, kind) {
   return v > 0 ? 'او به من بدهکار است: ' + toman(v) + ' تومان' : 'من به او بدهکارم: ' + toman(-v) + ' تومان';
 }
 function loansHtml() {
-  const L = tx.filter(t => t.loan && LOAN[t.loan]), CO = cols(), PJ = pjobs();
-  const names = [...new Set([...Object.keys(CO), ...Object.keys(PJ), ...L.map(t => t.person).filter(Boolean)])];
+  const L = tx.filter(t => t.loan && LOAN[t.loan] && (isWage(t) ? featureOn('assistant') : featureOn('loan'))), CO = cols(), PJ = pjobs();
+  const names = [...new Set([...(featureOn('assistant') ? Object.keys(CO) : []), ...(featureOn('assistant') ? Object.keys(PJ) : []), ...L.map(t => t.person).filter(Boolean)])];
   const wage = p => amountOf(L.filter(t => t.person === p && isWage(t)));
   const loan = p => amountOf(L.filter(t => t.person === p && !isWage(t)));
   const combined = p => wage(p) + loan(p);
   if (lp && names.includes(lp)) {
-    const isCo = CO[lp] !== undefined, w = wage(lp), l = loan(lp), all = combined(lp);
+    const isCo = CO[lp] !== undefined || L.some(t => t.person === lp && isWage(t)), w = wage(lp), l = loan(lp), all = combined(lp);
     const rows = ordTx(L.filter(t => t.person === lp));
     const workStatus = new Map(workPayments(lp, L).rows.map(x => [String(x.j.id), x]));
     const result = all > 0 ? 'او به من بدهکار است: ' + toman(all) : all < 0 ? 'من به او بدهکارم: ' + toman(-all) : 'حساب صاف است';
     return `<button class="sec" id="lb">‹ بازگشت</button><div class="hero"><div>${esc(lp)}</div><div style="margin-top:12px;font-size:13px;opacity:.85">${isCo ? (w > 0 ? 'پیش‌پرداخت دستمزد' : w < 0 ? 'دستمزد پرداخت‌نشده' : 'حساب دستمزد') : 'دستمزد'}</div><div class="big">${isCo && w ? toman(Math.abs(w)) + ' <small>تومان</small>' : 'تسویه'}</div><div style="margin-top:12px;font-size:13px;opacity:.85">قرض</div><div style="font-size:20px;font-weight:700">${balanceText(l, 'loan')}</div>${isCo ? `<label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="combinebalances" type="checkbox" style="width:auto;margin:0" ${showAssistantTotal ? 'checked' : ''}> نمایش جمع دو حساب</label><div class="combinedbalance" ${showAssistantTotal ? '' : 'hidden'} style="margin-top:6px">جمع دو حساب: <b>${result}${all ? ' تومان' : ''}</b><div style="font-size:12px">فقط نمایش جمع است؛ قرض و دستمزد جدا می‌مانند.</div></div>` : ''}</div>
-    <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? CO[lp] : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
-    ${isCo ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="text" inputmode="numeric" placeholder="مبلغ سهم (تومان)">${persianDateFields('wdt')}<button id="wadd">ثبت کارکرد</button></details>` : ''}
-    <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent">قرض: او به من بدهکار است</option><option value="borrowed">قرض: من به او بدهکارم</option></select><input id="manualamount" type="text" inputmode="numeric" placeholder="مبلغ به تومان">${persianDateFields('manualdate')}<input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
-    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}`;
+    <button id="pdfb" style="width:100%;margin:8px 0">📄 خروجی PDF حساب</button><div id="pdfchoices" class="card hide"><b>نوع خروجی را انتخاب کن</b><div class="row" style="margin-top:8px"><button id="pdftable">جدولی</button><button id="pdflinear">خطی</button><button class="sec" id="pdfcancel">انصراف</button></div></div><details class="card"><summary><b>مشخصات</b></summary><div class="mut">کار: <input id="pj" value="${esc(PJ[lp] || '')}" placeholder="مثلاً تعمیرکار"></div><select id="pcb"><option value="1"${isCo ? ' selected' : ''}>👷 دستیار</option><option value=""${isCo ? '' : ' selected'}>🤝 شخص عادی (قرض)</option></select><div class="mut">درصد سهم: <input id="ppc" type="number" min="0" max="100" value="${isCo ? (CO[lp] ?? '') : ''}" style="width:80px"> ٪</div><button id="psv">ذخیره</button> <button class="sec" id="pdel" style="color:#c0392b">🗑 حذف شخص</button></details>
+    ${isCo && featureOn('assistant') ? `<details class="card"><summary><b>➕ ثبت کارکرد دستیار</b></summary><div class="mut">مبلغ کارکرد به دستمزد پرداخت‌نشده اضافه می‌شود.</div><input id="wd" placeholder="شرح کار"><input id="wa" type="text" inputmode="numeric" placeholder="مبلغ سهم (تومان)">${persianDateFields('wdt')}<button id="wadd">ثبت کارکرد</button></details>` : ''}
+    <details class="card"><summary><b>➕ مانده حساب از قبل یا ثبت دستی</b></summary><div class="mut">برای ثبت حسابی که از قبل داشته‌اید یا یک مبلغ دستی؛ این ثبت موجودی بانکی را تغییر نمی‌دهد.</div><select id="manualkind"><option value="">نوع حساب را انتخاب کن…</option>${isCo ? '<option value="share">دستمزد: من بابت کارکرد به او بدهکارم</option><option value="wage">دستمزد: قبلاً به او پیش‌پرداخت داده‌ام</option>' : ''}<option value="lent" ${featureOn('loan') ? '' : 'hidden'}>قرض: او به من بدهکار است</option><option value="borrowed" ${featureOn('loan') ? '' : 'hidden'}>قرض: من به او بدهکارم</option></select><input id="manualamount" type="text" inputmode="numeric" placeholder="مبلغ به تومان">${persianDateFields('manualdate')}<input id="manualdesc" placeholder="توضیح (اختیاری، مثلاً مانده از قبل)"><button id="manualsave">ثبت در حساب</button></details>
+    <div id="workreviewbox"></div>${isCo ? workList(lp, L) : ''}<details class="card" open><summary><b>همه گردش‌های حساب (${rows.length.toLocaleString('fa-IR')})</b></summary><div class="mut">همان ردیف‌های بالا هستند و دوباره به حساب اضافه نمی‌شوند.</div>${ordBar()}${rows.map(t => rowHtml(t, workStatus)).join('')}</details>`;
   }
   const addP = `<details class="card"><summary><b>➕ شخص جدید</b></summary><input id="nn" placeholder="نام"><input id="nj" placeholder="کار"><select id="ncb"><option value="1">👷 دستیار</option><option value="">🤝 شخص عادی (قرض)</option></select><input id="npc" type="number" min="0" max="100" placeholder="درصد سهم"><button id="nadd">افزودن</button></details>`;
-  return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined, w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${co ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
+  return `${addP}${names.sort((a, b) => Math.abs(combined(b)) - Math.abs(combined(a))).map(p => { const co = CO[p] !== undefined || L.some(t => t.person === p && isWage(t)), w = wage(p), l = loan(p), Lp = L.filter(t => t.person === p); return `<details class="card"><summary class="row"><div><b>${esc(p)}${CO[p] !== undefined ? ' (' + Number(CO[p]).toLocaleString('fa-IR') + '٪)' : ''}</b><div class="mut">${esc(PJ[p] || '')}${co ? ' · دستیار' : ''}</div></div></summary><div style="margin-top:10px;line-height:2;font-size:14px">${co ? `<div>دستمزد: <b class="${w < 0 ? 'red' : 'grn'}">${balanceText(w, 'wage')}</b></div>` : ''}<div>قرض: <b class="${l < 0 ? 'red' : 'grn'}">${balanceText(l, 'loan')}</b></div><span class="mut">تعداد ردیف: ${Lp.length.toLocaleString('fa-IR')}</span></div><button class="lp" data-p="${esc(p)}" style="width:100%;margin-top:8px">حساب کامل ‹</button></details>`; }).join('') || '<div class="card mut">هنوز شخصی ثبت نشده.</div>'}`;
+}
+function workDescription180(row, transactions, invoices) {
+  let description = row.desc || '';
+  if (row.loan !== 'share') return description;
+  const parent = transactions.find(entry => row.parent != null && String(entry.id) === String(row.parent));
+  const invoiceId = row.invoiceId || parent?.invoicePaymentId;
+  const invoice = invoiceId && invoices.find(entry => String(entry.id) === String(invoiceId));
+  if (!invoice || invoice.assistant !== row.person || Number(invoice.share) * 10 !== Number(row.amount)) return description;
+  const percent = typeof invoiceDisplayPercent177 === 'function' ? invoiceDisplayPercent177(invoice, transactions) : null;
+  if (percent !== null && !/سهم\s*[۰-۹٠-٩\d]+\s*٪/.test(description)) description += ' · سهم ' + Number(percent).toLocaleString('fa-IR') + '٪';
+  const customer = invoice.customer || parent?.customer;
+  if (customer && !description.includes(customer)) description += ' · ' + customer;
+  const services = (invoice.lines || []).map(line => line.name).filter(Boolean).join('، ') || parent?.service;
+  if (services && !description.includes(services)) description += ' · خدمت: ' + services;
+  return description.replace(/^ · /, '');
 }
 function rowHtml(t, statusMap) {
   if (editing.has(String(t.id))) return pendingCard(t);
   const work = statusMap instanceof Map ? statusMap.get(String(t.id)) : null;
-  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b class="${t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
-  ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${t.desc && !t.desc.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(t.desc) ? ' · ' + esc(t.desc) : ''}</div>` : ''}
+  const direction = typeof transactionView173g === 'function' ? transactionView173g(t) : null;
+  const linkedInvoice177 = t.invoicePaymentId && typeof invoiceList === 'function' ? invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) : null;
+  const ownerPercent177 = linkedInvoice177?.accounting?.ownerPercent;
+  const workDescription = workDescription180(t, tx, typeof invoiceList === 'function' ? invoiceList() : []);
+  return `<div class="card" data-id="${t.id}"><div class="row"><b>${t.xfer ? '🔁 ' : ''}${t.loan ? '🤝 ' + esc(t.person) : esc(t.desc || '—')}${work && work.left === 0 ? ' <span class="grn" title="پرداخت‌شده">✓</span>' : ''}${!t.loan && t.seller ? ' <span class="mut">· ' + esc(t.seller) + '</span>' : ''}</b><b style="white-space:nowrap" class="${direction ? direction.color : t.xfer || t.loan === 'share' ? 'mut' : t.loan ? (LOAN[t.loan][1] > 0 ? 'grn' : 'red') : t.type === 'debit' ? 'red' : 'grn'}">${t.ghost && !t.manualBalance && t.loan !== 'share' ? '' : (direction ? direction.sign : t.loan ? (LOAN[t.loan][1] > 0 ? '+' : '−') : t.type === 'debit' ? '−' : '+') + toman(t.amount)}</b></div>
+  ${t.loan ? `<div class="mut" style="margin-top:6px">${esc(LOAN[t.loan][0])}${workDescription && !workDescription.includes(LOAN[t.loan][0]) && !LOAN[t.loan][0].includes(workDescription) ? ' · ' + esc(workDescription) : ''}</div>` : ''}
   <div class="row" style="margin-top:6px"><span>${badge(t.account)}</span><span class="mut">${esc(t.cat)} · ${esc(t.date)}${t.loan && !t.ghost ? ' · ' + esc(((t.receipt || '').match(/\d{1,2}:\d{2}(:\d{2})?/) || [new Date(t.id).toTimeString().slice(0, 8)])[0]) : ''}</span></div>
-  ${t.customer || t.service ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
-  ${t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
+  ${featureOn('invoice') && (t.customer || t.service) ? `<div class="mut" style="margin-top:6px">${t.customer ? esc(t.customer) + ' <span class="mut">(' + esc(t.ctype === 'driver' ? 'راننده' : t.ctype === 'normal' || !t.ctype ? 'مشتری' : t.ctype) + ')</span>' : ''}${t.customer && t.service ? ' · ' : ''}${t.service ? 'خدمت: ' + esc(t.service) : ''}</div>` : ''}
+  ${t.invoicePaymentId ? `<button type="button" class="sec invoice-jump-173m" data-invoice-id="${esc(t.invoicePaymentId)}">📌 سنجاق‌شده به فاکتور: ${esc((invoiceList().find(i => String(i.id) === String(t.invoicePaymentId)) || {}).number || t.invoicePaymentId)}</button>` : ''}
+  ${featureOn('assistant') && t.colleague && t.shareAmount ? `<div class="mut">دستیار / همکار: ${esc(t.colleague)} · ${t.shareMode === 'fixed' ? 'مبلغ ثابت' : Number(t.pct).toLocaleString('fa-IR') + '٪'} · سهم ${toman(t.shareAmount)} تومان</div>` : ''}
+  ${linkedInvoice177 && ownerPercent177 != null && Number.isFinite(Number(ownerPercent177)) ? `<div class="mut">درصد سهم من در فاکتور: ${Number(ownerPercent177).toLocaleString('fa-IR')}٪</div>` : ''}
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function homeHtml() {
-  return remBanner() + homeHtml0();
+  return (featureOn('reminder') ? dueBanner157() + remBanner() : '') + homeHtml0();
 }
 function homeHtml0() {
   const bal = {};
   [...tx].sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(t => { if (t.balance != null && !(t.account in bal)) bal[t.account] = t.balance; });
   const accs = Object.keys(bal).filter(isSel);
   const total = accs.reduce((s, a) => s + bal[a], 0);
-  const cur = tx.map(monthOf).sort().pop();
-  const mt = tx.filter(t => isSel(t.account) && !t.xfer && !t.loan && monthOf(t) === cur);
+  const cur = tx.filter(t => !t.ghost).map(monthOf).sort().pop();
+  const mt = tx.filter(t => !t.ghost && isSel(t.account) && !t.xfer && !t.loan && monthOf(t) === cur);
   const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const pend = tx.filter(t => t.pending);
-  return `${!welcomeDismissed && load('directSyncState', null)?.id && !directAutoSession ? `<div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">با ورود، ارسال و دریافت خودکار تا وقتی برنامه باز است فعال می‌شود. دریافت هنگام وجود تغییر ارسال‌نشده متوقف می‌ماند.</div><button type="button" id="welcome-google">ورود به گوگل و فعال‌کردن همگام‌سازی</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>` : ''}${banner ? `<div class="card">${banner}</div>` : ''}
+  return `${banner ? `<div class="card">${banner}</div>` : ''}
   ${xsugHtml()}
-  ${rcReviewHtml()}
+  ${featureOn('sms') ? rcReviewHtml() : ''}
   ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
   ${filterBar()}
   ${statusCard()}
@@ -905,7 +1284,7 @@ function jd(d) {
   return g('year') + '/' + g('month') + '/' + g('day');
 }
 function trendHtml() {
-  const real = tx.filter(t => isSel(t.account) && !t.xfer && !t.loan && !t.pending);
+  const real = tx.filter(t => !t.ghost && isSel(t.account) && !t.xfer && !t.loan && !t.pending);
   const sumD = (f, ty) => real.filter(t => t.type === ty && f(t.date.slice(0, 10))).reduce((s, t) => s + t.amount, 0);
   const now = new Date(), DAY = 864e5;
   const names = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
@@ -933,12 +1312,13 @@ function driversHtml() {
   const rows = Object.entries(m).sort((a, b) => b[1].yr - a[1].yr);
   return `<details class="card"><summary><b>🚚 رانندگان (مشتری‌های خدماتی)</b></summary><div class="mut">مرتب بر اساس واریزی امسال؛ ماه و سال از ماه انتخاب‌شده</div>${rows.map(([n, r], i) => `<div style="margin-top:10px"><div class="row"><b>${i + 1}. ${esc(n)}</b>${r.ph ? `<a href="tel:${esc(r.ph)}">${esc(r.ph)}</a>` : ''}</div><div class="row mut"><span>این ماه: <b class="grn">${toman(r.mo)}</b></span><span>امسال: <b class="grn">${toman(r.yr)}</b></span></div><div class="mut">کل: ${toman(r.all)} · ${r.n.toLocaleString('fa-IR')} بار</div></div>`).join('')}</details>`;
 }
+function reportTransactions173q(items) { return items.filter(t => !t.ghost && t.loan !== 'share'); }
 function reportHtml() {
   const base = tx.filter(t => isSel(t.account));
   const months = [...new Set(tx.map(monthOf))].sort().reverse();
   if (!month || !months.includes(month)) month = months[0];
   const list = base.filter(t => monthOf(t) === month);
-  const real = list.filter(t => !t.xfer && !t.loan);
+  const real = list.filter(t => !t.ghost && !t.xfer && !t.loan);
   const loans = {}; tx.filter(t => t.loan && !isWage(t) && isSel(t.account)).forEach(t => loans[t.person] = (loans[t.person] || 0) + LOAN[t.loan][1] * t.amount);
   const days = new Set(real.filter(t => t.type === 'debit').map(t => t.date.slice(0, 10))).size || 1;
   const topD = Object.entries(real.filter(t => t.type === 'debit' && t.desc).reduce((m, t) => (m[t.desc] = (m[t.desc] || 0) + t.amount, m), {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -961,15 +1341,15 @@ function reportHtml() {
   ${trendHtml()}
   <details class="card"><summary><b>میانگین خرج روزانه</b></summary><div>${toman(Math.round(sum(out) / days))} تومان <span class="mut">(${days.toLocaleString('fa-IR')} روز دارای خرج)</span></div></details>
   ${topD.length ? `<details class="card"><summary><b>بیشترین خرج‌ها</b></summary>${topD.map(([d, v]) => `<div class="row" style="margin-top:6px"><span>${esc(d)}</span><span>${toman(v)}</span></div>`).join('')}</details>` : ''}
-  ${Object.keys(loans).length ? `<details class="card"><summary><b>🤝 قرض‌ها (کل زمان)</b></summary>${Object.entries(loans).map(([p, v]) => `<div class="row" style="margin-top:8px"><span>${esc(p)}</span><b class="${v > 0 ? 'grn' : v < 0 ? 'red' : 'mut'}">${v > 0 ? 'بدهکار به من: ' : v < 0 ? 'من بدهکارم: ' : 'تسویه '}${v ? toman(Math.abs(v)) : ''}</b></div>`).join('')}</details>` : ''}
+  ${featureOn('loan') && Object.keys(loans).length ? `<details class="card"><summary><b>🤝 قرض‌ها (کل زمان)</b></summary>${Object.entries(loans).map(([p, v]) => `<div class="row" style="margin-top:8px"><span>${esc(p)}</span><b class="${v > 0 ? 'grn' : v < 0 ? 'red' : 'mut'}">${v > 0 ? 'بدهکار به من: ' : v < 0 ? 'من بدهکارم: ' : 'تسویه '}${v ? toman(Math.abs(v)) : ''}</b></div>`).join('')}</details>` : ''}
   <details class="card"><summary><b>خرج به تفکیک دسته</b></summary>${cats.map(([c, v]) => `<div style="margin-top:10px"><div class="row"><span>${esc(c)}</span><span>${toman(v)} <span class="mut">(${Math.round(v / tot * 100).toLocaleString('fa-IR')}٪)</span></span></div><div class="bar" style="width:${v / mx * 100}%"></div></div>`).join('') || '<div class="mut">خرجی نیست</div>'}</details>
   <details class="card"><summary><b>به تفکیک حساب</b></summary>${accRows.map(r => `<div style="margin-top:10px"><div>${badge(r.a)}</div><div class="row mut"><span>خرج: <b class="red">${toman(r.o)}</b></span><span>واریز: <b class="grn">${toman(r.i)}</b></span></div>${r.xo || r.xi ? `<div class="row mut"><span>انتقال رفته: ${toman(r.xo)}</span><span>انتقال آمده: ${toman(r.xi)}</span></div>` : ''}</div>`).join('') || '<div class="mut">—</div>'}</details>
   ${Object.keys(flows).length ? `<details class="card"><summary><b>جابه‌جایی بین حساب‌هایم 🔁</b></summary><div class="mut">در مجموع خرج یا درآمد حساب نمی‌شود.</div>${Object.entries(flows).map(([k, v]) => { const [f, t] = k.split('>'); return `<div class="row" style="margin-top:8px"><span>${badge(f)} ← ${badge(t)}</span><b>${toman(v.v)} تومان</b></div><div class="mut">${v.n.toLocaleString('fa-IR')} بار${v.fee ? ' · کارمزد ' + toman(v.fee) : ''}</div>`; }).join('')}</details>` : ''}
-  ${driversHtml()}
-  ${incBy.cu.length ? `<details class="card"><summary><b>💰 درآمد به تفکیک مشتری</b></summary>${incBy.cu.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
-  ${incBy.sv.length ? `<details class="card"><summary><b>🔧 درآمد به تفکیک خدمت</b></summary>${incBy.sv.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
-  <details class="card"><summary><b>🔍 جستجوی مشتری / خدمت</b></summary><input id="cq" placeholder="نام مشتری، خدمت یا شرح..."><div id="cqr"></div></details>
-  <h3>تراکنش‌ها</h3>${ordBar()}${ordTx(list).map(rowHtml).join('')}`;
+  ${featureOn('invoice') && featureOn('vehicle') ? driversHtml() : ''}
+  ${incBy.cu.length ? `<details class="card"${featureOn('invoice') ? '' : ' hidden'}><summary><b>💰 درآمد به تفکیک مشتری</b></summary>${incBy.cu.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
+  ${incBy.sv.length ? `<details class="card"${featureOn('invoice') ? '' : ' hidden'}><summary><b>🔧 درآمد به تفکیک خدمت</b></summary>${incBy.sv.map(([c, v]) => `<div class="row" style="margin-top:6px"><span>${esc(c)}</span><b class="grn">${toman(v)}</b></div>`).join('')}</details>` : ''}
+  <details class="card"${featureOn('invoice') ? '' : ' hidden'}><summary><b>🔍 جستجوی مشتری / خدمت</b></summary><input id="cq" placeholder="نام مشتری، خدمت یا شرح..."><div id="cqr"></div></details>
+  <h3>تراکنش‌ها</h3>${ordBar()}${ordTx(reportTransactions173q(list)).map(rowHtml).join('')}`;
 }
 
 document.addEventListener('change', e => {
@@ -1001,6 +1381,8 @@ document.addEventListener('click', async e => {
   const review = e.target.closest('.workreview');
   if (review) {
     const t = tx.find(x => String(x.id) === review.dataset.id), box = $('#workreviewbox'); if (!t || !box) return;
+    const relatedInvoice = invoiceList().find(i => String(i.id) === String(t.invoiceId || ''));
+    if (relatedInvoice) { topic = 'invoices'; tab = 'report'; render(); const result = [...document.querySelectorAll('#inv-results .invoice-result')].find(node => node.dataset.invoiceId === String(relatedInvoice.id)); if (result) { result.open = true; result.scrollIntoView({behavior:'smooth',block:'start'}); } return; }
     const parent = t.parent ? tx.find(x => x.id === t.parent) : null, source = parent || t;
     const fields = [ ['نوع', LOAN[t.loan]?.[0]], ['شخص', t.person], ['مبلغ این ردیف', toman(t.amount) + ' تومان'], ['تاریخ', t.date], ['شرح', t.desc], ['حساب', source.account ? accName(source.account) : ''], ['مبلغ واریزی اصلی', parent ? toman(parent.amount) + ' تومان' : ''], ['مشتری', source.customer], ['خدمت', source.service], ['سهم', parent ? (parent.shareMode === 'fixed' ? 'مبلغ ثابت' : parent.pct ? parent.pct + '٪' : '') : ''] ].filter(([,v]) => v);
     box.innerHTML = `<div class="card"><div class="row"><b>🔎 مرور جزئیات</b><button type="button" class="sec reviewclose">بستن</button></div>${fields.map(([k,v]) => `<div style="margin-top:6px"><span class="mut">${esc(k)}: </span><b>${esc(v)}</b></div>`).join('')}${source.raw ? `<details style="margin-top:8px"><summary class="mut">متن پیامک</summary><div style="white-space:pre-wrap">${esc(source.raw)}</div></details>` : ''}${source.receipt ? `<details style="margin-top:8px"><summary class="mut">رسید بانکی</summary><div style="white-space:pre-wrap">${esc(source.receipt)}</div></details>` : ''}</div>`;
@@ -1012,7 +1394,7 @@ document.addEventListener('click', async e => {
     const kind = $('#manualkind').value, amount = (invoiceDigits($('#manualamount').value) || 0) * 10;
     const dt = $('#manualdate').value.trim().replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[-.]/g, '/');
     const m = dt.match(/^(1[34]\d{2})\/(\d{1,2})\/(\d{1,2})$/);
-    if (!['share', 'wage', 'lent', 'borrowed'].includes(kind) || ((kind === 'share' || kind === 'wage') && cols()[lp] === undefined)) { alert('نوع حساب را انتخاب کن'); return; }
+    if (!['share', 'wage', 'lent', 'borrowed'].includes(kind) || ((kind === 'share' || kind === 'wage') && cols()[lp] === undefined && !tx.some(t=>t.person===lp && isWage(t)))) { alert('نوع حساب را انتخاب کن'); return; }
     if (!Number.isSafeInteger(amount) || amount <= 0) { alert('مبلغ معتبر به تومان وارد کن'); return; }
     if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > (+m[2] <= 6 ? 31 : 30)) { alert('تاریخ شمسی معتبر وارد کن'); return; }
     const date = `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')} ${nowStr().slice(11)}`;
@@ -1037,8 +1419,11 @@ document.addEventListener('click', async e => {
   if (e.target.id === 'pdftable' || e.target.id === 'pdflinear') { pdfPerson(lp, e.target.id === 'pdflinear' ? 'linear' : 'table'); return; }
   if (e.target.id === 'lb') { lp = null; render(); return; }
   const ob = e.target.closest('.ordb'); if (ob) { ord = ob.dataset.o; localStorage.setItem('ord', ord); render(); return; }
+  const invoiceJump = e.target.closest('.invoice-jump-173m'); if (invoiceJump) { const invoiceId = invoiceJump.dataset.invoiceId; if (!featureOn('invoice')) { alert('برای دیدن فاکتور ابتدا بخش فاکتور را در تنظیمات روشن کن.'); return; } if (!invoiceList().some(i => String(i.id) === invoiceId)) { alert('فاکتور مرتبط پیدا نشد.'); return; } topic = 'invoices'; tab = 'report'; render(); const result = [...document.querySelectorAll('#inv-results .invoice-result')].find(node => node.dataset.invoiceId === invoiceId); if (result) { result.open = true; result.scrollIntoView({behavior:'smooth',block:'start'}); } return; }
+  const txJump = e.target.closest('.invoice-tx-jump'); if (txJump) { const find = () => [...document.querySelectorAll('.card[data-id]')].find(n => n.dataset.id === txJump.dataset.tid); topic = 'expenses'; tab = 'report'; render(); let n = find(); if (!n) { tab = 'home'; render(); n = find(); } if (n) { n.scrollIntoView({behavior:'smooth',block:'center'}); n.style.outline = '2px solid #0f766e'; } else alert('تراکنش در این فهرست پیدا نشد.'); return; }
   const invoiceOpen = e.target.closest('.invoice-open-list'); if (invoiceOpen) { const filter = invoiceOpen.dataset.filter || 'all'; if (topic !== 'sales') topic = 'invoices'; tab = 'report'; render(); const card = document.getElementById('invoice-card'); document.getElementById('inv-filter').value = filter; invoiceShowList(''); card.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
-  if (e.target.id === 'welcome-later') { welcomeDismissed = true; render(); return; }
+  if (e.target.id === 'welcome-later') { welcomeDismissed = true; const card = document.getElementById('welcome-sync'); if (card) card.hidden = true; return; }
+  if (e.target.id === 'welcome-google' && !(load('directSyncState', null)?.id && load('directSyncState', null)?.base && load('directSyncState', null)?.email)) { const group = document.getElementById('settings-advanced'), card = document.getElementById('easy-setup'); if (group && card) { group.open = true; card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
   if (e.target.id === 'welcome-google' || e.target.id === 'home-direct-start') { if (!window.google?.accounts?.oauth2) { prepareGoogleTest(); directAutoShow('سرویس گوگل در حال آماده‌شدن است؛ چند لحظه بعد دوباره دکمه را بزن.'); return; } directAutoStart(e.target.id === 'welcome-google'); return; }
   if (e.target.id === 'gs') { const u = localStorage.getItem('sheetUrl'); if (u) window.open(u, '_blank'); else alert('هنوز آدرس شیت دریافت نشده. اول «ذخیره و همگام‌سازی» را بزن (و Code.gs نسخهٔ جدید را Deploy کن).'); return; }
   if (e.target.id === 'clip') {
@@ -1047,8 +1432,13 @@ document.addEventListener('click', async e => {
   }
   const fa = e.target.closest('.fb [data-a]');
   if (fa) { const a = fa.dataset.a; if (a === '*') sel = null; else { sel = sel ? (sel.includes(a) ? sel.filter(x => x !== a) : [...sel, a]) : [a]; if (!sel.length) sel = null; } localStorage.setItem('sel', JSON.stringify(sel)); render(); return; }
-  const topicButton = e.target.closest('[data-topic]'); if (topicButton) { topic = topicButton.dataset.topic; if (tab === 'contacts' || tab === 'settings') tab = 'home'; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button'); if (nb) { tab = nb.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
+  const topicButton = e.target.closest('[data-topic]'); if (topicButton && !topicButton.disabled) { if (tab === 'contacts' && pEditing) { alert('ابتدا تغییرات مخاطب را ذخیره کن یا فرم را ببند.'); return; } if (tab === 'add' && ['sms','ma','md','inv-customer','inv-number'].some(id => document.getElementById(id)?.value.trim()) && !confirm('اطلاعات ذخیره‌نشدهٔ فرم کنار گذاشته و موضوع عوض شود؟')) return; topic = topicButton.dataset.topic; tab = 'home'; lp = null; render(); navigationScroll171(topicButton); return; }
+  const addModeButton = e.target.closest('[data-add-mode]'); if (addModeButton) { addOpen164(addModeButton.dataset.addMode); return; }
+  const addFilter = e.target.closest('[data-add-filter]'); if (addFilter) { addReceiptFilter164 = addFilter.dataset.addFilter; addMode164 = 'menu'; render(); return; }
+  const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
+  const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button[data-t], .header-173a button[data-t]'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
@@ -1073,15 +1463,16 @@ document.addEventListener('click', async e => {
       if (nm && mode === 'percent' && (!Number.isFinite(pc) || pc <= 0 || pc > 100)) { alert('درصد سهم را بین ۱ و ۱۰۰ انتخاب کن'); return; }
       const tt = tx.find(x => x.id === id);
       if (nm && (mode === 'fixed' ? fixed : shareOf(tt.amount, pc)) > tt.amount) { alert('سهم نمی‌تواند بیشتر از مبلغ واریزی باشد'); return; }
+      try { const related = [...new Set([...new Set([tt.colleague, nm].filter(Boolean))].flatMap(person => shareCandidates173i(tx, tt, tt.invoicePaymentId || '', person)))]; if (related.length > 1) throw new Error('برای این واریز چند ردیف سهم وجود دارد؛ ابتدا از بخش کارکردها تکراری‌ها را بررسی کن.'); if (!nm && related.length) shareCheckTombs173i([related[0].id]); } catch (error) { alert(error.message); return; }
       if (nm) { const c = cols(); if (c[nm] === undefined || (co.value === '__new' && mode === 'percent')) c[nm] = mode === 'percent' ? pc : 0; setCols(c); }
-      tt.customer = card.querySelector('.cu')?.value.trim() || ''; tt.service = card.querySelector('.sv')?.value.trim() || '';
-      tt.ctype = card.querySelector('.ctbox')?.dataset.ct || ''; tt.desc = card.querySelector('.d').value.trim();
-      applyShare(tt, nm, pc, mode, fixed);
+      if (featureOn('invoice')) { tt.customer = card.querySelector('.cu')?.value.trim() || ''; tt.service = card.querySelector('.sv')?.value.trim() || ''; tt.ctype = card.querySelector('.ctbox')?.dataset.ct || ''; }
+      tt.desc = card.querySelector('.d').value.trim();
+      try { applyShare(tt, nm, pc, mode, fixed); } catch (error) { alert(error.message); return; }
     }
   }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.loan && !t0.ghost && t0.type === 'debit') { t0.seller = card.querySelector('.p').value.trim() || t0.seller || ''; t0.loan = ''; t0.person = ''; } }
   if (e.target.classList.contains('ok')) { const t0 = tx.find(x => x.id === id); if (t0 && t0.type === 'debit' && !t0.loan) t0.seller = card.querySelector('.p').value.trim(); }
-  if (e.target.classList.contains('ok')) { delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { customer: card.querySelector('.cu')?.value.trim(), service: card.querySelector('.sv')?.value.trim(), ctype: card.querySelector('.ctbox')?.dataset.ct || '', cphone: card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value }); }
+  if (e.target.classList.contains('ok')) { const original = tx.find(x => x.id === id) || {}, keep = !featureOn('invoice'); delete drafts[id]; editing.delete(String(id)); delete editSnapshots[id]; setDesc(id, card.querySelector('.d').value.trim() || (card.querySelector('.catsel') ? card.dataset.cat : '') || card.querySelector('.d').value, card.dataset.cat, { preserveBiz: keep, contactGroup: card.querySelector('.contact-group-173m')?.value || '', customer: keep ? original.customer : card.querySelector('.cu')?.value.trim(), service: keep ? original.service : card.querySelector('.sv')?.value.trim(), ctype: keep ? original.ctype : card.querySelector('.ctbox')?.dataset.ct || '', cphone: keep ? original.cphone : card.querySelector('.cph')?.value.trim() || '', remDate: card.querySelector('.rdt').value }); }
   if (e.target.classList.contains('xf')) { const t = tx.find(x => x.id === id); t.xfer = true; t.cat = 'انتقال'; t.pending = false; t.desc = t.type === 'debit' ? 'انتقال به حساب دیگر' : 'انتقال از حساب دیگر'; save(); render(); return; }
   if (e.target.classList.contains('skip')) card.remove();
   if (e.target.classList.contains('cx')) { delete editSnapshots[id]; delete drafts[id]; editing.delete(String(id)); render(); return; }
@@ -1146,17 +1537,19 @@ function prepareGoogleTest() {
             try {
               if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
               const auth = { Authorization: 'Bearer ' + response.access_token };
-              const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+              const userResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
               if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
-              const user = await userResponse.json(); if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
+              const user = await userResponse.json(); accountOwnerIdentify(user.email); if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
+              if (!await sheetConfirmCreate()) { googleSheetStatus('ساخت شیت لغو شد.'); return; }
               googleSheetStatus('در حال ساخت شیت خالی برای ' + user.email + '…');
               localStorage.setItem('googleTestSheetPending', '1'); attempted = true;
-              const created = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - شیت آزمایشی' } }) });
+              const created = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - شیت آزمایشی' } }) });
               if (!created.ok) { if (created.status < 500) { localStorage.removeItem('googleTestSheetPending'); attempted = false; } throw new Error('گوگل درخواست ساخت را نپذیرفت (کد ' + created.status + ')'); }
               const sheet = await created.json(); if (!sheet.spreadsheetId || !/^[a-zA-Z0-9_-]+$/.test(sheet.spreadsheetId)) throw new Error('شناسه شیت در پاسخ گوگل نبود');
+              sheetRegistryRecord(sheet.spreadsheetId, 'هزینه‌ها - شیت آزمایشی');
               localStorage.setItem('googleTestSheet', JSON.stringify({ id: sheet.spreadsheetId, email: user.email }));
               localStorage.removeItem('googleTestSheetPending'); attempted = false;
-              const check = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.spreadsheetId) + '?fields=spreadsheetId,properties.title', { headers: auth }).catch(() => null);
+              const check = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.spreadsheetId) + '?fields=spreadsheetId,properties.title', { headers: auth }).catch(() => null);
               googleSheetStatus(check && check.ok ? '✅ شیت خالی ساخته شد و دسترسی به آن بررسی شد. هیچ اطلاعاتی منتقل نشده است.' : '✅ شیت خالی ساخته شد؛ بررسی خودکار دسترسی کامل نشد. لینک زیر را بررسی کن.');
               const card = document.getElementById('google-test'); if (card) { const old = card.querySelector('.google-sheet-link'); if (old) old.remove(); const holder = document.createElement('div'); holder.className = 'google-sheet-link'; holder.innerHTML = googleSheetLink(); card.appendChild(holder); }
             } catch (err) { googleSheetStatus('⚠️ ' + (err.message || 'ساخت شیت بررسی نشد') + (attempted ? '؛ ممکن است شیت ساخته شده باشد. پیش از تلاش دوباره Google Drive را بررسی کن.' : '')); }
@@ -1176,9 +1569,10 @@ function prepareGoogleTest() {
           callback: async response => {
             try {
               if (response.error || !response.access_token) throw new Error('اجازه ورود صادر نشد');
-              const r = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: 'Bearer ' + response.access_token } });
+              const r = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: 'Bearer ' + response.access_token } });
               if (!r.ok) throw new Error('دریافت اطلاعات حساب ناموفق بود');
               const info = await r.json();
+              accountOwnerIdentify(info.email);
               if (!info.email) throw new Error('ایمیل حساب دریافت نشد');
               googleTestStatus('✅ ورود آزمایشی موفق بود: ' + info.email + ' — اتصال شیت هنوز آماده نیست.');
             } catch (err) { googleTestStatus('⚠️ ' + (err.message || 'خطا در آزمایش ورود')); }
@@ -1206,25 +1600,26 @@ function googleWriteTest() {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const meRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          const meRes = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
           if (!meRes.ok) throw new Error('حساب گوگل مشخص نشد');
           const me = await meRes.json();
+          accountOwnerIdentify(me.email);
           if (!me.email || me.email.toLowerCase() !== sheet.email.toLowerCase()) throw new Error('حساب انتخاب‌شده با حساب سازنده شیت آزمایشی یکسان نیست');
           googleWriteStatus('در حال نوشتن و خواندن متن آزمایشی…');
           const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.id);
-          const meta = await fetch(base + '?fields=sheets.properties.title', { headers: auth });
+          const meta = await accountOwnerFetch(base + '?fields=sheets.properties.title', { headers: auth });
           if (!meta.ok) throw new Error('شیت آزمایشی در دسترس نیست (کد ' + meta.status + ')');
           const info = await meta.json(), title = info.sheets?.[0]?.properties?.title;
           if (!title) throw new Error('برگه‌ای در شیت آزمایشی پیدا نشد');
           const range = "'" + title.replace(/'/g, "''") + "'!A:B";
           const text = 'این یک آزمایش است؛ اطلاعات مالی نیست', id = 'آزمایش ' + Date.now();
           sent = true;
-          const appended = await fetch(base + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: [[id, text]] }) });
+          const appended = await accountOwnerFetch(base + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: [[id, text]] }) });
           if (!appended.ok) { if (appended.status < 500) sent = false; throw new Error('نوشتن در شیت انجام نشد (کد ' + appended.status + ')'); }
           written = true;
           const result = await appended.json(), updatedRange = result.updates?.updatedRange;
           if (!updatedRange) throw new Error('محدوده ردیف ثبت‌شده دریافت نشد');
-          const read = await fetch(base + '/values/' + encodeURIComponent(updatedRange), { headers: auth });
+          const read = await accountOwnerFetch(base + '/values/' + encodeURIComponent(updatedRange), { headers: auth });
           if (!read.ok) throw new Error('ردیف ثبت شد اما خواندن آن ناموفق بود (کد ' + read.status + ')');
           const values = (await read.json()).values;
           if (!values || !values[0] || values[0][0] !== id || values[0][1] !== text) throw new Error('متن خوانده‌شده با متن آزمایشی یکسان نبود');
@@ -1254,14 +1649,15 @@ function googleDataTest() {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          const userRes = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
           if (!userRes.ok) throw new Error('حساب گوگل مشخص نشد');
           const user = await userRes.json();
+          accountOwnerIdentify(user.email);
           if (!user.email || user.email.toLowerCase() !== sheet.email.toLowerCase()) throw new Error('حساب انتخاب‌شده با حساب سازنده شیت یکسان نیست');
           const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheet.id);
           googleDataStatus('در حال ساخت برگه و ثبت اطلاعات ساختگی…');
           started = true;
-          const create = await fetch(base + ':batchUpdate', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tabName, rightToLeft: true } } }] }) });
+          const create = await accountOwnerFetch(base + ':batchUpdate', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tabName, rightToLeft: true } } }] }) });
           if (!create.ok) { if (create.status < 500) started = false; throw new Error('ساخت برگه انجام نشد (کد ' + create.status + ')'); }
           tabMade = true;
           const records = [
@@ -1271,9 +1667,9 @@ function googleDataTest() {
           ];
           const rows = [['نوع', 'شناسه', 'اطلاعات ساختگی (مبلغ به ریال)'], ...records.map(r => [r.type, r.data.id, JSON.stringify(r.data)])];
           const range = "'" + tabName.replace(/'/g, "''") + "'!A1:C4";
-          const write = await fetch(base + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
+          const write = await accountOwnerFetch(base + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
           if (!write.ok) throw new Error('ثبت نمونه‌ها ناموفق بود (کد ' + write.status + ')');
-          const read = await fetch(base + '/values/' + encodeURIComponent(range), { headers: auth });
+          const read = await accountOwnerFetch(base + '/values/' + encodeURIComponent(range), { headers: auth });
           if (!read.ok) throw new Error('خواندن نمونه‌ها ناموفق بود (کد ' + read.status + ')');
           const actual = (await read.json()).values;
           if (JSON.stringify(actual) !== JSON.stringify(rows)) throw new Error('اطلاعات بازخوانی‌شده با نمونه‌ها یکسان نیست');
@@ -1328,7 +1724,10 @@ function googleDownloadBackup() {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           status('در حال خواندن و بررسی پشتیبان…');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const result = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(id) + '/values/' + encodeURIComponent("'Backup'!A:B"), { headers: auth });
+          const identityResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          if (!identityResponse.ok) throw new Error('حساب گوگل مشخص نشد');
+          accountOwnerIdentify((await identityResponse.json()).email);
+          const result = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(id) + '/values/' + encodeURIComponent("'Backup'!A:B"), { headers: auth });
           if (!result.ok) throw new Error('شیت خوانده نشد (کد ' + result.status + '). حساب سازنده شیت و لینک را بررسی کن');
           const backup = googleBackupFromRows((await result.json()).values);
           const count = JSON.parse(backup.data.tx).length;
@@ -1357,12 +1756,13 @@ function googleCreateBackupCopy() {
         try {
           if (response.error || !response.access_token) throw new Error('اجازه دسترسی صادر نشد');
           const auth = { Authorization: 'Bearer ' + response.access_token };
-          const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
+          const userResponse = await accountOwnerFetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: auth });
           if (!userResponse.ok) throw new Error('حساب گوگل مشخص نشد');
-          const user = await userResponse.json();
+          const user = await userResponse.json(); accountOwnerIdentify(user.email);
           if (!user.email) throw new Error('ایمیل حساب دریافت نشد');
+          if (!await sheetConfirmCreate()) { googleCopyStatus('ساخت پشتیبان لغو شد.'); return; }
           const snapshot = makeFullBackup();
-          ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy'].forEach(key => delete snapshot.data[key]);
+          ['sync', 'sync_bak', 'syncLock', 'sheetUrl', 'noSync', 'googleTestSheet', 'googleBackupCopy', 'accountArchives'].forEach(key => delete snapshot.data[key]);
           validateFullBackup(snapshot);
           if (!confirm('یک نسخه از اطلاعات این دستگاه در یک شیت جدید در حساب ' + user.email + ' ذخیره شود؟ شیت فعلی تغییر نمی‌کند و همگام‌سازی خودکار فعال نمی‌شود.')) { googleCopyStatus('ساخت پشتیبان لغو شد.'); return; }
           const serialized = JSON.stringify(snapshot), chunks = [];
@@ -1370,19 +1770,21 @@ function googleCreateBackupCopy() {
           const rows = [['format', 'expense-app-backup-v1'], ['chunks', String(chunks.length)], ...chunks.map((chunk, index) => [String(index + 1), chunk])];
           googleCopyStatus('در حال ساخت شیت پشتیبان جداگانه…');
           localStorage.setItem('googleBackupCopyPending', '1'); attempted = true;
-          const created = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: 'هزینه‌ها - پشتیبان ' + new Date().toISOString() }, sheets: [{ properties: { title: 'Backup' } }] }) });
+          const backupSheetName = 'هزینه‌ها - پشتیبان ' + new Date().toISOString();
+          const created = await accountOwnerFetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ properties: { title: backupSheetName }, sheets: [{ properties: { title: 'Backup' } }] }) });
           if (!created.ok) { if (created.status < 500) { localStorage.removeItem('googleBackupCopyPending'); attempted = false; } throw new Error('ساخت شیت پذیرفته نشد (کد ' + created.status + ')'); }
           const sheet = await created.json();
           if (!/^[a-zA-Z0-9_-]+$/.test(sheet.spreadsheetId || '')) throw new Error('شناسه شیت دریافت نشد');
           createdId = sheet.spreadsheetId;
+          sheetRegistryRecord(createdId, sheet.properties?.title || backupSheetName);
           localStorage.setItem('googleBackupCopy', JSON.stringify({ id: createdId, email: user.email, verified: false }));
           localStorage.removeItem('googleBackupCopyPending'); attempted = false;
           const link = document.getElementById('google-copy-link'); if (link) link.innerHTML = googleCopyLink();
           const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(createdId) + '/values/' + encodeURIComponent("'Backup'!A1:B" + rows.length);
           googleCopyStatus('در حال نوشتن و بررسی نسخه پشتیبان…');
-          const written = await fetch(url + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
+          const written = await accountOwnerFetch(url + '?valueInputOption=RAW', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ majorDimension: 'ROWS', values: rows }) });
           if (!written.ok) throw new Error('نوشتن اطلاعات کامل نشد (کد ' + written.status + ')');
-          const checked = await fetch(url, { headers: auth });
+          const checked = await accountOwnerFetch(url, { headers: auth });
           if (!checked.ok) throw new Error('خواندن مجدد اطلاعات کامل نشد (کد ' + checked.status + ')');
           const result = await checked.json();
           if (JSON.stringify(result.values) !== JSON.stringify(rows)) throw new Error('اطلاعات خوانده‌شده با نسخه ارسالی یکسان نیست');
@@ -1424,22 +1826,23 @@ function push() {
 }
 async function doPush(manualUrl = null) {
   const url = manualUrl || SYNC(); if (!url) return false;
-  const current = () => manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url;
+  const current = () => !accountOwnerLocked() && (manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url);
   legacyInFlight++;
   try {
-    const r = await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
+    const r = await (await accountOwnerFetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
     if (!current()) return false;
     if (!r.ok) throw new Error(r.error);
-    if (!manualUrl) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
+    if (!manualUrl) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); noteSyncSuccess159(); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + (manualUrl ? '؛ نتیجه را پیش از تلاش مجدد بررسی کن.' : ' — بعداً دوباره تلاش می‌شود'); return false; } finally { legacyInFlight--; }
 }
 function manualJsonpRead(url) {
+  accountOwnerAssert();
   return new Promise((resolve, reject) => {
     const bytes = new Uint32Array(2); crypto.getRandomValues(bytes);
     const name = 'expenseRead' + bytes[0] + '_' + bytes[1];
     const tag = document.createElement('script'); let done = false;
     const finish = (error, data) => { if (done) return; done = true; clearTimeout(timer); delete window[name]; tag.remove(); error ? reject(error) : resolve(data); };
-    window[name] = data => finish(null, data);
+    window[name] = data => { try { accountOwnerAssert(); finish(null, data); } catch (error) { finish(error); } };
     tag.onerror = () => finish(new Error('بارگذاری پاسخ JSONP ناموفق بود؛ شبکه یا دسترسی انتشار را بررسی کن.'));
     tag.onload = () => { if (!done) finish(new Error('اسکریپت اصلی پاسخ JSONP نداد؛ انتشار اصلی باید از JSONP پشتیبانی کند.')); };
     const timer = setTimeout(() => finish(new Error('پاسخ JSONP تا ۲۰ ثانیه نرسید.')), 20000);
@@ -1448,11 +1851,11 @@ function manualJsonpRead(url) {
 }
 async function pull(manualUrl = null) {
   const url = manualUrl || SYNC(); if (!url) return;
-  const current = () => manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url;
+  const current = () => !accountOwnerLocked() && (manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url);
   legacyInFlight++;
   try {
     let rs, txt, d;
-    try { rs = await fetch(url); txt = await rs.text(); }
+    try { rs = await accountOwnerFetch(url); txt = await rs.text(); }
     catch (fetchError) {
       if (!manualUrl) throw fetchError;
       try { d = await manualJsonpRead(url); }
@@ -1482,6 +1885,7 @@ async function pull(manualUrl = null) {
     if (!manualUrl) { pulled = true; lastPull = Date.now(); localStorage.setItem('sync_bak', SYNC()); localStorage.setItem('syncLock', '1'); }
     syncMsg = '✅ دریافت از شیت انجام شد';
     matchTransfers();
+    noteSyncSuccess159();
     if (manualUrl) {
       if (d.inbox && d.inbox.length) syncMsg += '؛ پیامک‌های صندوق روی شیت باقی ماندند و ارسالی انجام نشد.';
       else syncMsg += '؛ ارسالی به شیت انجام نشد.';
@@ -1489,7 +1893,7 @@ async function pull(manualUrl = null) {
       d.inbox.forEach(i => addSms(i.raw)); localStorage.setItem('dirty', '1');
       const sent = await doPush(manualUrl);
       if (manualUrl && !sent) return;
-      if (current()) await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
+      if (current()) await accountOwnerFetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
     }
     if (!manualUrl && localStorage.getItem('dirty')) await doPush();
   } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); } finally { legacyInFlight--; }
@@ -1538,6 +1942,7 @@ function autoDedupe() {
 }
 autoDedupe(); rcTryPending();
 render();
+requestAnimationFrame(() => navigationScroll171(document.querySelector('#topics .on'), false));
 if (load('directSyncState', null)?.id) prepareGoogleTest();
 if (localStorage.getItem('legacyInboxAuto') === '1') setTimeout(() => legacyInboxCheck(false), 0);
 pull().then(() => { autoDedupe(); rcTryPending(); if (!busyTyping()) render(); });
@@ -1559,9 +1964,28 @@ function dueList() {
   return rem.map(r => ({ r, ...nextDue(r) })).filter(x => !(x.days < 0 && (x.r.type === 'check' || !x.r.rep && x.r.type === 'custom') && x.r.done)).sort((a, b) => a.days - b.days);
 }
 function remBanner() {
-  const L = dueList().filter(x => x.days <= (x.r.before || 3) && x.days >= -30 && !x.r.done);
+  const L = dueList().filter(x => x.days <= (x.r.before || 3) && x.days >= -30 && !x.r.done && !(tab === 'home' && topic === 'expenses' && (x.days === 3 || x.days === 1)));
   return L.length ? `<div class="card noacc" style="border:2px solid #ef4444"><b>⏰ یادآوری</b>${L.map(x => `<div class="row" style="margin-top:6px"><span>${esc(x.r.title)} — ${x.days < 0 ? Math.abs(x.days).toLocaleString('fa-IR') + ' روز گذشته' : x.days === 0 ? 'امروز' : x.days.toLocaleString('fa-IR') + ' روز دیگر'}</span><button class="sec rdn" data-i="${x.r.id}" style="padding:4px 10px">✓ انجام شد</button></div>`).join('')}</div>` : '';
 }
+function dueBanner157() {
+  const now = new Date(), today = [now.getFullYear(), String(now.getMonth()+1).padStart(2,'0'), String(now.getDate()).padStart(2,'0')].join('-');
+  const stored = load('remShown', {}), shown = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  const items = dueList(), fresh = dueNotices157(items, shown, today).filter(x => !visibleRem157.has(x.key));
+  fresh.forEach(x => {
+    shown[x.key] = 'shown'; visibleRem157.add(x.key);
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try { new Notification('یادآوری سررسید', { body: x.r.title + (x.days === 1 ? ' فردا سررسید دارد' : ' تا ۳ روز دیگر سررسید دارد') }); } catch (_) {}
+    }
+  });
+  if (fresh.length) { try { localStorage.setItem('remShown', JSON.stringify(shown)); } catch (_) {} }
+  const visible = items.filter(x => { const key = String(x.r.id) + '|' + x.days + '|' + today; return !x.r.done && visibleRem157.has(key) && shown[key] !== 'dismissed'; });
+  return visible.length ? `<div class="card noacc" style="border:2px solid #f59e0b"><b>⏰ سررسید نزدیک</b>${visible.map(x => `<div class="row"><span>${esc(x.r.title)} ${x.days === 1 ? 'فردا' : 'تا ۳ روز دیگر'} سررسید دارد</span><button type="button" class="sec due-later" data-key="${esc(String(x.r.id) + '|' + x.days + '|' + today)}">بعداً</button></div>`).join('')}</div>` : '';
+}
+document.addEventListener('click', e => {
+  const button = e.target.closest('.due-later'); if (!button) return;
+  const shown = load('remShown', {}); shown[button.dataset.key] = 'dismissed'; visibleRem157.delete(button.dataset.key);
+  try { localStorage.setItem('remShown', JSON.stringify(shown)); } catch (_) {} render();
+});
 function remHtml() {
   const L = dueList();
   return remBanner() + `<div class="card"><b>افزودن یادآوری</b>
@@ -1684,6 +2108,13 @@ document.addEventListener('change', e => { if (!e.target.classList.contains('cs'
 document.addEventListener('click', e => { if (!e.target.classList.contains('cp')) return; const l = e.target.closest('.card').querySelector('.lk'); if (l && !l.value) l.value = 'wage'; });
 
 document.addEventListener('change', e => { if (!e.target.classList.contains('catsel')) return; const c = e.target.closest('.card'); c.dataset.cat = e.target.value; (drafts[c.dataset.id] = drafts[c.dataset.id] || {}).cat = e.target.value; });
+document.addEventListener('input', e => { if (!e.target.matches('.card[data-id] .p, .card[data-id] .d')) return; updateCategorySuggestion(e.target.closest('.card[data-id]')); });
+document.addEventListener('click', e => {
+  const button = e.target.closest('.catsuggestion'); if (!button) return;
+  const card = button.closest('.card[data-id]'), select = card && card.querySelector('.catsel');
+  if (!select || !CATS.includes(button.dataset.category)) return;
+  select.value = button.dataset.category; select.dispatchEvent(new Event('change', { bubbles: true }));
+});
 
 
 // ===== مخاطبین =====
@@ -1694,6 +2125,29 @@ const ptags = () => [...new Set([...PT0, ...ppl.flatMap(p => p.tags || [])])];
 const pfa = s => String(s || '').replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c));
 function carModels() { try { const v = JSON.parse(localStorage.getItem('carModels')); return Array.isArray(v) ? v : ['اسکانیا', 'ولوو']; } catch { return ['اسکانیا', 'ولوو']; } }
 const idDigits = s => pfa(s).replace(/\D/g, '');
+// نام یکسان یا شمارهٔ مشترک به‌تنهایی مجوز ادغام دو شخص نیست.
+function contactMergeFacts173p(contacts, facts) {
+  const skipped=[]; let changed=false;
+  for(const fact of facts) {
+    const name=String(fact.name||'').trim(), role=String(fact.role||'').trim(); if(!name) continue;
+    const phone=idDigits(fact.phone||''), account=idDigits(fact.account||'');
+    const sameName=contacts.filter(p=>contactNames(p).includes(nrm(name)));
+    const samePhone=phone ? contacts.filter(p=>[p.phone,...(Array.isArray(p.phones)?p.phones:[])].some(v=>idDigits(v)===phone)) : [];
+    const sameAccount=account ? contacts.filter(p=>[...(Array.isArray(p.cards)?p.cards:[]),...(Array.isArray(p.bankAccounts)?p.bankAccounts:[])].some(v=>idDigits(v)===account)) : [];
+    if(sameName.length>1 || samePhone.some(p=>!contactNames(p).includes(nrm(name))) || sameAccount.some(p=>!contactNames(p).includes(nrm(name)))) { skipped.push(name); continue; }
+    let person=sameName[0];
+    if(person && phone && person.phone && ![person.phone,...(Array.isArray(person.phones)?person.phones:[])].some(v=>idDigits(v)===phone)) { skipped.push(name); continue; }
+    if(!person) { person={id:Date.now()+Math.random(),name,phone:'',cards:[],tags:[],cars:[],note:'',links:[]}; contacts.push(person); changed=true; }
+    if(phone && !person.phone) { person.phone=phone; changed=true; }
+    if(role && !(person.tags||[]).includes(role)) { person.tags=Array.isArray(person.tags)?person.tags:[]; person.tags.push(role); changed=true; }
+    if(account) { const key=account.length===16?'cards':'bankAccounts'; person[key]=Array.isArray(person[key])?person[key]:[]; if(!person[key].some(v=>idDigits(v)===account)){person[key].push(account);changed=true;} }
+  }
+  return {changed,skipped};
+}
+function contactSaveFacts173p(facts) {
+  ppl=load('ppl',[]); if(!Array.isArray(ppl)) return {changed:false,skipped:[]};
+  const result=contactMergeFacts173p(ppl,facts); if(result.changed) savePpl(); return result;
+}
 function contactFacts() {
   const out = [];
   tx.filter(t => !t.ghost).forEach(t => {
@@ -1710,6 +2164,16 @@ function contactFacts() {
 function contactCardList(p) { return Array.isArray(p.cards) ? p.cards.map(idDigits).filter(x => x.length === 16) : []; }
 function contactMatches(p, f) { return !!((f.phone && [p.phone, ...(Array.isArray(p.phones) ? p.phones : [])].map(idDigits).includes(f.phone)) || (f.card && contactCardList(p).includes(f.card))); }
 function contactNames(p) { return [p.name, ...(Array.isArray(p.aliases) ? p.aliases : [])].filter(Boolean).map(nrm); }
+function contactTopicMatch171(person, selectedTopic, transactions, invoices, reminders, colleagues) {
+  if (selectedTopic === 'expenses') return true;
+  const names = contactNames(person), nameMatches = value => !!value && names.includes(nrm(value));
+  const linked = new Set((Array.isArray(person.links) ? person.links : []).map(value => String(value).split('|')[0]));
+  if (selectedTopic === 'invoices' || selectedTopic === 'sales') return invoices.some(i => (selectedTopic !== 'sales' || i.kind === 'فروش') && (nameMatches(i.customer) || nameMatches(i.ownerName)));
+  if (selectedTopic === 'work') return Object.keys(colleagues || {}).some(nameMatches) || transactions.some(t => isWage(t) && nameMatches(t.person));
+  if (selectedTopic === 'receipts') return transactions.some(t => t.receipt && (linked.has(String(t.id)) || nameMatches(t.person) || nameMatches(t.customer)));
+  if (selectedTopic === 'reminders') return reminders.some(r => nameMatches(r.person) || nameMatches(r.name));
+  return true;
+}
 function attachFact(p, f, rememberName) {
   p.links = Array.isArray(p.links) ? p.links : [];
   if (!p.links.includes(f.key)) p.links.push(f.key);
@@ -1748,7 +2212,8 @@ function contactHistory(p) {
 function contactsHtml() {
   ppl = load('ppl', []);
   const proposals = reconcileContacts();
-  const sw = `<div class="row" style="margin-bottom:8px"><button class="${cv === 'list' ? '' : 'sec'}" data-cv="list">👥 مخاطبین</button><button class="${cv === 'work' ? '' : 'sec'}" data-cv="work">🤝 دستیاران و کارکردها</button></div>`;
+  if (!featureOn('assistant') && !featureOn('loan') && cv === 'work') cv = 'list';
+  const sw = `<div class="row" style="margin-bottom:8px"><button class="${cv === 'list' ? '' : 'sec'}" data-cv="list">👥 مخاطبین</button><button ${!featureOn('assistant') && !featureOn('loan') ? 'hidden' : ''} class="${cv === 'work' ? '' : 'sec'}" data-cv="work">🤝 ${featureOn('assistant') ? 'دستیاران و کارکردها' : 'قرض و طلب'}</button></div>`;
   if (cv === 'work') return sw + loansHtml();
   if (pe !== null) {
     const p = pe === 'new' ? { tags: [] } : ppl.find(x => x.id === pe) || { tags: [] };
@@ -1758,27 +2223,28 @@ function contactsHtml() {
         <div class="mut" style="margin-top:8px">${(p.tags || []).map(esc).join(' · ') || 'بدون برچسب'}</div>
         ${phones.length ? `<div style="margin-top:8px">تلفن: <span dir="ltr">${phones.map(esc).join('، ')}</span></div>` : ''}
         ${cards.length ? `<div style="margin-top:8px">شماره کارت: ${cards.map(c => `<div dir="ltr" style="text-align:right">${esc(c)}</div>`).join('')}</div>` : ''}
-        ${cars.length ? `<div style="margin-top:8px"><b>🚚 ماشین‌ها</b>${cars.map(c => `<div class="mut">${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}</div>` : ''}
+        ${Array.isArray(p.bankAccounts) && p.bankAccounts.length ? `<div style="margin-top:8px">شماره حساب: ${p.bankAccounts.map(c => `<div dir="ltr" style="text-align:right">${esc(c)}</div>`).join('')}</div>` : ''}
+        ${featureOn('vehicle') && cars.length ? `<div style="margin-top:8px"><b>🚚 ماشین‌ها</b>${cars.map(c => `<div class="mut">${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}</div>` : ''}
         ${p.note ? `<div style="margin-top:8px;white-space:pre-wrap">یادداشت: ${esc(p.note)}</div>` : ''}
         <button class="sec" id="pback" style="margin-top:10px">بازگشت به مخاطبین</button></div>${contactHistory(p)}`;
     }
     return sw + `<div class="card" id="pform"><b>${pe === 'new' ? 'مخاطب جدید' : 'پروندهٔ ' + esc(p.name)}</b>
       <input id="pn" placeholder="نام" value="${esc(p.name || '')}"><input id="pp" inputmode="tel" placeholder="تلفن" value="${esc(p.phone || '')}"><div class="mut">شماره کارت‌ها (هر شماره در یک خط)</div><textarea id="pcards" rows="2" inputmode="numeric" placeholder="شماره کارت">${esc((p.cards || []).join('\n'))}</textarea>
       <div class="mut">برچسب‌ها (چندتایی)</div><div class="row" style="flex-wrap:wrap;gap:6px">${ptags().map(t => `<button class="ptg ${(p.tags || []).includes(t) ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
-      <div id="pcars" style="${(p.tags || []).includes('راننده') ? '' : 'display:none'}"><div class="mut">🚚 ماشین‌ها</div><div id="cl">${(p.cars || []).map(carRow).join('')}</div><button class="sec cadd">＋ ماشین</button></div>
+      <div id="pcars" data-feature-section="vehicle" style="${(p.tags || []).includes('راننده') ? '' : 'display:none'}"><div class="mut">🚚 ماشین‌ها</div><div id="cl">${(p.cars || []).map(carRow).join('')}</div><button class="sec cadd">＋ ماشین</button></div>
       <input id="pnt" placeholder="برچسب تازه (نوشتن و Enter)"><textarea id="pno" rows="3" placeholder="یادداشت">${esc(p.note || '')}</textarea>
       <div class="row"><button id="psv">ذخیره</button><button class="sec" id="pcn">بستن</button>${pe === 'new' ? '' : '<button class="sec" id="pdl">🗑 حذف</button>'}</div></div>${pe === 'new' ? '' : contactHistory(p)}`;
   }
-  const q = pfa(pq).trim(), L = ppl.filter(p => (!pf || (p.tags || []).includes(pf)) && (!q || (p.name + ' ' + (p.phone || '') + ' ' + contactCardList(p).join(' ')).includes(q)));
+  const q = pfa(pq).trim(), L = ppl.filter(p => contactTopicMatch171(p, topic, tx, invoiceList(), rem, cols()) && (!pf || (p.tags || []).includes(pf)) && (!q || (p.name + ' ' + (p.phone || '') + ' ' + contactCardList(p).join(' ')).includes(q)));
   return sw + (proposals.length ? `<div class="card"><b>🔎 موارد نیازمند بررسی (${proposals.length.toLocaleString('fa-IR')})</b><div class="mut">تشابه نام یا شماره مشترک پیدا شد؛ خودکار ادغام نمی‌شود.</div>${proposals.map((x, i) => `<div style="margin-top:12px"><b>${esc(x.f.name)}</b><div class="mut">${x.f.card ? 'کارت: ' + esc(x.f.card) : 'تلفن: ' + esc(x.f.phone)} · ${esc(x.f.role)}</div><select class="pmatch" data-index="${i}"><option value="">انتخاب پرونده…</option>${x.options.map(p => `<option value="${p.id}">${esc(p.name)} · ${esc(p.phone || contactCardList(p).join('، ') || 'بدون شماره')}</option>`).join('')}<option value="new">شخص جدید و جدا</option></select><button class="pmatchsave" data-index="${i}">تأیید انتخاب</button></div>`).join('')}</div>` : '') + `<div class="card"><div class="row"><b>مخاطبین (${ppl.length.toLocaleString('fa-IR')})</b><button id="pnew">＋ جدید</button></div>
     <input id="pq" placeholder="جستجوی نام، تلفن یا کارت" value="${esc(pq)}">
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="pfl ${pf ? 'sec' : ''}" data-t="">همه</button>${ptags().map(t => `<button class="pfl ${pf === t ? '' : 'sec'}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
-    ${L.map(p => `<div class="card pc" data-pid="${p.id}"><b>${esc(p.name)}</b> <span class="mut" dir="ltr">${esc(p.phone || '')}</span><div class="mut">${(p.tags || []).map(esc).join(' · ')}</div>${(p.cars || []).map(c => `<div class="mut">🚚 ${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}${p.note ? `<div class="mut">${esc(p.note)}</div>` : ''}</div>`).join('') || '<div class="mut" style="padding:12px">مخاطبی نیست.</div>'}`;
+    ${L.map(p => `<div class="card pc" data-pid="${p.id}"><b>${esc(p.name)}</b> <span class="mut" dir="ltr">${esc(p.phone || '')}</span><div class="mut">${(p.tags || []).map(esc).join(' · ')}</div>${(featureOn('vehicle') ? (p.cars || []) : []).map(c => `<div class="mut">🚚 ${[c.plate, c.model, c.color, c.type].filter(Boolean).map(esc).join(' · ')}</div>`).join('')}${p.note ? `<div class="mut">${esc(p.note)}</div>` : ''}</div>`).join('') || '<div class="mut" style="padding:12px">مخاطبی نیست.</div>'}`;
 }
 const carRow = c => `<div class="crow row" style="flex-wrap:wrap;gap:4px;margin:6px 0;border-bottom:1px solid #eee;padding-bottom:6px"><input class="cp" placeholder="پلاک" value="${esc(c.plate || '')}"><input class="cm" list="car-model-list" placeholder="مدل" value="${esc(c.model || '')}"><datalist id="car-model-list">${carModels().map(m => `<option value="${esc(m)}">`).join('')}</datalist><input class="cc" placeholder="رنگ" value="${esc(c.color || '')}"><input class="ct" placeholder="نوع (کامیون، وانت…)" value="${esc(c.type || '')}"><button class="sec cdel">✕</button></div>`;
 const pRead = () => ({ cars: [...document.querySelectorAll('#cl .crow')].map(r => ({ plate: pfa(r.querySelector('.cp').value.trim()), model: r.querySelector('.cm').value.trim(), color: r.querySelector('.cc').value.trim(), type: r.querySelector('.ct').value.trim() })).filter(c => c.plate || c.model || c.color || c.type), name: $('#pn').value.trim(), phone: pfa($('#pp').value.trim()), cards: $('#pcards').value.split(/\n/).map(idDigits).filter(Boolean), note: $('#pno').value.trim(), tags: [...document.querySelectorAll('#pform .ptg:not(.sec)')].map(b => b.dataset.t) });
 document.addEventListener('click', e => {
-  if (tab !== 'contacts') return;
+  if (tab !== 'contacts' && !(tab === 'add' && addInline173b === 'contact' && e.target.closest('[data-inline-173b="contact"]'))) return;
   const g = s => e.target.closest(s);
   if (g('.pmatchsave')) {
     ppl = load('ppl', []); const proposals = reconcileContacts(), i = +g('.pmatchsave').dataset.index, item = proposals[i];
@@ -1794,7 +2260,7 @@ document.addEventListener('click', e => {
   if (g('#pnew')) { pe = 'new'; pEditing = true; render(); return; }
   if (g('#pedit')) { pEditing = true; render(); return; }
   if (g('#pback')) { pe = null; pEditing = false; render(); return; }
-  if (g('#pcn')) { if (pe === 'new') { if (Object.values(pRead()).some(v => Array.isArray(v) ? v.length : !!v) && !confirm('اطلاعات ذخیره نشده است. فرم بسته شود؟')) return; pe = null; } else { const old = ppl.find(x => x.id === pe), d = pRead(); if (old && JSON.stringify({name:old.name || '',phone:old.phone || '',cards:old.cards || [],tags:old.tags || [],cars:old.cars || [],note:old.note || ''}) !== JSON.stringify({name:d.name,phone:d.phone,cards:d.cards,tags:d.tags,cars:d.cars,note:d.note}) && !confirm('تغییرات ذخیره نشده است. ویرایش بسته شود؟')) return; } pEditing = false; render(); return; }
+  if (g('#pcn')) { if (pe === 'new') { if (Object.values(pRead()).some(v => Array.isArray(v) ? v.length : !!v) && !confirm('اطلاعات ذخیره نشده است. فرم بسته شود؟')) return; pe = null; } else { const old = ppl.find(x => x.id === pe), d = pRead(); if (old && JSON.stringify({name:old.name || '',phone:old.phone || '',cards:old.cards || [],tags:old.tags || [],cars:old.cars || [],note:old.note || ''}) !== JSON.stringify({name:d.name,phone:d.phone,cards:d.cards,tags:d.tags,cars:d.cars,note:d.note}) && !confirm('تغییرات ذخیره نشده است. ویرایش بسته شود؟')) return; } pEditing = false; if (tab === 'add') { const row = g('[data-inline-173b="contact"]'); if (row) row.open = false; return; } render(); return; }
   if (g('.pfl')) { pf = g('.pfl').dataset.t; render(); return; }
   if (g('.cadd')) { $('#cl').insertAdjacentHTML('beforeend', carRow({ model: carModels().includes('اسکانیا') ? 'اسکانیا' : (carModels()[0] || '') })); return; }
   if (g('.cdel')) { g('.crow').remove(); return; }
