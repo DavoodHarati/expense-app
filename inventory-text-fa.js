@@ -1,5 +1,6 @@
 // Persian labels for the inventory feature. Save this file as UTF-8.
 window.INVENTORY_TEXT_FA = Object.freeze({
+  headerAdd: 'باز کردن صفحه ثبت',
   proformaNumberPlaceholder: 'شماره پیش‌فاکتور خودکار است',
   proformaCounterError: 'شمارندهٔ پیش‌فاکتور معتبر نیست؛ ابتدا پشتیبان را بررسی کنید.',
   invoiceNumberPlaceholder: 'شماره فاکتور (اختیاری)',

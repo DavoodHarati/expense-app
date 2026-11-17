@@ -86,6 +86,11 @@ details > summary { color:#0f766e; }
 #inv-types-170 [data-invoice-type="unconfirmed"][aria-pressed="true"] { background:#805400; color:white; }
 #inv-types-170 [data-invoice-type="proforma"][aria-pressed="true"] { background:#6c348f; color:white; }
 #inv-types-170 [data-invoice-type="inventory_purchase"][aria-pressed="true"] { background:#076c6a; color:white; }
+#inv-types-170 button { font-size:15px; }
+#inv-types-170 [data-invoice-type="all"][aria-pressed="true"] { background:#0f766e; color:#fff; }
+#inv-types-170 [data-invoice-type="service"][aria-pressed="true"],
+#inv-types-170 [data-invoice-type="sale"][aria-pressed="true"] { background:#47665f; color:#fff; }
+#inv-types-170 [data-invoice-type="expense"][aria-pressed="true"] { background:#555d61; color:#fff; }
 </style>
 </head>
 <body>
@@ -98,7 +103,7 @@ function splashShowTip173h(fade){const box=document.getElementById('splash-tip-1
 const splashTimer173g=setTimeout(()=>{if(splashDone173g)return;splashShowTip173h(true);const fallback=document.getElementById('splash-fallback-173g');if(fallback)fallback.hidden=false;},4000);
 function splashComplete173g(){if(splashDone173g)return;splashDone173g=true;clearTimeout(splashTimer173g);setTimeout(()=>{const splash=document.getElementById('splash-173g');if(splash){splash.classList.add('splash-hidden');setTimeout(()=>splash.remove(),200);}},Math.max(0,1500-(Date.now()-splashStarted173h)));}
 </script>
-<script src="splash-tips.js?v=193" onload="splashShowTip173h(false)"></script>
+<script src="splash-tips.js?v=194" onload="splashShowTip173h(false)"></script>
 <style>
 .header-173a{display:flex;align-items:center;gap:8px;background:#0e7569;padding:calc(env(safe-area-inset-top) + 7px) 12px 7px;font-weight:600}
 .header-173a #title{flex:1;text-align:right}.header-actions-173a{display:flex;align-items:center;gap:0;direction:rtl}
@@ -118,7 +123,7 @@ nav button.nav-add,nav button.nav-add.on{flex:none;width:46px;height:46px;min-he
 .search-panel-173e.search-page-173o{position:static;inset:auto;overflow:visible;padding:12px;background:var(--bg);min-height:50vh}.search-page-173o[hidden],#app[hidden]{display:none}.search-heading-173o{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}.search-heading-173o b{font-size:18px;color:#0f766e}.search-heading-173o button{min-height:44px}.search-controls-173e{background:var(--card);padding:5px;border-radius:14px;box-shadow:0 2px 8px #1231}.search-controls-173e input{border:0;min-height:44px}.search-filters-173o{margin:10px 0}.search-filters-173o summary{min-height:44px;display:flex;align-items:center;color:#0f766e;font-weight:700;cursor:pointer}.search-filters-173o summary:before{content:'▾';margin-left:8px}.search-filter-grid-173o{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.search-filter-grid-173o label{display:flex;flex-direction:column;gap:4px;color:#52645f;font-size:12px}.search-filter-grid-173o select{width:100%;min-height:44px}.search-result-173e{border:1px solid #e2ece8;box-shadow:0 2px 7px #1231}.search-result-173e button{min-height:44px}.search-meta-173o{margin:10px 2px;color:#64748b;font-size:12px}
 .invoice-summary-173p{background:linear-gradient(135deg,#0f766e,#115e59);color:white;border-radius:16px;padding:15px;margin:2px 0 14px;line-height:1.9}.invoice-summary-173p strong{display:block;font-size:23px}.invoice-summary-173p strong small{font-size:12px;font-weight:400}.invoice-summary-meta-173p{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px}.invoice-jump-173m{display:inline-flex;align-items:center;min-height:44px;padding:5px 8px!important;background:transparent!important;color:#64748b!important;font-size:11px!important;box-shadow:none!important}
 </style>
-<header class="header-173a"><span id="title">هزینه‌ها</span><div class="header-actions-173a"><button type="button" class="header-icon-173a" id="sms-inbox-188" style="position:relative"><span aria-hidden="true">&#9993;</span><b id="sms-inbox-count-188" class="count-badge-189" hidden></b></button><button type="button" class="header-icon-173a" id="search-173a" aria-label="باز کردن جستجو"><span>🔍</span></button><button type="button" class="header-icon-173a" data-t="contacts" aria-label="اشخاص"><span>👤</span></button><button type="button" class="header-icon-173a" data-t="settings" aria-label="تنظیمات"><span>⚙️</span></button></div></header>
+<header class="header-173a"><span id="title">هزینه‌ها</span><div class="header-actions-173a"><button type="button" class="header-icon-173a" id="header-add-194" data-t="add"><span aria-hidden="true">+</span></button><button type="button" class="header-icon-173a" id="sms-inbox-188" style="position:relative"><span aria-hidden="true">&#9993;</span><b id="sms-inbox-count-188" class="count-badge-189" hidden></b></button><button type="button" class="header-icon-173a" id="search-173a" aria-label="باز کردن جستجو"><span>🔍</span></button><button type="button" class="header-icon-173a" data-t="contacts" aria-label="اشخاص"><span>👤</span></button><button type="button" class="header-icon-173a" data-t="settings" aria-label="تنظیمات"><span>⚙️</span></button></div></header>
 <div class="diary-chips" id="diary-chips" hidden aria-label="بخش دفتر"><button type="button" data-t="report">گزارش</button><button type="button" data-t="contacts">اشخاص</button></div>
 <div class="topic-nav" id="topics" aria-label="موضوع برنامه">
   <button type="button" data-topic="expenses">هزینه‌ها</button>
@@ -138,28 +143,28 @@ nav button.nav-add,nav button.nav-add.on{flex:none;width:46px;height:46px;min-he
 <div class="add-sections" id="add-sections" hidden aria-label="انتخاب بخش ثبت"><button type="button" data-add-topic="expenses">همه</button><button type="button" data-add-topic="receipts">رسید</button><button type="button" data-add-topic="invoices">فاکتورها</button><button type="button" data-add-topic="work">کارکردها</button><button type="button" data-add-topic="sales">فروش‌ها</button><button type="button" data-add-topic="reminders">یادآوری</button></div>
 <main id="app"></main>
 <script src="xlsx.full.min.js"></script>
-<script src="sheet-safety.js?v=193"></script>
-<script src="account-owner-lock.js?v=193"></script>
-<script src="account-switch-backup.js?v=193"></script>
-<script src="account-switch.js?v=193"></script>
-<script src="parser.js?v=193"></script>
-<script src="direct-sync-core.js?v=193"></script>
-<script src="legacy-reference.js?v=193"></script>
-<script src="direct-sync-ui.js?v=193"></script>
-<script src="direct-sync-auto.js?v=193"></script>
-<script src="direct-sync-receive.js?v=193"></script>
-<script src="invoice.js?v=193"></script>
-<script src="legacy-inbox.js?v=193"></script>
-<script src="easy-google-setup.js?v=193"></script>
-<script src="features-157.js?v=193"></script>
-<script src="add-page-164.js?v=193"></script>
-<script src="connection-hub-168.js?v=193"></script>
-<script src="ui-v173e.js?v=193"></script>
-<script src="ui-v173f.js?v=193"></script>
-<script src="ui-v173g.js?v=193"></script>
-<script src="inventory-text-fa.js?v=193"></script>
-<script src="sync-transactions.js?v=193"></script>
-<script src="invoice-top-reports.js?v=193"></script>
-<script src="app.js?v=193"></script>
+<script src="sheet-safety.js?v=194"></script>
+<script src="account-owner-lock.js?v=194"></script>
+<script src="account-switch-backup.js?v=194"></script>
+<script src="account-switch.js?v=194"></script>
+<script src="parser.js?v=194"></script>
+<script src="direct-sync-core.js?v=194"></script>
+<script src="legacy-reference.js?v=194"></script>
+<script src="direct-sync-ui.js?v=194"></script>
+<script src="direct-sync-auto.js?v=194"></script>
+<script src="direct-sync-receive.js?v=194"></script>
+<script src="invoice.js?v=194"></script>
+<script src="legacy-inbox.js?v=194"></script>
+<script src="easy-google-setup.js?v=194"></script>
+<script src="features-157.js?v=194"></script>
+<script src="add-page-164.js?v=194"></script>
+<script src="connection-hub-168.js?v=194"></script>
+<script src="ui-v173e.js?v=194"></script>
+<script src="ui-v173f.js?v=194"></script>
+<script src="ui-v173g.js?v=194"></script>
+<script src="inventory-text-fa.js?v=194"></script>
+<script src="sync-transactions.js?v=194"></script>
+<script src="invoice-top-reports.js?v=194"></script>
+<script src="app.js?v=194"></script>
 </body>
 </html>

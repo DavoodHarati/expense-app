@@ -2,6 +2,8 @@ if (!accountSwitchRecover()) throw new Error('Account switch recovery failed');
 if (!directReceiveRecover()) throw new Error('Pending direct receive recovery failed');
 if (directReceiveRecovered) setTimeout(() => alert('دریافت قبلی کامل نشده بود؛ اطلاعات قبلی این دستگاه برگردانده شد.'), 0);
 const $ = s => document.querySelector(s);
+const headerAdd194 = document.getElementById('header-add-194');
+if (headerAdd194) { headerAdd194.setAttribute('aria-label', INVENTORY_TEXT_FA.headerAdd); headerAdd194.title = INVENTORY_TEXT_FA.headerAdd; }
 const lsj = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) && v.length ? v : d; } catch { return d; } };
 const DEFAULT_CATS = ['خرید', 'خوراک', 'پوشاک', 'مسکن', 'تعمیر', 'درمان', 'قبض', 'قسط', 'هدیه', 'سوخت', 'بلیط'];
 const DEFAULT_INC = ['فروش', 'مشتری', 'حقوق', 'سایر'];
@@ -1179,7 +1181,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۹۳';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۹۴';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1491,7 +1493,7 @@ document.addEventListener('click', async e => {
   const addAction = e.target.closest('[data-add-action]'); if (addAction) { if (addAction.dataset.addAction === 'again') addOpen164(addSavedMode164); else { addMode164 = 'menu'; addReceiptFilter164 = 'all'; topic = 'expenses'; tab = 'add'; render(); } return; }
   const addTopic = e.target.closest('[data-add-topic]'); if (addTopic) { topic = addTopic.dataset.addTopic; tab = 'add'; addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; lp = null; render(); window.scrollTo(0, 0); return; }
   const diaryChip = e.target.closest('#diary-chips [data-t]'); if (diaryChip) { tab = diaryChip.dataset.t; lp = null; render(); window.scrollTo(0, 0); return; }
-  const nb = e.target.closest('nav button[data-t], .header-173a button[data-t]'); if (nb) { tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
+  const nb = e.target.closest('nav button[data-t], .header-173a button[data-t]'); if (nb) { if (nb.id === 'header-add-194') topic = 'expenses'; tab = nb.dataset.t; if (tab === 'add') { addReceiptFilter164 = 'all'; addMode164 = topic === 'expenses' ? 'menu' : topic === 'receipts' ? 'receipt' : topic === 'invoices' || topic === 'sales' ? 'invoice' : 'legacy'; } if (tab === 'contacts' && pe === null) cv = 'list'; lp = null; render(); window.scrollTo(0, 0); return; }
   const card = e.target.closest('.card[data-id]'); if (!card) return;
   const id = +card.dataset.id;
   if (e.target.classList.contains('ok')) { const input = card.querySelector('.rdtPersian'); if (input) { const date = input.value.trim(); const iso = date ? persianToIso(date) : ''; if (date && !iso) { alert('تاریخ یادآوری معتبر نیست'); return; } card.querySelector('.rdt').value = iso; } }
