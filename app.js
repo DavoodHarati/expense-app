@@ -722,13 +722,13 @@ function _render() {
     };
   } else {
     el.innerHTML = `
-      ${undo.length ? `<div class="card" style="border:2px solid #f59e0b"><b>↩️ آخرین تغییر: ${esc(undo[undo.length - 1].label)}</b><div class="mut">تا وقتی برنامه را نبسته‌ای می‌شود برگرداند. بعد از بستن برنامه قطعی می‌شود.</div><button id="undo">برگرداندن (Undo)</button></div>` : ''}<div class="card"><b>نام حساب‌ها</b>
+      ${undo.length ? `<div class="card" id="settings-undo-196" style="border:2px solid #f59e0b"><b>↩️ آخرین تغییر: ${esc(undo[undo.length - 1].label)}</b><div class="mut">تا وقتی برنامه را نبسته‌ای می‌شود برگرداند. بعد از بستن برنامه قطعی می‌شود.</div><button id="undo">برگرداندن (Undo)</button></div>` : ''}<div class="card" id="settings-accounts-196"><b>نام حساب‌ها</b>
         ${Object.entries(accounts).map(([k, v]) => `<div class="mut" style="margin-top:8px">${esc(k)} · ${tx.filter(t => t.account === k).length} تراکنش</div><input data-k="${esc(k)}" class="an" value="${esc(v)}"><div class="row" style="margin-top:6px"><select class="mvs" data-k="${esc(k)}"><option value="">انتقال به…</option>${Object.entries(accounts).filter(([k2]) => k2 !== k).map(([k2, v2]) => `<option value="${esc(k2)}">${esc(v2)}</option>`).join('')}</select><button class="sec edk" data-k="${esc(k)}">ویرایش شماره</button><button class="sec mvb" data-k="${esc(k)}">ادغام</button><button class="sec dlb" data-k="${esc(k)}">حذف</button></div>`).join('')}
         <button id="sa">ذخیره نام‌ها</button>
         <div class="mut" style="margin-top:14px">افزودن حساب جدید (شمارهٔ حساب همان که در پیامک می‌آید)</div>
         <select id="nb"><option value="">بانک را انتخاب کن</option><option value="مهر ایران">مهر ایران (شماره در پیامک)</option><option value="ملی">ملی (شماره حساب کوتاه)</option><option value="بلو">بلو (بدون شماره)</option><option value="سامان">سامان</option><option value="other">دیگر</option></select>
         <input id="nk" placeholder="شمارهٔ حساب"><input id="nn" placeholder="نام (مثلاً: ملت، مرجع)"><div class="mut">حساب‌های جدید از اولین پیامک خودکار ساخته می‌شوند؛ این فرم فقط برای نام‌گذاری زودتر است.</div><button class="sec" id="na">افزودن حساب</button></div>
-      <div class="card"><b>پشتیبان‌گیری</b>
+      <div class="card" id="settings-backup-196"><b>پشتیبان‌گیری</b>
         <div class="mut">فایل پشتیبان کامل شامل اطلاعات شخصی و نشانی اتصال است؛ آن را در جای امن نگه دار.</div>
         <div class="row" style="margin-top:8px"><button id="full-backup">دانلود پشتیبان کامل</button><button class="sec" id="full-restore">بازیابی پشتیبان کامل</button><input type="file" id="full-restore-file" accept=".json,application/json" class="hide"></div><button type="button" class="sec" id="category-download">دانلود پشتیبان پیش از ادغام</button><button type="button" class="sec" id="category-restore">بازگردانی دسته‌ها به قبل از ادغام</button><div class="mut" id="full-backup-msg" aria-live="polite"></div>
         <div class="row" style="margin-top:8px"><button id="ex">خروجی (کپی)</button><button id="bf">وارد کردن فایل بانک</button> <input type="file" id="bfi" accept=".xlsx" class="hide"> <button id="mgx" class="sec">ادغام (بدون حذف)</button> <button class="sec" id="im">بازیابی</button></div>
@@ -787,16 +787,16 @@ function _render() {
       else if (confirm('این فهرست به حالت اولیه برگردد؟')) lbSet(k, LDEF[k].slice(), '↩️ به حالت اولیه برگشت');
     };
     $('#lbx').onkeydown = e => { if (e.key === 'Enter' && e.target.classList.contains('lbn')) { e.preventDefault(); lbAdd(e.target.dataset.k); } };
-    el.insertAdjacentHTML('beforeend', `<div class="card"><b>کد راه‌اندازی</b><div class="mut">فقط نام حساب‌ها و بانک‌ها (آدرس شیت داخلش نیست، پس امن است). کد را به گوشی جدید یا دوستت بده تا بچسباند.</div>
+    el.insertAdjacentHTML('beforeend', `<div class="card" id="settings-setup-code-196"><b>کد راه‌اندازی</b><div class="mut">فقط نام حساب‌ها و بانک‌ها (آدرس شیت داخلش نیست، پس امن است). کد را به گوشی جدید یا دوستت بده تا بچسباند.</div>
       <textarea id="sk" rows="2" placeholder="EXP1:…"></textarea><div class="row"><button id="sc">ساخت و کپی کد</button><button class="sec" id="sl">اعمال کد</button></div></div>
-    <div class="card"><b>راهنمای راه‌اندازی</b><div style="font-size:14px;line-height:1.9">
+    <div class="card" id="settings-guide-196"><b>راهنمای راه‌اندازی</b><div style="font-size:14px;line-height:1.9">
       ۱. لینک برنامه را در Safari باز کن ← Share ← Add to Home Screen.<br>
       ۲. یک Google Sheet خالی بساز ← Extensions ← Apps Script ← کد Code.gs را بچسبان.<br>
       ۳. Deploy ← New deployment ← Web app ← Execute as: Me ← Who has access: Anyone. آدرس /exec را بالا بچسبان و «ذخیره و همگام‌سازی» بزن.<br>
       ۴. Shortcuts ← Automation ← New ← Message ← Sender: شمارهٔ بانک ← Run Immediately ← Add Action: «Open URLs» با آدرس برنامه + <span dir="ltr">?sms=</span> و بعدش متغیر Message (Content of Message).<br>
       ۵. اولین پیامک که آمد، شمارهٔ حساب در تنظیمات ظاهر می‌شود؛ نام بانک را بنویس.<br>
       آدرس شیت را به کسی نده؛ هر کس شیت خودش را بسازد.</div></div>
-    <div class="card"><b>پیامک‌های دریافتی (${log.length.toLocaleString('fa-IR')})</b>
+    <div class="card" id="settings-sms-log-196"><b>پیامک‌های دریافتی (${log.length.toLocaleString('fa-IR')})</b>
       <div class="mut">هر پیامکی که به برنامه رسیده اینجاست، حتی ردشده‌ها.</div>
       ${log.slice(0, 30).map((l, i) => `<details style="border-top:1px solid #eee;margin-top:8px;padding-top:8px"><summary><span class="mut">${new Date(l.at).toLocaleString('fa-IR')} · ${esc(l.msg)}</span></summary><div style="font-size:13px;white-space:pre-wrap;margin-top:6px">${esc(l.raw || '')}</div><div class="row" style="margin-top:6px">${l.ok || l.rc ? '<span></span>' : l.raw ? `<button class="sec retry" data-i="${i}">تلاش دوباره</button>` : '<span></span>'}<button class="sec logdel" data-i="${i}" style="color:#c0392b;font-size:13px;padding:4px 10px">🗑 حذف</button></div></details>`).join('')}</div>`);
     document.querySelectorAll('.logdel').forEach(b => b.onclick = () => { const l = log[+b.dataset.i]; if (!l || !confirm('این پیامک از فهرست حذف شود؟')) return; const g = JSON.parse(localStorage.getItem('logDel') || '[]'); g.push(l.at); localStorage.setItem('logDel', JSON.stringify(g.slice(-300))); if (l.rc) { tx.forEach(t => { if (t.receipt && t.receipt === l.raw) { delete t.receipt; } }); localStorage.setItem('prc', JSON.stringify(rcPending().filter(r => String(r).trim().slice(0, 1000) !== l.raw))); save(); } log = log.filter(x => x.at !== l.at); saveLog(); render(); });
@@ -951,49 +951,55 @@ function _render() {
       $('#dpc').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'dpa') D.forEach(merge); else if (b.classList.contains('dpm')) merge(D[+b.dataset.i]); else return; save(); render(); };
     }
     accordion(el, 'settings');
-    settingsLayout(el);
-    el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div><div class="mut" style="margin-top:8px">نسخه ${BUILD_VERSION} · زمان آماده‌سازی: ${new Date(BUILD).toLocaleString('fa-IR', { dateStyle:'long', timeStyle:'short', timeZone:'Asia/Tehran' })}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
+    el.insertAdjacentHTML('afterbegin', `<div class="card" id="settings-info"><b>وضعیت کلی اطلاعات</b><div id="settings-info-content">${settingsInfo159()}</div></div><div class="card" id="welcome-sync"><b>ورود به گوگل و اتصال برنامه</b><div class="mut">پس از ورود، همگام‌سازی تا وقتی برنامه باز است انجام می‌شود.</div><button type="button" id="welcome-google">ورود به گوگل</button> <button type="button" class="sec" id="welcome-later">بعداً</button></div>`);
     el.insertAdjacentHTML('afterbegin', '<div class="card" id="connection-hub-168"></div>');
     hubRender(document.getElementById('connection-hub-168'));
-    const connectionGroup170 = document.createElement('details');
-    connectionGroup170.id = 'settings-connection-170'; connectionGroup170.className = 'card';
-    connectionGroup170.innerHTML = '<summary>اتصال به گوگل</summary>';
-    const connectionHub170 = document.getElementById('connection-hub-168');
-    connectionHub170.replaceWith(connectionGroup170); connectionGroup170.appendChild(connectionHub170);
-    const info170 = document.getElementById('settings-info'); if (info170) el.prepend(info170);
     shortcutSettings173e(el);
+    settingsLayout(el);
     settingsAccordion170(el);
-    ['legacy-sync-settings', 'welcome-sync'].forEach(id => { const card = document.getElementById(id); if (card) card.hidden = true; });
     sheetRegistryRender();
     refreshInfo159();
     const budgetCard = document.getElementById('budget-settings'); if (budgetCard) budgetCard.hidden = !featureOn('budget');
     const inboxCard = document.getElementById('legacy-inbox'); if (inboxCard) inboxCard.hidden = !featureOn('sms');
-    el.insertAdjacentHTML('beforeend', `<div style="text-align:center;margin:18px 0 6px"><div style="display:inline-block;padding:8px 18px;border-radius:14px;background:linear-gradient(135deg,#eef3ff,#f7eefc);border:1px solid #dde3f5;font-size:13px;color:#445">🕒 زمان آماده‌سازی این نسخه (نسخه ${BUILD_VERSION})<br><b style="font-size:15px">${new Date(BUILD).toLocaleString('fa-IR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Tehran' })}</b></div><div style="font-size:10px;color:#999;margin-top:6px">داود هراتی</div></div>`);
+    el.insertAdjacentHTML('beforeend', `<div class="mut" style="text-align:center;font-size:11px;margin:16px 0">${esc(window.INVENTORY_TEXT_FA.settingsBuild)} &middot; ${BUILD_VERSION} &middot; ${new Date(BUILD).toLocaleString('fa-IR', { dateStyle:'long', timeStyle:'short', timeZone:'Asia/Tehran' })}</div>`);
   }
 }
 
 // فقط جای کارت‌های موجود را عوض می‌کند؛ خود کارت‌ها و رویدادهایشان حفظ می‌شوند.
+const SETTINGS_GROUP_BY_ID_196 = Object.freeze({
+  'features-settings':'appearance', 'shortcut-settings-173e':'appearance', 'jbc':'appearance', 'lbc':'appearance',
+  'settings-accounts-196':'accounts', 'budget-settings':'accounts',
+  'legacy-inbox':'messages', 'settings-sms-log-196':'messages',
+  'connection-hub-168':'google', 'welcome-sync':'google', 'legacy-sync-settings':'google',
+  'settings-backup-196':'backup',
+  'settings-undo-196':'advanced', 'settings-setup-code-196':'advanced', 'settings-guide-196':'advanced',
+  'google-test':'advanced', 'google-copy':'advanced', 'direct-sync':'advanced', 'easy-setup':'advanced', 'dpc':'advanced'
+});
 function settingsLayout(el) {
-  const cards = [...el.children].filter(c => c.tagName === 'DETAILS');
-  const admin = el.querySelector ? el.querySelector('#easy-admin') : null;
-  const groups = [ ['settings-simple', 'ظاهر و ویژگی‌ها'], ['settings-tools', 'حساب و ابزارها'], ['settings-advanced', 'پشتیبان و تنظیمات پیشرفته'], ['settings-admin', 'مدیریت'], ['settings-experimental', 'ابزارهای آزمایشی'] ].map(([id, text]) => {
-    const group = document.createElement('details'); group.className = 'card'; group.id = id;
-    const summary = document.createElement('summary'); summary.textContent = text; group.appendChild(summary); return group;
+  const text = window.INVENTORY_TEXT_FA;
+  const definitions = [
+    ['appearance','settingsAppearance','settingsAppearanceDesc'], ['accounts','settingsAccounts','settingsAccountsDesc'],
+    ['messages','settingsMessages','settingsMessagesDesc'], ['google','settingsGoogle','settingsGoogleDesc'],
+    ['backup','settingsBackup','settingsBackupDesc'], ['advanced','settingsAdvanced','settingsAdvancedDesc']
+  ];
+  const groups = {};
+  definitions.forEach(([key,title,desc]) => {
+    const group = document.createElement('details'); group.className = 'card'; group.id = 'settings-group-196-' + key;
+    const summary = document.createElement('summary'); summary.style.minHeight = '44px';
+    const name = document.createElement('strong'); name.textContent = text[title];
+    const note = document.createElement('small'); note.className = 'mut'; note.style.display = 'block'; note.textContent = text[desc];
+    summary.append(name, note); group.appendChild(summary); groups[key] = group;
   });
-  const advanced = new Set(['legacy-sync-settings', 'google-test', 'google-copy', 'direct-sync', 'easy-setup', 'dpc']);
-  const experimental = new Set(['google-test', 'google-copy', 'direct-sync', 'easy-setup']);
-  const tools = new Set(['legacy-inbox', 'budget-settings']);
-  cards.forEach(card => {
-    const title = (card.querySelector('summary')?.textContent || '').trim();
-    const group = experimental.has(card.id) ? groups[4] : advanced.has(card.id) || /پشتیبان|بازگردانی|پاک.سازی|شروع از صفر|کد راه‌اندازی/.test(title) ? groups[2]
-      : tools.has(card.id) || /نام حساب|پیامک‌های دریافتی|یادآور/.test(title) ? groups[1] : groups[0];
-    group.appendChild(card);
+  [...el.children].forEach(card => {
+    if (card.id === 'settings-info') return;
+    const key = SETTINGS_GROUP_BY_ID_196[card.id];
+    if (!key) console.warn('Unmapped settings card placed in advanced:', card.id || card);
+    groups[key || 'advanced'].appendChild(card);
   });
-  if (admin) { groups[3].appendChild(admin); groups[3].hidden = admin.hidden; }
-  else groups[3].hidden = true;
-  const registry = document.createElement('div'); registry.id = 'sheet-registry-168'; groups[4].appendChild(registry);
-  groups.forEach(group => el.appendChild(group));
+  const registry = document.createElement('div'); registry.id = 'sheet-registry-168'; groups.advanced.appendChild(registry);
+  definitions.forEach(([key]) => el.appendChild(groups[key]));
 }
+
 let settingsOpen170 = '';
 function settingsAccordion170(el) {
   const groups = [...el.children].filter(node => node.tagName === 'DETAILS');
@@ -1181,7 +1187,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۹۴';
+const BUILD = '2026-11-17T20:33:56Z'; const BUILD_VERSION = '\u06f1\u06f9\u06f6';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
