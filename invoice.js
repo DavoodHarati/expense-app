@@ -61,12 +61,13 @@ function invoiceOptions(items) { return [...new Set(items.filter(item => typeof 
 function invoiceSelectOptions(items) { return [...new Set(items.filter(item => typeof item === 'string' && item.trim()))].map(item => `<option value="${esc(item)}">${esc(item)}</option>`).join(''); }
 function invoiceSaveData(key, value) { localStorage.setItem(key, JSON.stringify(value)); localStorage.setItem('dirty', '1'); if (key === 'invoices' && typeof invoiceRefreshReport === 'function') invoiceRefreshReport(); }
 function invoiceLineHtml() {
-  return `<div class="invoice-line" style="border-top:1px solid #e5e7eb;padding-top:8px"><select class="inv-service-choice"><option value="">انتخاب خدمت یا کالا از فهرست</option>${invoiceSelectOptions([...load('svq', []), ...invoiceCatalog().map(item => item.name)])}</select><input class="inv-item" list="invoice-items" placeholder="نام خدمت یا کالا"><div class="row"><label style="flex:0 0 75px">تعداد<input class="inv-qty" inputmode="numeric" value="1" aria-label="تعداد"></label><label style="flex:1">مبلغ واحد (تومان)<input class="inv-price" inputmode="numeric" placeholder="مبلغ به تومان"></label></div><div class="row"><button type="button" class="sec inv-save-item">ذخیره نام و قیمت در فهرست</button><button type="button" class="sec inv-remove-item">حذف ردیف</button></div></div>`;
+  return `<div class="invoice-line" style="border-top:1px solid #e5e7eb;padding-top:8px"><select class="inv-service-choice"><option value="">انتخاب خدمت یا کالا از فهرست</option>${invoiceSelectOptions([...load('svq', []), ...invoiceCatalog().map(item => item.name)])}</select><input class="inv-item" list="invoice-items" placeholder="نام خدمت یا کالا"><div class="row"><label style="flex:0 0 75px">تعداد<input class="inv-qty" inputmode="numeric" value="1" aria-label="تعداد"></label><label style="flex:1">مبلغ واحد (تومان)<input class="inv-price" inputmode="numeric" placeholder="مبلغ به تومان"></label></div><div class="mut inventory-line-total" aria-live="polite"></div><div class="row"><button type="button" class="sec inv-save-item">ذخیره نام و قیمت در فهرست</button><button type="button" class="sec inv-remove-item">حذف ردیف</button></div></div>`;
 }
-function invoiceKind(item) { return ['خدمات', 'خدمات دائمی', 'فروش', 'هزینه'].includes(item.kind) ? item.kind : 'خدمات'; }
+function invoiceKind(item) { return item.kind === 'inventory_purchase' ? 'inventory_purchase' : ['خدمات', 'خدمات دائمی', 'فروش', 'هزینه'].includes(item.kind) ? item.kind : 'خدمات'; }
+function invoiceKindLabel(item) { return invoiceKind(item) === 'inventory_purchase' ? INVENTORY_TEXT_FA.purchaseKind : invoiceKind(item); }
 function invoiceTypeMatches170(item, type) {
   const kind = invoiceKind(item);
-  return !type || type === 'all' || (type === 'service' && (kind === 'خدمات' || kind === 'خدمات دائمی')) || (type === 'sale' && kind === 'فروش') || (type === 'expense' && kind === 'هزینه');
+  return !type || type === 'all' || (type === 'inventory_purchase' && kind === 'inventory_purchase') || (type === 'service' && (kind === 'خدمات' || kind === 'خدمات دائمی')) || (type === 'sale' && kind === 'فروش') || (type === 'expense' && kind === 'هزینه');
 }
 function invoiceStatus170(item, transactions) {
   const payment = invoicePaymentStatus(item, transactions);
@@ -95,14 +96,14 @@ function invoiceOwnerSync170(total) {
   if (Math.round(base * exact / 100) !== fixed) throw new Error('این مبلغ به درصد دقیق قابل تبدیل نیست؛ سهم را به صورت درصد وارد کن');
   document.getElementById('inv-owner-percent').value = String(exact);
 }
-function invoiceKindColor(item) { return ({'خدمات':'#16845b', 'خدمات دائمی':'#8249ad', 'فروش':'#2563c3', 'هزینه':'#c64b82'})[invoiceKind(item)]; }
+function invoiceKindColor(item) { return ({inventory_purchase:'#b45309','خدمات':'#16845b', 'خدمات دائمی':'#8249ad', 'فروش':'#2563c3', 'هزینه':'#c64b82'})[invoiceKind(item)]; }
 function invoicePaymentStatus(item, transactions) {
   const payments = transactions.filter(t => String(t.invoicePaymentId || '') === String(item.id) && !t.ghost && t.type === 'credit');
   const amount = payments.reduce((sum, t) => sum + (Number(t.amount) || 0) / 10, 0);
   return { payments, amount, status: payments.length ? (amount >= Number(item.total || 0) ? 'paid' : 'partial') : 'unpaid' };
 }
 function invoiceIsUnpaid173k(item, transactions) {
-  return item.payment?.method === 'unpaid' && invoicePaymentStatus(item, transactions).status !== 'paid';
+  return invoiceKind(item) !== 'inventory_purchase' && item.payment?.method === 'unpaid' && invoicePaymentStatus(item, transactions).status !== 'paid';
 }
 function invoiceWorkRegistered173m(item, transactions) {
   const paymentIds = new Set(transactions.filter(t => !t.ghost && t.type === 'credit' && String(t.invoicePaymentId || '') === String(item.id)).map(t => String(t.id)));
@@ -119,7 +120,7 @@ function invoiceSetPaymentLink(transaction, invoiceId) {
   if (invoiceId) transaction.invoicePaymentId = invoiceId; else delete transaction.invoicePaymentId;
 }
 function invoiceDepositSuggestions178(item, rows, rejected = []) {
-  if (!item || rows.some(t => !t.ghost && String(t.invoicePaymentId || '') === String(item.id))) return [];
+  if (!item || item.kind === 'inventory_purchase' || rows.some(t => !t.ghost && String(t.invoicePaymentId || '') === String(item.id))) return [];
   const total = Number(item.total) * 10;
   if (!Number.isSafeInteger(total) || total <= 0) return [];
   const normalize = s => String(s || '').replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/\s+/g,' ').trim().toLowerCase();
@@ -296,7 +297,7 @@ function invoiceAccount(total, materialInput, percentInput, share) {
   return { materials, ownerPercent, ownerGross, ownerNet };
 }
 function invoiceAnalytics170(list, from = '', to = '', type = 'all') {
-  const rows = list.filter(i => i.accounting?.status === 'confirmed' && !i.proforma && invoiceTypeMatches170(i, type) && (!from || String(i.date || '') >= from) && (!to || String(i.date || '') <= to));
+  const rows = list.filter(i => invoiceKind(i) !== 'inventory_purchase' && i.accounting?.status === 'confirmed' && !i.proforma && invoiceTypeMatches170(i, type) && (!from || String(i.date || '') >= from) && (!to || String(i.date || '') <= to));
   const income = rows.filter(i => invoiceKind(i) !== 'هزینه').reduce((n,i) => n + (Number(i.total) || 0), 0);
   const expenses = rows.reduce((n,i) => n + (invoiceKind(i) === 'هزینه' ? Number(i.total) || 0 : (Number(i.accounting?.materials) || 0) + (Number(i.share) || 0)), 0);
   const profit = rows.reduce((n,i) => n + (invoiceKind(i) === 'هزینه' ? -(Number(i.total) || 0) : Number(i.accounting?.ownerNet) || 0), 0);
@@ -307,8 +308,8 @@ function invoiceAnalytics170(list, from = '', to = '', type = 'all') {
   return '<div class="invoice-overview-170">' + [['درآمد',income],['هزینه',expenses],['سود / سهم خالص',profit],['مانده نسیه',debt]].map(([name,value]) => '<div>' + name + '<b>' + fmt(value) + '</b></div>').join('') + '</div><div class="mut">فقط فاکتورهای تأییدشده؛ پیش‌فاکتورها محاسبه نمی‌شوند. سود برابر سهم نهایی پس از لوازم و دستیار، منهای فاکتورهای هزینه است.</div><b>جمع ماهانه فاکتورها</b>' + ([...months].sort((a,b)=>a[0].localeCompare(b[0])).map(([month,amount]) => '<div class="mut">' + esc(month) + ' · ' + fmt(amount) + '<div class="invoice-bar-170"><span style="width:' + Math.min(100,amount/max*100) + '%"></span></div></div>').join('') || '<div class="mut">اطلاعاتی نیست.</div>') + '<b>برترین مشتری‌ها</b>' + ([...customers].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([name,amount]) => '<div class="row mut"><span>' + esc(name) + '</span><b>' + fmt(amount) + '</b></div>').join('') || '<div class="mut">اطلاعاتی نیست.</div>');
 }
 function invoiceLedgerHtml(list = invoiceList()) {
-  const confirmed = list.filter(item => item.accounting?.status === 'confirmed');
-  const unpaid = list.filter(item => invoiceIsUnpaid173k(item, tx));
+  const confirmed = list.filter(item => invoiceKind(item) !== 'inventory_purchase' && item.accounting?.status === 'confirmed');
+  const unpaid = list.filter(item => invoiceKind(item) !== 'inventory_purchase' && invoiceIsUnpaid173k(item, tx));
   const sum = (items, pick) => items.reduce((total, item) => total + (Number(pick(item)) || 0), 0).toLocaleString('fa-IR');
   const customers = new Map(), services = new Map();
   for (const item of confirmed) {
@@ -355,12 +356,20 @@ function invoiceTotals(lines, mode, value, assistant) {
 }
 function invoiceRefreshTotal() {
   const total = document.getElementById('inv-total'), share = document.getElementById('inv-share-result');
+  document.querySelectorAll('#invoice-lines .invoice-line').forEach(row => {
+    const output = row.querySelector('.inventory-line-total');
+    if (!output) return;
+    const quantity = invoiceDigits(row.querySelector('.inv-qty').value), price = invoiceDigits(row.querySelector('.inv-price').value);
+    const amount = quantity === null || price === null ? 0 : quantity * price;
+    output.textContent = INVENTORY_TEXT_FA.rowTotal + ': ' + (Number.isSafeInteger(amount) ? amount : 0).toLocaleString('fa-IR') + ' ' + INVENTORY_TEXT_FA.toman;
+  });
   try {
     const result = invoiceTotals(invoiceFormLines(), document.getElementById('inv-share-mode').value, document.getElementById('inv-share').value, document.getElementById('inv-assistant').value);
-    invoiceOwnerSync170(result.total);
+    if (document.getElementById('inv-kind').value !== 'inventory_purchase') invoiceOwnerSync170(result.total);
     total.textContent = 'جمع: ' + result.total.toLocaleString('fa-IR') + ' تومان';
     share.textContent = document.getElementById('inv-assistant').value ? 'سهم دستیار: ' + result.share.toLocaleString('fa-IR') + ' تومان' : '';
-    const account = invoiceAccount(result.total, document.getElementById('inv-materials').value, document.getElementById('inv-owner-percent').value, result.share);
+    const purchase = document.getElementById('inv-kind').value === 'inventory_purchase';
+    const account = invoiceAccount(result.total, purchase ? '0' : document.getElementById('inv-materials').value, purchase ? '100' : document.getElementById('inv-owner-percent').value, result.share);
     document.getElementById('inv-account-result').textContent = 'پس از لوازم: ' + (result.total - account.materials).toLocaleString('fa-IR') + ' · ' + account.ownerPercent.toLocaleString('fa-IR', { maximumFractionDigits: 12 }) + '٪ = ' + account.ownerGross.toLocaleString('fa-IR') + ' تومان · سهم نهایی من: ' + account.ownerNet.toLocaleString('fa-IR') + ' تومان';
   } catch (error) { total.textContent = 'جمع پس از تکمیل ردیف‌ها نمایش داده می‌شود.'; share.textContent = ''; document.getElementById('inv-account-result').textContent = error.message || ''; }
 }
@@ -387,6 +396,7 @@ function invoiceShowList(query = '') {
   const list = term || document.getElementById('inv-show-all')?.checked ? matches : matches.slice(0, 10);
   const summary = `<div class="mut">${matches.length.toLocaleString('fa-IR')} فاکتور · جمع کل ${matches.reduce((sum,item)=>sum+(Number(item.total)||0),0).toLocaleString('fa-IR')} تومان${list.length < matches.length ? ' · ۱۰ مورد اخیر نمایش داده می‌شود' : ''}</div>`;
   box.innerHTML = summary + (list.length ? list.map(item => {
+    if (invoiceKind(item) === 'inventory_purchase') return `<details class="invoice-result" style="border-right:4px solid ${invoiceKindColor(item)}"><summary><b>${esc(INVENTORY_TEXT_FA.purchaseKind)}</b> · ${esc(item.customer || INVENTORY_TEXT_FA.purchaseNoSeller)} · ${esc(item.number)} · ${Number(item.total || 0).toLocaleString('fa-IR')} ${esc(INVENTORY_TEXT_FA.toman)}</summary><div class="mut">${esc(item.date || '')}</div><div>${(item.lines || []).map(line => `<div>${esc(line.name)} · ${Number(line.quantity).toLocaleString('fa-IR')} × ${Number(line.price).toLocaleString('fa-IR')} = ${(Number(line.quantity) * Number(line.price)).toLocaleString('fa-IR')} ${esc(INVENTORY_TEXT_FA.toman)}</div>`).join('')}</div><div class="invoice-actions"><button type="button" class="sec invoice-edit" data-id="${esc(item.id)}">${esc(INVENTORY_TEXT_FA.edit)}</button><button type="button" class="sec invoice-print" data-id="${esc(item.id)}">${esc(INVENTORY_TEXT_FA.print)}</button><button type="button" class="sec invoice-delete" data-id="${esc(item.id)}">${esc(INVENTORY_TEXT_FA.remove)}</button><button type="button" class="sec invoice-close-173g">${esc(INVENTORY_TEXT_FA.close)}</button></div></details>`;
     const displayPct177 = invoiceDisplayPercent177(item, tx);
     const account = item.accounting, confirmed = account?.status === 'confirmed', payment = invoicePaymentStatus(item, tx);
     const paymentLabel = payment.status === 'paid' ? 'واریز شد ✅' : payment.status === 'partial' ? 'پرداخت بخشی' : item.payment?.method === 'unpaid' ? 'نسیه' : 'بدون واریز سنجاق‌شده';
@@ -451,11 +461,15 @@ function invoiceBind() {
   for (const id of ['inv-status-170','inv-month-170']) get(id).addEventListener('change', () => invoiceShowList(get('inv-search').value));
   get('inv-types-170').addEventListener('click', event => { const selected = event.target.closest('[data-invoice-type]'); if (!selected) return; get('inv-types-170').querySelectorAll('[data-invoice-type]').forEach(button => button.setAttribute('aria-pressed', String(button === selected))); invoiceShowList(get('inv-search').value); });
   get('inv-types-170').insertAdjacentHTML('beforeend', '<button type="button" data-invoice-type="unpaid" aria-pressed="false">نسیه</button>');
+  if (featureOn('warehouse')) {
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.invoiceType = 'inventory_purchase'; button.setAttribute('aria-pressed', 'false'); button.textContent = INVENTORY_TEXT_FA.purchaseKind; get('inv-types-170').appendChild(button);
+  }
+  const purchaseOption = document.createElement('option'); purchaseOption.value = 'inventory_purchase'; purchaseOption.textContent = INVENTORY_TEXT_FA.purchaseKind; purchaseOption.hidden = !featureOn('warehouse'); get('inv-kind').appendChild(purchaseOption);
   const todayYear = Number(invoiceDate().slice(0, 4));
   for (const [id, start, end] of [['inv-jyear', todayYear - 20, todayYear + 10], ['inv-jmonth', 1, 12], ['inv-jday', 1, 31]]) get(id).innerHTML = Array.from({length:end-start+1}, (_,i) => `<option value="${start+i}">${(start+i).toLocaleString('fa-IR', { useGrouping: false })}</option>`).join('');
   const dateSelectors = () => { const m = get('inv-date').value.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (m) for (const [id, value] of [['inv-jyear',m[1]],['inv-jmonth',m[2]],['inv-jday',m[3]]]) get(id).value = String(Number(value)); };
   dateSelectors(); get('inv-plate-letter').value = 'ع';
-  const syncOwnerFields = () => { get('inv-owner-fields').hidden = get('inv-kind').value === 'فروش'; };
+  const syncOwnerFields = () => { const purchase = get('inv-kind').value === 'inventory_purchase'; get('inv-owner-fields').hidden = purchase || get('inv-kind').value === 'فروش'; const heading = get('inv-customer').closest('.inv-sec174').querySelector('summary b'); heading.textContent = purchase ? INVENTORY_TEXT_FA.purchaseSeller : INVENTORY_TEXT_FA.customer; get('inv-customer').placeholder = purchase ? INVENTORY_TEXT_FA.purchaseSellerPlaceholder : INVENTORY_TEXT_FA.customerPlaceholder; for (const id of ['inv-assistant','inv-payment','inv-materials']) get(id).closest('.inv-sec174').hidden = purchase; };
   get('inv-kind').addEventListener('change', syncOwnerFields); syncOwnerFields();
   for (const id of ['inv-jyear','inv-jmonth','inv-jday']) get(id).onchange = () => { get('inv-date').value = get('inv-jyear').value + '/' + get('inv-jmonth').value.padStart(2,'0') + '/' + get('inv-jday').value.padStart(2,'0'); };
   get('inv-date').addEventListener('change', dateSelectors);
@@ -562,9 +576,10 @@ function invoiceBind() {
     const saveButton = get('inv-save'); if (saveButton.disabled) return; saveButton.disabled = true;
     let committed172 = false;
     try {
-      const lines = invoiceFormLines(), assistant = get('inv-assistant').value, mode = get('inv-share-mode').value, result = invoiceTotals(lines, mode, get('inv-share').value, assistant);
-      invoiceOwnerSync170(result.total);
-      const accounting = invoiceAccount(result.total, get('inv-materials').value, get('inv-owner-percent').value, result.share);
+      const purchase = get('inv-kind').value === 'inventory_purchase';
+      const lines = invoiceFormLines(), assistant = purchase ? '' : get('inv-assistant').value, mode = get('inv-share-mode').value, result = invoiceTotals(lines, mode, get('inv-share').value, assistant);
+      if (!purchase) invoiceOwnerSync170(result.total);
+      const accounting = invoiceAccount(result.total, purchase ? '0' : get('inv-materials').value, purchase ? '100' : get('inv-owner-percent').value, result.share);
       const date = get('inv-date').value.trim().replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
       const match = date.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (!match || Number(match[2]) < 1 || Number(match[2]) > 12 || Number(match[3]) < 1 || Number(match[3]) > 31) throw new Error('تاریخ را مانند 1405/08/17 وارد کن');
       const pm = Number(match[2]), pd = Number(match[3]); if (pm > 6 && pd > 30) throw new Error('روز انتخاب‌شده در این ماه شمسی معتبر نیست');
@@ -576,7 +591,7 @@ function invoiceBind() {
       const linked = previous && tx.some(entry => entry.invoiceId === previous.id);
       if (previous && !confirm('تغییرات فاکتور «' + previous.number + '» ذخیره شود؟ فاکتور برای تأیید مجدد به فهرست تأییدنشده‌ها برمی‌گردد.' + (linked ? ' پس از تأیید دوباره، ردیف‌های ساخته‌شدهٔ همین فاکتور به‌روز می‌شود؛ اگر تکراری باشند ابتدا ردیف اصلی را انتخاب کن.' : ''))) return;
       const item = { ...(previous || {}), id: previous?.id || 'invoice-' + Date.now() + '-' + Math.random().toString(36).slice(2), number, date: match[1] + '/' + match[2].padStart(2, '0') + '/' + match[3].padStart(2, '0'), customer: get('inv-customer').value.trim(), phone: get('inv-phone').value.trim(), ownerName: get('inv-owner-name').value.trim(), ownerPhone: get('inv-owner-phone').value.trim(), plate: get('inv-plate').value.trim(), model: get('inv-model').value.trim(), color: get('inv-color').value.trim(), carType: get('inv-car-type').value.trim(), kind: get('inv-kind').value, proforma: get('inv-proforma').checked, lines, total: result.total, assistant, share: result.share, shareMode: mode, shareValue: get('inv-share').value, payment: { ...(previous?.payment || {}), method: get('inv-payment').value, recipient: get('inv-pay-name').value.trim(), account: get('inv-pay-card').value.trim(), note: get('inv-pay-note').value.trim() }, createdAt: previous?.createdAt || new Date().toISOString() };
-      item.customerGroup=get('inv-person-role').value || 'مشتری'; item.payment.group=get('inv-pay-group').value || '';
+      item.customerGroup=purchase ? INVENTORY_TEXT_FA.sellerRole : (get('inv-person-role').value || 'مشتری'); item.payment.group=get('inv-pay-group').value || '';
       item.accounting = { ...accounting, status:'pending' };
       if (previous) list[list.indexOf(previous)] = item; else list.unshift(item); invoiceSaveData('invoices', list); committed172 = true;
       let contactNote=''; try { if(typeof contactSaveFacts173p==='function') { const r=contactSaveFacts173p([{name:item.customer,phone:item.phone,role:item.customerGroup},{name:item.ownerName,phone:item.ownerPhone,role:'صاحب خودرو'},{name:item.payment.recipient,account:item.payment.account,role:item.payment.group || 'سایر'},{name:item.assistant,role:'دستیار'}]); if(r.skipped.length) contactNote=' برخی نام‌های مشابه برای جلوگیری از ادغام نیاز به بررسی دارند.'; } } catch (_) { contactNote=' ذخیرهٔ مخاطب انجام نشد؛ از بخش مخاطبین بررسی کن.'; }
