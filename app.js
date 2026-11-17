@@ -110,7 +110,9 @@ const FEATURE_DESCRIPTIONS_173K = {
   sms: 'ثبت پیامک و رسید، بررسی رسیدها و صندوق پیامک قدیمی پنهان می‌شوند.',
   vehicle: 'مشخصات خودرو در مخاطب و فاکتور و گزارش رانندگان پنهان می‌شوند.'
 };
-function featureOn(name) { const f = load('features', {}); return !f || typeof f !== 'object' || Array.isArray(f) || f[name] !== false; }
+FEATURE_LABELS.warehouse = INVENTORY_TEXT_FA.featureLabel;
+FEATURE_DESCRIPTIONS_173K.warehouse = INVENTORY_TEXT_FA.featureDescription;
+function featureOn(name) { const f = load('features', {}); if (name === 'warehouse') return !!f && typeof f === 'object' && !Array.isArray(f) && f.warehouse === true; return !f || typeof f !== 'object' || Array.isArray(f) || f[name] !== false; }
 let welcomeDismissed = false;
 
 // انتقال بین حساب‌های خودم
