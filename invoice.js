@@ -307,24 +307,33 @@ function invoiceAnalytics170(list, from = '', to = '', type = 'all') {
   const max = Math.max(1,...months.values()), fmt = x => x.toLocaleString('fa-IR') + ' تومان';
   return '<div class="invoice-overview-170">' + [['درآمد',income],['هزینه',expenses],['سود / سهم خالص',profit],['مانده نسیه',debt]].map(([name,value]) => '<div>' + name + '<b>' + fmt(value) + '</b></div>').join('') + '</div><div class="mut">فقط فاکتورهای تأییدشده؛ پیش‌فاکتورها محاسبه نمی‌شوند. سود برابر سهم نهایی پس از لوازم و دستیار، منهای فاکتورهای هزینه است.</div><b>جمع ماهانه فاکتورها</b>' + ([...months].sort((a,b)=>a[0].localeCompare(b[0])).map(([month,amount]) => '<div class="mut">' + esc(month) + ' · ' + fmt(amount) + '<div class="invoice-bar-170"><span style="width:' + Math.min(100,amount/max*100) + '%"></span></div></div>').join('') || '<div class="mut">اطلاعاتی نیست.</div>') + '<b>برترین مشتری‌ها</b>' + ([...customers].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([name,amount]) => '<div class="row mut"><span>' + esc(name) + '</span><b>' + fmt(amount) + '</b></div>').join('') || '<div class="mut">اطلاعاتی نیست.</div>');
 }
+function invoiceReportData(list, transactions, from = '', to = '', type = 'all') {
+  const eligible = list.filter(i => i.accounting?.status === 'confirmed' && !i.proforma && (!from || String(i.date || '') >= from) && (!to || String(i.date || '') <= to));
+  const rows = eligible.filter(i => type === 'purchase' ? invoiceKind(i) === 'inventory_purchase' : invoiceKind(i) !== 'inventory_purchase');
+  const selected = rows.filter(i => type === 'sale' ? invoiceKind(i) === 'فروش' : type === 'unpaid' ? invoiceIsUnpaid173k(i, transactions) : type === 'owner' || type === 'assistant' ? invoiceKind(i) !== 'هزینه' : true);
+  const sum = fn => selected.reduce((n, i) => n + (Number(fn(i)) || 0), 0);
+  if (type === 'purchase') return {count:selected.length, total:sum(i=>i.total), income:0, expense:0, profit:0, owner:0, assistant:0, debt:0};
+  return { count:selected.length, total:sum(i=>i.total), income:sum(i=>invoiceKind(i)==='هزینه'?0:i.total), expense:sum(i=>invoiceKind(i)==='هزینه'?i.total:(Number(i.accounting?.materials)||0)+(Number(i.share)||0)), profit:sum(i=>invoiceKind(i)==='هزینه'?-Number(i.total):i.accounting?.ownerNet), owner:sum(i=>i.accounting?.ownerNet), assistant:sum(i=>i.share), debt:sum(i=>invoiceIsUnpaid173k(i,transactions)?Math.max(0,(Number(i.total)||0)-invoicePaymentStatus(i,transactions).amount):0) };
+}
+function invoiceReportHtml(list, transactions, from = '', to = '', type = 'all') {
+  const r=invoiceReportData(list,transactions,from,to,type), t=INVENTORY_TEXT_FA;
+  const fields = type === 'all' ? [[t.reportIncome,r.income],[t.reportExpense,r.expense],[t.reportProfit,r.profit],[t.reportDebt,r.debt]] : type === 'owner' ? [[t.reportOwner,r.owner]] : type === 'assistant' ? [[t.reportAssistant,r.assistant]] : type === 'unpaid' ? [[t.reportDebt,r.debt]] : [[t.reportTotal,r.total]];
+  return '<div class="invoice-overview-170">'+fields.map(([label,value])=>'<div>'+esc(label)+'<b>'+Number(value).toLocaleString('fa-IR')+' '+esc(t.toman)+'</b></div>').join('')+'<div>'+esc(t.reportCount)+'<b>'+r.count.toLocaleString('fa-IR')+'</b></div></div><div class="mut">'+esc(t.reportNote)+'</div>';
+}
 function invoiceLedgerHtml(list = invoiceList()) {
-  const confirmed = list.filter(item => invoiceKind(item) !== 'inventory_purchase' && item.accounting?.status === 'confirmed');
-  const unpaid = list.filter(item => invoiceKind(item) !== 'inventory_purchase' && invoiceIsUnpaid173k(item, tx));
-  const sum = (items, pick) => items.reduce((total, item) => total + (Number(pick(item)) || 0), 0).toLocaleString('fa-IR');
-  const customers = new Map(), services = new Map();
-  for (const item of confirmed) {
-    if (item.customer) customers.set(item.customer, (customers.get(item.customer) || 0) + (Number(item.total) || 0));
-    for (const line of item.lines || []) if (line.name) services.set(line.name, (services.get(line.name) || 0) + (Number(line.quantity) || 0) * (Number(line.price) || 0));
-  }
-  const top = map => [...map].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, amount]) => `<div class="row mut"><span>${esc(name)}</span><b>${amount.toLocaleString('fa-IR')} تومان</b></div>`).join('') || '<div class="mut">هنوز موردی نیست.</div>';
-  return `<details class="card invoice-ledger"><summary><b>🧾 حساب و آمار فاکتورها</b></summary><div class="mut">فاکتورها جدا از تراکنش‌های بانکی حساب می‌شوند.</div><div class="invoice-report-170"><label>از تاریخ شمسی<input class="invoice-from-170" placeholder="۱۴۰۵/۰۱/۰۱"></label><label>تا تاریخ شمسی<input class="invoice-to-170" placeholder="۱۴۰۵/۱۲/۲۹"></label><label>نوع<select class="invoice-report-type-170"><option value="all">همه</option><option value="service">خدماتی</option><option value="sale">فروش</option><option value="expense">هزینه</option></select></label><div class="invoice-report-result-170">${invoiceAnalytics170(list)}</div></div><div class="invoice-ledger-grid"><div>تأییدشده<b>${confirmed.length.toLocaleString('fa-IR')}</b></div><div>منتظر تأیید<b>${(list.length-confirmed.length).toLocaleString('fa-IR')}</b></div><div>جمع فاکتورهای تأییدشده<b>${sum(confirmed, x => x.total)} تومان</b></div><div>هزینه لوازم<b>${sum(confirmed, x => x.accounting.materials)} تومان</b></div><div>سهم دستیار<b>${sum(confirmed, x => x.share)} تومان</b></div><div>سهم نهایی من<b>${sum(confirmed, x => x.accounting.ownerNet)} تومان</b></div><div>نسیه‌ها (${unpaid.length.toLocaleString('fa-IR')})<b>${sum(unpaid, x => x.total)} تومان</b></div></div><div class="mut">نسیه شامل فاکتورهای تأییدنشده هم هست؛ واریزهای سنجاق‌شده در وضعیت پرداخت هر فاکتور نمایش داده می‌شوند.</div><details><summary>آمار مشتری و خدمات فاکتورهای تأییدشده</summary><div class="mut">مبلغ کل فاکتور یا ردیف خدمت پیش از کسر لوازم و سهم‌ها</div><b>مشتری‌ها</b>${top(customers)}<b>خدمات و کالا</b>${top(services)}</details><button type="button" class="invoice-open-list">جست‌وجو و بررسی فاکتورها</button></details>`;
+  const t=INVENTORY_TEXT_FA, options=[['all',t.reportAll],['owner',t.reportOwner],['assistant',t.reportAssistant],['sale',t.reportSale],['unpaid',t.reportUnpaid]];
+  if (typeof featureOn === 'function' && featureOn('warehouse')) options.push(['purchase',t.reportPurchase]);
+  return '<details class="card invoice-ledger"><summary><b>'+esc(t.reportTitle)+'</b></summary><div class="invoice-report-170"><label>'+esc(t.reportType)+'<select class="invoice-report-type-170">'+options.map(([v,label])=>'<option value="'+v+'">'+esc(label)+'</option>').join('')+'</select></label><label>'+esc(t.reportFrom)+'<input class="invoice-from-170" inputmode="numeric" placeholder="'+esc(t.reportDatePlaceholder)+'"></label><label>'+esc(t.reportTo)+'<input class="invoice-to-170" inputmode="numeric" placeholder="'+esc(t.reportDatePlaceholder)+'"></label><div class="invoice-report-result-170">'+invoiceReportHtml(list,tx)+'</div></div></details>';
 }
 document.addEventListener('change', event => {
   if (!event.target.matches('.invoice-from-170,.invoice-to-170,.invoice-report-type-170')) return;
-  const box = event.target.closest('.invoice-report-170'), normalize = x => String(x).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
-  const from = normalize(box.querySelector('.invoice-from-170').value.trim()), to = normalize(box.querySelector('.invoice-to-170').value.trim());
-  if ((from && !/^\d{4}\/\d{2}\/\d{2}$/.test(from)) || (to && !/^\d{4}\/\d{2}\/\d{2}$/.test(to)) || (from && to && from > to)) { box.querySelector('.invoice-report-result-170').textContent = 'تاریخ‌ها را مانند ۱۴۰۵/۰۸/۰۱ و به ترتیب وارد کن.'; return; }
-  box.querySelector('.invoice-report-result-170').innerHTML = invoiceAnalytics170(invoiceList().filter(i => typeof topic === 'undefined' || topic !== 'sales' || i.kind === 'فروش'), from, to, box.querySelector('.invoice-report-type-170').value);
+  const box=event.target.closest('.invoice-report-170'), normalize=x=>String(x).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  const from=normalize(box.querySelector('.invoice-from-170').value.trim()), to=normalize(box.querySelector('.invoice-to-170').value.trim());
+  const validDate=x=>!x||(/^\d{4}\/\d{2}\/\d{2}$/.test(x) && +x.slice(5,7)>=1 && +x.slice(5,7)<=12 && +x.slice(8,10)>=1 && +x.slice(8,10)<=(+x.slice(5,7)<=6?31:30));
+  if(!validDate(from)||!validDate(to)||(from&&to&&from>to)){box.querySelector('.invoice-report-result-170').textContent=INVENTORY_TEXT_FA.reportDateError;return;}
+  const type=box.querySelector('.invoice-report-type-170').value;
+  if(type==='purchase' && !featureOn('warehouse')) return;
+  box.querySelector('.invoice-report-result-170').innerHTML=invoiceReportHtml(invoiceList().filter(i=>typeof topic==='undefined'||topic!=='sales'||i.kind==='فروش'),tx,from,to,type);
 });
 function invoiceCreditHtml() {
   const list = invoiceList().filter(item => invoiceIsUnpaid173k(item, tx));
