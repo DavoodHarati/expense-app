@@ -87,7 +87,7 @@ function restoreCategoriesBeforeMerge() {
 }
 migrateCategoriesOnce();
 const tomb = ids => { const g = JSON.parse(localStorage.getItem('txDel') || '[]'); ids.forEach(i => g.push(String(i))); localStorage.setItem('txDel', JSON.stringify([...new Set(g)].slice(-500))); };
-const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
+const save = () => { SyncTransactions.markUpdated(tx, load('tx', []), Date.now()); localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('accounts', JSON.stringify(accounts)); localStorage.setItem('dirty', '1'); push(); };
 const toman = r => Math.round(r / 10).toLocaleString('fa-IR');
 let undo = [];
 const snap = label => undo.push({ label, tx: JSON.parse(JSON.stringify(tx)), accounts: { ...accounts }, del: localStorage.getItem('delAcc') || '[]' });
@@ -1179,7 +1179,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۴';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۶';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1287,12 +1287,11 @@ function homeHtml0() {
   const mt = tx.filter(t => !t.ghost && isSel(t.account) && !t.pending && !t.xfer && !t.loan && monthOf(t) === cur);
   const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
-  const pend = tx.filter(t => t.pending && !t.raw), smsPending = tx.filter(t => t.pending && t.raw);
+  const smsPending = tx.filter(t => t.pending);
   return `${banner ? `<div class="card">${banner}</div>` : ''}
   ${xsugHtml()}
   ${featureOn('sms') ? rcReviewHtml() : ''}
-  ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
-  ${featureOn('sms') && smsPending.length ? `<details class="card"><summary><b>${esc(INVENTORY_TEXT_FA.inboxTitle)} (${smsPending.length.toLocaleString('fa-IR')})</b></summary>${smsPending.map(t => '<div>'+smsAgeBadge184(t.date)+pendingCard(t)+'</div>').join('')}</details>` : ''}
+  ${smsPending.length ? `<section class="card"><h3>${esc(INVENTORY_TEXT_FA.inboxTitle)} (${smsPending.length.toLocaleString('fa-IR')})</h3>${smsPending.map(t => '<div>'+smsAgeBadge184(t.date)+pendingCard(t)+'</div>').join('')}</section>` : ''}
   ${filterBar()}
   ${statusCard()}
   <div class="hero"><div style="opacity:.8">${!sel || sel.length > 1 ? 'مجموع موجودی' : 'موجودی'}</div><div class="big">${toman(total)} <small>تومان</small></div>
@@ -1335,14 +1334,14 @@ function driversHtml() {
   const rows = Object.entries(m).sort((a, b) => b[1].yr - a[1].yr);
   return `<details class="card"><summary><b>🚚 رانندگان (مشتری‌های خدماتی)</b></summary><div class="mut">مرتب بر اساس واریزی امسال؛ ماه و سال از ماه انتخاب‌شده</div>${rows.map(([n, r], i) => `<div style="margin-top:10px"><div class="row"><b>${i + 1}. ${esc(n)}</b>${r.ph ? `<a href="tel:${esc(r.ph)}">${esc(r.ph)}</a>` : ''}</div><div class="row mut"><span>این ماه: <b class="grn">${toman(r.mo)}</b></span><span>امسال: <b class="grn">${toman(r.yr)}</b></span></div><div class="mut">کل: ${toman(r.all)} · ${r.n.toLocaleString('fa-IR')} بار</div></div>`).join('')}</details>`;
 }
-function reportTransactions173q(items) { return items.filter(t => !t.ghost && t.loan !== 'share'); }
+function reportTransactions173q(items) { return items.filter(t => !t.pending && !t.ghost && t.loan !== 'share'); }
 function reportHtml() {
-  const base = tx.filter(t => isSel(t.account));
+  const base = tx.filter(t => !t.pending && isSel(t.account));
   const months = [...new Set(tx.map(monthOf))].sort().reverse();
   if (!month || !months.includes(month)) month = months[0];
   const list = base.filter(t => monthOf(t) === month);
   const real = list.filter(t => !t.ghost && !t.xfer && !t.loan).filter(t => !t.pending);
-  const loans = {}; tx.filter(t => t.loan && !isWage(t) && isSel(t.account)).forEach(t => loans[t.person] = (loans[t.person] || 0) + LOAN[t.loan][1] * t.amount);
+  const loans = {}; tx.filter(t => !t.pending && t.loan && !isWage(t) && isSel(t.account)).forEach(t => loans[t.person] = (loans[t.person] || 0) + LOAN[t.loan][1] * t.amount);
   const days = new Set(real.filter(t => t.type === 'debit').map(t => t.date.slice(0, 10))).size || 1;
   const topD = Object.entries(real.filter(t => t.type === 'debit' && t.desc).reduce((m, t) => (m[t.desc] = (m[t.desc] || 0) + t.amount, m), {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const out = real.filter(t => t.type === 'debit'), inn = real.filter(t => t.type === 'credit');
@@ -1850,12 +1849,14 @@ function push() {
 async function doPush(manualUrl = null) {
   const url = manualUrl || SYNC(); if (!url) return false;
   const current = () => !accountOwnerLocked() && (manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url);
+  if (!await pull(manualUrl, true) || !current()) return false;
   legacyInFlight++;
   try {
+    const beforeSend = localStorage.getItem('tx');
     const r = await (await accountOwnerFetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
     if (!current()) return false;
     if (!r.ok) throw new Error(r.error);
-    if (!manualUrl) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); noteSyncSuccess159(); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
+    if (!manualUrl && beforeSend === localStorage.getItem('tx')) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); noteSyncSuccess159(); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + (manualUrl ? '؛ نتیجه را پیش از تلاش مجدد بررسی کن.' : ' — بعداً دوباره تلاش می‌شود'); return false; } finally { legacyInFlight--; }
 }
 function manualJsonpRead(url) {
@@ -1872,7 +1873,7 @@ function manualJsonpRead(url) {
     const target = new URL(url); target.searchParams.set('callback', name); tag.src = target.href; document.head.appendChild(tag);
   });
 }
-async function pull(manualUrl = null) {
+async function pull(manualUrl = null, preflight = false) {
   const url = manualUrl || SYNC(); if (!url) return;
   const current = () => !accountOwnerLocked() && (manualUrl ? localStorage.getItem('legacySyncPaused') === '1' && easyMainSyncUrl() === url : SYNC() === url);
   legacyInFlight++;
@@ -1892,7 +1893,7 @@ async function pull(manualUrl = null) {
     const gone0 = new Set(JSON.parse(localStorage.getItem('txDel') || '[]')); d.tx = d.tx.filter(t => !gone0.has(String(t.id)));
     const sid = new Set(d.tx.map(t => String(t.id))), lid = new Set(tx.map(t => String(t.id)));
     const localOnly = tx.filter(t => !sid.has(String(t.id)));
-    const base = dirty ? [...tx, ...d.tx.filter(t => !lid.has(String(t.id)))] : [...d.tx, ...localOnly];
+    const base = SyncTransactions.merge(tx, d.tx, [...gone0], !!dirty);
     tx = base.sort((a, b) => (a.date < b.date ? 1 : -1));
     accounts = { ...d.accounts, ...accounts }; JSON.parse(localStorage.getItem('delAcc') || '[]').forEach(k => { if (!tx.some(t => t.account === k)) delete accounts[k]; });
     if (Array.isArray(d.rem)) {
@@ -1909,6 +1910,7 @@ async function pull(manualUrl = null) {
     syncMsg = '✅ دریافت از شیت انجام شد';
     matchTransfers();
     noteSyncSuccess159();
+    if (preflight) return true;
     if (manualUrl) {
       if (d.inbox && d.inbox.length) syncMsg += '؛ پیامک‌های صندوق روی شیت باقی ماندند و ارسالی انجام نشد.';
       else syncMsg += '؛ ارسالی به شیت انجام نشد.';
@@ -1919,7 +1921,8 @@ async function pull(manualUrl = null) {
       if (current()) await accountOwnerFetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ack: d.inbox.map(i => i.id) }) }).catch(() => {});
     }
     if (!manualUrl && localStorage.getItem('dirty')) await doPush();
-  } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); } finally { legacyInFlight--; }
+    return true;
+  } catch (e) { syncMsg = '⚠️ اتصال به شیت برقرار نشد: ' + (e.message || e); return false; } finally { legacyInFlight--; }
 }
 let lastPull = 0;
 let editingUntil = 0;
