@@ -329,7 +329,7 @@ function addSms0(raw) {
   if (p.ignored) return { ok: false, msg: 'پیامک رمز بود؛ نادیده گرفته شد' };
   if (p.review) return { ok: false, review: true, msg: 'نفهمیدم: قالب ' + p.bank + ' آزمایشی است و باید دستی بررسی شود' };
   if (p.account && accounts[p.account] === undefined) { accounts[p.account] = /^\d{6,}$/.test(p.account) ? p.bank + ' …' + p.account.slice(-4) : p.bank; }
-  const dup = tx.find(t => !t.ghost && t.type === p.type && t.amount === p.amount && t.date === p.date && (!t.account || !p.account || t.account === p.account));
+  const dup = tx.find(t => SyncTransactions.sameSms(t, { ...p, raw: String(raw).slice(0, 2000) }));
   if (dup) return { ok: false, msg: 'تکراری بود' };
   const t = { id: Date.now() + Math.random(), bank: p.bank, account: p.account, type: p.type, amount: p.amount, balance: p.balance, date: p.date, desc: '', cat: '', pending: true, raw: String(raw).slice(0, 2000) };
   tx.unshift(t); save(); rcTryPending();
@@ -1179,7 +1179,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۶';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۷';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {

@@ -40,5 +40,9 @@ window.INVENTORY_TEXT_FA = Object.freeze({
   warehouseSource: 'موجودی از فاکتورهای خرید انبار محاسبه می‌شود.',
   inboxTitle: 'پیامک‌های تأییدنشده',
   inboxDays: 'روز',
-  inboxUnknownAge: 'تاریخ نامشخص'
+  inboxUnknownAge: 'تاریخ نامشخص',
+  syncOtherConflict: 'تنظیمات یا داده‌های دیگر در هر دو دستگاه تغییر کرده‌اند؛ بررسی دستی لازم است.',
+  syncWaitForm: 'برای ادغام، فرم باز را ببند و به خانه برو.',
+  syncMerged: 'تراکنش‌ها ادغام شدند؛ ارسال در نوبت بعدی انجام می‌شود.',
+  syncChangedRetry: 'شیت تغییر کرد؛ دوباره ادغام و بررسی می‌شود.'
 });

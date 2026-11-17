@@ -149,7 +149,21 @@ async function directAutoTick() {
     if (!head || !base) throw new Error('نسخه مبنای این دستگاه در شیت پیدا نشد');
     const local = directSyncSnapshot(), value = DirectSyncCore.canonicalData(local.data);
     const decision = DirectSyncCore.decide(DirectSyncCore.canonicalData(base.backup.data), value, DirectSyncCore.canonicalData(head.backup.data));
-    if (decision === 'conflict') throw new Error('هم این گوشی و هم شیت تغییر کرده‌اند؛ دریافت متوقف شد تا اطلاعات جایگزین نشوند. همگام‌سازی دستی را بررسی کن');
+    if (decision === 'conflict') {
+      const merged = DirectSyncCore.mergeTransactions(base.backup.data, local.data, head.backup.data);
+      if (merged.conflicts.length) throw new Error(INVENTORY_TEXT_FA.syncOtherConflict);
+      if (typeof directAutoCanApply === 'function' && !directAutoCanApply()) { directAutoShow(INVENTORY_TEXT_FA.syncWaitForm); return; }
+      if (localStorage.getItem(DIRECT_RECEIVE_JOURNAL)) await directReceiveArchivePrevious();
+      const refreshed = await read(), checked = DirectSyncCore.inspectHistory(refreshed);
+      const latest = refreshed.find(record => record.id === head.id);
+      if (directAutoSession !== session) return;
+      if (checked.state !== 'linear' || checked.heads[0] !== head.id || !latest || DirectSyncCore.canonicalData(latest.backup.data) !== DirectSyncCore.canonicalData(head.backup.data)) { directAutoShow(INVENTORY_TEXT_FA.syncChangedRetry); return; }
+      if (typeof directAutoCanApply === 'function' && !directAutoCanApply()) { directAutoShow(INVENTORY_TEXT_FA.syncWaitForm); return; }
+      directReceiveApply({ ...local, data: merged.data }, value, state, head.id);
+      directReceiveRefreshView();
+      directAutoShow(INVENTORY_TEXT_FA.syncMerged);
+      return;
+    }
     if (decision === 'download' && !session.receive) throw new Error('نسخه جدید در شیت هست، اما دریافت خودکار هنگام فعال‌سازی انتخاب نشده بود؛ توقف را بزن، تیک دریافت خودکار را بزن و دوباره فعال کن');
     if (decision === 'download') {
       if (typeof directAutoCanApply === 'function' ? !directAutoCanApply() : ((typeof busyTyping === 'function' && busyTyping()) || (typeof tab !== 'undefined' && tab === 'add'))) { directAutoShow('نسخه جدید آماده است؛ فرم‌های باز را ببند و به صفحه خانه برو تا دریافت شود.'); return; }
@@ -179,6 +193,10 @@ async function directAutoTick() {
       if (state.base !== head.id) { state.base = head.id; localStorage.setItem('directSyncState', JSON.stringify(state)); }
       if (typeof noteSyncSuccess159 === 'function') noteSyncSuccess159(); directAutoShow('✅ ارسال خودکار فعال است؛ اطلاعات این دستگاه و شیت یکسان‌اند.'); return;
     }
+    const latestRecords = await read(), latestGraph = DirectSyncCore.inspectHistory(latestRecords);
+    const latestHead = latestRecords.find(record => record.id === head.id);
+    if (directAutoSession !== session) return;
+    if (latestGraph.state !== 'linear' || latestGraph.heads[0] !== head.id || !latestHead || DirectSyncCore.canonicalData(latestHead.backup.data) !== DirectSyncCore.canonicalData(head.backup.data)) { directAutoShow(INVENTORY_TEXT_FA.syncChangedRetry); return; }
     const serialized = JSON.stringify(local), parts = [];
     for (let i = 0; i < serialized.length; i += 12000) parts.push(serialized.slice(i, i + 12000));
     if (parts.length > 196) throw new Error('اطلاعات برای شیت بیش از حد بزرگ است');

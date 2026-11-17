@@ -108,6 +108,21 @@
     return { data: result, conflicts };
   }
 
+  function mergeTransactions(base, local, remote) {
+    const withoutTransactions = data => ({ ...data, tx: '[]', txDel: '[]' });
+    const merged = previewMerge(withoutTransactions(base), withoutTransactions(local), withoutTransactions(remote));
+    if (merged.conflicts.length) return merged;
+    const read = (data, key) => {
+      const value = JSON.parse(data[key] || '[]');
+      if (!Array.isArray(value)) throw new Error('Invalid transaction data');
+      return value;
+    };
+    const deleted = [...new Set([...read(base, 'txDel'), ...read(local, 'txDel'), ...read(remote, 'txDel')].map(String))];
+    merged.data.txDel = JSON.stringify(deleted);
+    merged.data.tx = JSON.stringify(globalThis.SyncTransactions.merge(read(local, 'tx'), read(remote, 'tx'), deleted, true));
+    return merged;
+  }
+
   function mergeAddedReminders(base, local, remote) {
     const value = (data, key) => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null;
     const keys = new Set([...Object.keys(base), ...Object.keys(remote)]);
@@ -128,7 +143,7 @@
     return { ...local, rem: JSON.stringify([...here, ...there.slice(before.length)]) };
   }
 
-  const api = Object.freeze({ canonicalData, inspectHistory, decide, previewMerge, mergeAddedReminders });
+  const api = Object.freeze({ canonicalData, inspectHistory, decide, previewMerge, mergeAddedReminders, mergeTransactions });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DirectSyncCore = api;
 })(globalThis);
