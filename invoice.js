@@ -111,7 +111,7 @@ function invoiceUnpaidCount189(items, transactions) {
   return items.filter(item => invoiceIsUnpaid173k(item, transactions)).length;
 }
 function invoiceHasVehicle190(kind) { return kind === '\u062e\u062f\u0645\u0627\u062a' || kind === '\u062e\u062f\u0645\u0627\u062a \u062f\u0627\u0626\u0645\u06cc'; }
-function invoiceConvert190(item) { return { ...item, proforma:false, accounting:{ ...(item.accounting || {}), status:'pending' } }; }
+function invoiceConvert190(item) { return { ...item, proforma:false, convertedAt:new Date().toISOString(), accounting:{ ...(item.accounting || {}), status:'pending' } }; }
 function invoiceReminder190(item, check, existing) {
   return { ...(existing || {}), id:existing?.id || Date.now() + Math.random(), type:'check', title:INVENTORY_TEXT_FA.checkReminderTitle + ' · ' + item.number, date:check.isoDate, amount:check.amount, alerts:[0], before:0, count:0, rep:'', invoiceCheckId:item.id };
 }
@@ -464,7 +464,7 @@ function invoicePrint(item) {
   const popup = window.open('', '_blank');
   if (!popup) { alert('پنجره چاپ باز نشد؛ اجازه باز شدن پنجره را بررسی کن.'); return; }
   const lines = item.lines.map(line => `<tr><td>${esc(line.name)}</td><td>${Number(line.quantity).toLocaleString('fa-IR')}</td><td>${Number(line.price).toLocaleString('fa-IR')}</td><td>${(line.quantity * line.price).toLocaleString('fa-IR')}</td></tr>`).join('');
-  popup.document.write(`<html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>فاکتور ${esc(item.number)}</title><style>body{font-family:Tahoma,sans-serif;padding:24px;line-height:1.9}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:8px;text-align:right}@media print{button{display:none}}</style></head><body><h2>${esc(item.proforma ? INVENTORY_TEXT_FA.proforma : INVENTORY_TEXT_FA.invoiceLabel)} ${esc(invoiceKindLabel(item))}</h2><div>شماره: ${esc(item.number)} · تاریخ: ${esc(item.date)}</div><div>مشتری: ${esc(item.customer)} · تماس: ${esc(item.phone)}</div>${item.ownerName || item.ownerPhone ? `<div>صاحب خودرو: ${esc(item.ownerName || '')} · تماس: ${esc(item.ownerPhone || '')}</div>` : ''}<div>خودرو: ${[item.plate,item.model,item.color,item.carType].map(esc).filter(Boolean).join(' · ')}</div><table><thead><tr><th>شرح</th><th>تعداد</th><th>قیمت واحد (تومان)</th><th>مبلغ (تومان)</th></tr></thead><tbody>${lines}</tbody></table><h3>جمع: ${Number(item.total).toLocaleString('fa-IR')} تومان</h3><button onclick="window.print()">چاپ / ذخیره PDF</button></body></html>`);
+  popup.document.write(`<html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>فاکتور ${esc(item.number)}</title><style>body{font-family:Tahoma,sans-serif;padding:24px;line-height:1.9}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:8px;text-align:right}@media print{button{display:none}}</style></head><body><h2>${esc(item.proforma ? INVENTORY_TEXT_FA.proforma : INVENTORY_TEXT_FA.invoiceLabel)} ${esc(invoiceKindLabel(item))}</h2>${item.proforma ? `<div style="font-size:26px;font-weight:bold;border:2px solid;padding:8px;text-align:center">${esc(INVENTORY_TEXT_FA.proforma)} · ${esc(INVENTORY_TEXT_FA.proformaInvalidPayment)}</div>` : ''}<div>شماره: ${esc(item.number)} · تاریخ: ${esc(item.date)}</div><div>مشتری: ${esc(item.customer)} · تماس: ${esc(item.phone)}</div>${item.ownerName || item.ownerPhone ? `<div>صاحب خودرو: ${esc(item.ownerName || '')} · تماس: ${esc(item.ownerPhone || '')}</div>` : ''}<div>خودرو: ${[item.plate,item.model,item.color,item.carType].map(esc).filter(Boolean).join(' · ')}</div><table><thead><tr><th>شرح</th><th>تعداد</th><th>قیمت واحد (تومان)</th><th>مبلغ (تومان)</th></tr></thead><tbody>${lines}</tbody></table><h3>جمع: ${Number(item.total).toLocaleString('fa-IR')} تومان</h3><button onclick="window.print()">چاپ / ذخیره PDF</button></body></html>`);
   popup.document.close();
 }
 function invoiceBind() {
@@ -630,6 +630,7 @@ function invoiceBind() {
       const checkHasData = ['number','amount','date','bank','owner','note'].some(key => cv(key)) || get('inv-check-reminder-190').checked;
       if (checkHasData) { const amount=invoiceDigits(cv('amount')), isoDate=persianToIso(cv('date')); if (!cv('number') || amount === null || amount <= 0 || !Number.isSafeInteger(amount*10) || !isoDate) throw new Error(INVENTORY_TEXT_FA.checkInvalid); item.check={ number:cv('number'), amount, date:cv('date'), isoDate, bank:cv('bank'), owner:cv('owner'), direction:cv('direction'), note:cv('note'), reminder:get('inv-check-reminder-190').checked }; } else if (previous?.check) delete item.check;
       item.customerGroup=purchase ? INVENTORY_TEXT_FA.sellerRole : (get('inv-person-role').value || 'مشتری'); item.payment.group=get('inv-pay-group').value || '';
+      if (previous?.proforma && !item.proforma) item.convertedAt = new Date().toISOString();
       item.accounting = { ...accounting, status:'pending' };
       if (item.kind === 'inventory_sale' && !item.proforma) {
         const prospective = [...list.filter(entry => entry !== previous), item];

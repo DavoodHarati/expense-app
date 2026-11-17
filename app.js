@@ -637,7 +637,7 @@ function _render() {
         const panel = document.getElementById('invoice-search-panel'); panel.open = false;
         panel.querySelector('summary b').textContent = 'فیلتر ماه و وضعیت';
         panel.after(document.getElementById('inv-results'));
-        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-types-170').insertAdjacentHTML('afterend', '<div id="invoice-summary-173p" class="invoice-summary-173p" aria-live="polite"></div>'); document.getElementById('inv-show-all').checked = true;
+        panel.before(document.getElementById('inv-types-170')); document.getElementById('inv-types-170').insertAdjacentHTML('afterend', (tab === 'report' ? invoiceTopReportsHtml191() : '') + '<div id="invoice-summary-173p" class="invoice-summary-173p" aria-live="polite"></div>'); document.getElementById('inv-show-all').checked = true;
         for (const id of ['invoice-check-duplicates-172','invoice-suggestions-178','invoice-duplicates-172']) document.getElementById(id)?.remove();
         invoiceShowList('');
       }
@@ -1179,7 +1179,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۹۰';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۹۱';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
