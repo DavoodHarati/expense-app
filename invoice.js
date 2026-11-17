@@ -111,7 +111,15 @@ function invoiceUnpaidCount189(items, transactions) {
   return items.filter(item => invoiceIsUnpaid173k(item, transactions)).length;
 }
 function invoiceHasVehicle190(kind) { return kind === '\u062e\u062f\u0645\u0627\u062a' || kind === '\u062e\u062f\u0645\u0627\u062a \u062f\u0627\u0626\u0645\u06cc'; }
-function invoiceConvert190(item) { return { ...item, proforma:false, convertedAt:new Date().toISOString(), accounting:{ ...(item.accounting || {}), status:'pending' } }; }
+function invoiceNextProforma192(list, counter) {
+  if (counter !== null && counter !== undefined && (!/^\d+$/.test(String(counter)) || !Number.isSafeInteger(Number(counter)))) throw new Error(INVENTORY_TEXT_FA.proformaCounterError);
+  let maximum = counter == null ? 0 : Number(counter);
+  for (const item of list) for (const value of [item.number, item.proformaNumber]) { const match = /^PF-(\d+)$/.exec(String(value || '')); if (match && Number.isSafeInteger(Number(match[1]))) maximum = Math.max(maximum, Number(match[1])); }
+  if (!Number.isSafeInteger(maximum + 1)) throw new Error('Invalid proforma sequence');
+  return 'PF-' + String(maximum + 1).padStart(3, '0');
+}
+function invoiceNormalNumber192(list) { let number = Date.now(); const used = new Set(list.map(i => String(i.number))); while (used.has(String(number))) number++; return String(number); }
+function invoiceConvert190(item, list = invoiceList()) { return { ...item, proforma:false, proformaNumber:item.number, number:invoiceNormalNumber192(list), convertedAt:new Date().toISOString(), accounting:{ ...(item.accounting || {}), status:'pending' } }; }
 function invoiceReminder190(item, check, existing) {
   return { ...(existing || {}), id:existing?.id || Date.now() + Math.random(), type:'check', title:INVENTORY_TEXT_FA.checkReminderTitle + ' · ' + item.number, date:check.isoDate, amount:check.amount, alerts:[0], before:0, count:0, rep:'', invoiceCheckId:item.id };
 }
@@ -338,7 +346,8 @@ function invoiceReportData(list, transactions, from = '', to = '', type = 'all')
 function invoiceReportHtml(list, transactions, from = '', to = '', type = 'all') {
   const r=invoiceReportData(list,transactions,from,to,type), t=INVENTORY_TEXT_FA;
   const fields = type === 'all' ? [[t.reportIncome,r.income],[t.reportExpense,r.expense],[t.reportProfit,r.profit],[t.reportDebt,r.debt]] : type === 'owner' ? [[t.reportOwner,r.owner]] : type === 'assistant' ? [[t.reportAssistant,r.assistant]] : type === 'unpaid' ? [[t.reportDebt,r.debt]] : [[t.reportTotal,r.total]];
-  return '<div class="invoice-overview-170">'+fields.map(([label,value])=>'<div>'+esc(label)+'<b>'+Number(value).toLocaleString('fa-IR')+' '+esc(t.toman)+'</b></div>').join('')+'<div>'+esc(t.reportCount)+'<b>'+r.count.toLocaleString('fa-IR')+'</b></div></div><div class="mut">'+esc(t.reportNote)+'</div>';
+  const descriptions = new Map([[t.reportIncome,t.reportIncomeDescription],[t.reportExpense,t.reportExpenseDescription],[t.reportProfit,t.reportProfitDescription],[t.reportDebt,t.reportDebtDescription],[t.reportCount,t.reportCountDescription]]);
+  return '<div class="invoice-overview-170">'+fields.map(([label,value])=>'<div>'+esc(label)+(descriptions.has(label)?'<small class="invoice-stat-description-192">'+esc(descriptions.get(label))+'</small>':'')+'<b>'+Number(value).toLocaleString('fa-IR')+' '+esc(t.toman)+'</b></div>').join('')+'<div>'+esc(t.reportCount)+'<small class="invoice-stat-description-192">'+esc(t.reportCountDescription)+'</small><b>'+r.count.toLocaleString('fa-IR')+'</b></div></div><div class="mut">'+esc(t.reportNote)+'</div>';
 }
 function invoiceLedgerHtml(list = invoiceList()) {
   const t=INVENTORY_TEXT_FA, options=[['all',t.reportAll],['owner',t.reportOwner],['assistant',t.reportAssistant],['sale',t.reportSale],['unpaid',t.reportUnpaid]];
@@ -356,7 +365,7 @@ document.addEventListener('change', event => {
   box.querySelector('.invoice-report-result-170').innerHTML=invoiceReportHtml(invoiceList().filter(i=>typeof topic==='undefined'||topic!=='sales'||i.kind==='فروش'),tx,from,to,type);
 });
 function invoiceCreditHtml() {
-  const list = invoiceList().filter(item => invoiceIsUnpaid173k(item, tx));
+  const list = invoiceList().filter(item => !item.proforma && invoiceIsUnpaid173k(item, tx));
   if (!list.length) return '';
   return `<details class="card"><summary><b>🧾 فاکتورهای نسیه (${list.length.toLocaleString('fa-IR')})</b></summary><div class="mut">فاکتورهای نسیه جدا از حساب قرض هستند؛ برای تغییر وضعیت تسویه، فاکتور را ویرایش کن.</div>${list.map(item => `<div class="invoice-result"><b>${esc(item.customer || 'بدون نام')} · ${esc(item.number)}</b><div class="mut">${esc(item.date || '')} · ${esc(item.phone || '')} · ${item.accounting?.status === 'confirmed' ? 'تأییدشده' : 'در انتظار تأیید'}</div><b>${Number(item.total || 0).toLocaleString('fa-IR')} تومان</b></div>`).join('')}<button type="button" class="invoice-open-list" data-filter="unpaid">بررسی فاکتورهای نسیه</button></details>`;
 }
@@ -411,7 +420,7 @@ function invoiceShowList(query = '') {
   const type170 = document.querySelector('#inv-types-170 [aria-pressed="true"]')?.dataset.invoiceType || 'all';
   const status170 = document.getElementById('inv-status-170')?.value || 'all';
   const month170 = document.getElementById('inv-month-170')?.value || '';
-  const matches = invoiceList().filter(item => (type170 === 'unpaid' ? invoiceIsUnpaid173k(item, tx) : invoiceTypeMatches170(item, type170)) && (status170 === 'all' || invoiceStatus170(item, tx) === status170) && (!month170 || String(item.date || '').slice(0,7) === month170) && invoiceMatchesFilters(item, tx, filters) && (typeof topic === 'undefined' || topic !== 'sales' || item.kind === 'فروش') && (!term || [item.number, item.customer, item.phone, item.ownerName, item.ownerPhone, item.plate, item.model, item.date, item.total, ...(item.lines || []).map(line => line.name)].some(value => nrm(pfa(value || '')).includes(term))) && (filter === 'all' || (filter === 'service' ? (item.kind || 'خدمات') === 'خدمات' : filter === 'sale' ? invoiceKind(item) === 'فروش' : filter === 'unpaid' ? item.payment?.method === 'unpaid' && invoicePaymentStatus(item, tx).status !== 'paid' : filter === 'confirmed' ? item.accounting?.status === 'confirmed' : item.accounting?.status !== 'confirmed')));
+  const matches = invoiceList().filter(item => (type170 === 'unpaid' ? invoiceIsUnpaid173k(item, tx) : invoiceTypeMatches170(item, type170)) && (status170 === 'all' || invoiceStatus170(item, tx) === status170) && (!month170 || String(item.date || '').slice(0,7) === month170) && invoiceMatchesFilters(item, tx, filters) && (typeof topic === 'undefined' || topic !== 'sales' || item.kind === 'فروش') && (!term || [item.number, item.proformaNumber, item.customer, item.phone, item.ownerName, item.ownerPhone, item.plate, item.model, item.date, item.total, ...(item.lines || []).map(line => line.name)].some(value => nrm(pfa(value || '')).includes(term))) && (filter === 'all' || (filter === 'service' ? (item.kind || 'خدمات') === 'خدمات' : filter === 'sale' ? invoiceKind(item) === 'فروش' : filter === 'unpaid' ? item.payment?.method === 'unpaid' && invoicePaymentStatus(item, tx).status !== 'paid' : filter === 'confirmed' ? item.accounting?.status === 'confirmed' : item.accounting?.status !== 'confirmed')));
   const summary173p=document.getElementById('invoice-summary-173p');
   if(summary173p && typeof invoiceSummary173g==='function') { const s=invoiceSummary173g(matches,tx,invoiceDate().slice(0,7)); summary173p.innerHTML='<div>خلاصهٔ فاکتورها</div><strong>'+s.monthly.toLocaleString('fa-IR')+' <small>تومان جمع ماه</small></strong><div class="invoice-summary-meta-173p"><span>ماندهٔ طلب: '+s.debt.toLocaleString('fa-IR')+' تومان</span><span>تعداد: '+s.count.toLocaleString('fa-IR')+'</span></div>'; }
   const overview = document.getElementById('inv-overview-170');
@@ -601,7 +610,7 @@ function invoiceBind() {
       get('inv-message').textContent = legacyShare ? 'این فاکتور قدیمی سهم دستیار را به مبلغ ثابت باز می‌کند؛ مبلغ قبلی حفظ شده است.' : 'فاکتور برای ویرایش باز شد؛ پس از تغییر، ذخیره را بزن.';
       card.scrollIntoView({ behavior:'smooth', block:'start' }); return;
     }
-    const convert190 = event.target.closest('.invoice-convert-190'); if (convert190) { const list=invoiceList(), index=list.findIndex(x=>String(x.id)===convert190.dataset.id); if(index<0 || !list[index].proforma) return; const converted=invoiceConvert190(list[index]); if(converted.kind==='inventory_sale' && inventoryTotals188(list.map((x,i)=>i===index?converted:x)).some(x=>x.qty<0) && !confirm(INVENTORY_TEXT_FA.warehouseNegative)) return; list[index]=converted; invoiceSaveData('invoices',list); invoiceShowList(get('inv-search').value); return; }
+    const convert190 = event.target.closest('.invoice-convert-190'); if (convert190) { const list=invoiceList(), index=list.findIndex(x=>String(x.id)===convert190.dataset.id); if(index<0 || !list[index].proforma) return; const converted=invoiceConvert190(list[index],list); if(converted.kind==='inventory_sale' && inventoryTotals188(list.map((x,i)=>i===index?converted:x)).some(x=>x.qty<0) && !confirm(INVENTORY_TEXT_FA.warehouseNegative)) return; list[index]=converted; invoiceSaveData('invoices',list); invoiceShowList(get('inv-search').value); return; }
     const approve = event.target.closest('.invoice-confirm'); if (approve) { if (approve.disabled) return; approve.disabled = true; try { const list = invoiceList(), item = list.find(entry => String(entry.id) === approve.dataset.id); if (!item || item.proforma || !item.accounting || item.accounting.status === 'confirmed') return; const checked = invoiceAccount(item.total, String(item.accounting.materials), String(item.accounting.ownerPercent), item.share || 0); if (!confirm('سهم نهایی ' + checked.ownerNet.toLocaleString('fa-IR') + ' تومان تأیید شود؟ ردیف‌های ساخته‌شدهٔ همین فاکتور به‌روز می‌شوند؛ تراکنش بانکی تغییر نمی‌کند.')) return; const updated = invoiceUpdateRows172(item, tx); item.accounting = { ...checked, status:'confirmed', confirmedAt:new Date().toISOString() }; invoiceSaveData('invoices', list); if (updated) save(); invoiceShowList(get('inv-search').value); get('inv-message').textContent = '✅ فاکتور تأیید شد' + (updated ? ' و ردیف‌های مربوط به‌روز شدند.' : '.'); } catch (error) { alert(error.message); } finally { approve.disabled = false; } return; }
     const print = event.target.closest('.invoice-print'); if (print) { const item = invoiceList().find(entry => entry.id === print.dataset.id); if (item) invoicePrint(item); return; }
     const deleted = event.target.closest('.invoice-delete'); if (deleted) { const list = invoiceList(), item = list.find(entry => entry.id === deleted.dataset.id); if (!item) return; const linked = tx.some(entry => entry.invoiceId === item.id); if (!confirm('فاکتور «' + item.number + '» حذف شود؟' + (linked ? ' کارکرد دستیار که قبلاً ثبت شده حفظ می‌شود و جداگانه باید بررسی شود.' : ''))) return; invoiceSaveData('invoices', list.filter(entry => entry.id !== item.id)); invoiceShowList(get('inv-search').value); get('inv-message').textContent = 'فاکتور حذف شد.'; return; }
@@ -619,9 +628,12 @@ function invoiceBind() {
       const match = date.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); if (!match || Number(match[2]) < 1 || Number(match[2]) > 12 || Number(match[3]) < 1 || Number(match[3]) > 31) throw new Error('تاریخ را مانند 1405/08/17 وارد کن');
       const pm = Number(match[2]), pd = Number(match[3]); if (pm > 6 && pd > 30) throw new Error('روز انتخاب‌شده در این ماه شمسی معتبر نیست');
       const plateParts = ['inv-plate-left','inv-plate-letter','inv-plate-mid','inv-plate-iran'].map(key => get(key).value.trim()); if (invoiceHasVehicle190(get('inv-kind').value) && [plateParts[0],plateParts[2],plateParts[3]].some(Boolean) && !plateParts.every(Boolean)) throw new Error('همه بخش‌های پلاک را کامل کن یا بخش‌های عددی را خالی بگذار');
-      const number = get('inv-number').value.trim() || String(Date.now());
       const list = invoiceList(), previous = editingInvoiceId ? list.find(item => item.id === editingInvoiceId) : null;
       if (editingInvoiceId && !previous) throw new Error('فاکتور اصلی پیدا نشد؛ تغییری ذخیره نشد');
+      const isProforma = get('inv-proforma').checked;
+      const newProforma = isProforma && !previous;
+      const converted = previous?.proforma && !isProforma;
+      const number = newProforma ? invoiceNextProforma192(list, localStorage.getItem('proformaSequence192')) : converted ? invoiceNormalNumber192(list) : (isProforma && previous ? previous.number : get('inv-number').value.trim() || invoiceNormalNumber192(list));
       if (list.some(item => item.number === number && item.id !== editingInvoiceId)) throw new Error('این شماره فاکتور قبلاً ثبت شده است');
       const linked = previous && tx.some(entry => entry.invoiceId === previous.id);
       if (previous && !confirm('تغییرات فاکتور «' + previous.number + '» ذخیره شود؟ فاکتور برای تأیید مجدد به فهرست تأییدنشده‌ها برمی‌گردد.' + (linked ? ' پس از تأیید دوباره، ردیف‌های ساخته‌شدهٔ همین فاکتور به‌روز می‌شود؛ اگر تکراری باشند ابتدا ردیف اصلی را انتخاب کن.' : ''))) return;
@@ -630,12 +642,13 @@ function invoiceBind() {
       const checkHasData = ['number','amount','date','bank','owner','note'].some(key => cv(key)) || get('inv-check-reminder-190').checked;
       if (checkHasData) { const amount=invoiceDigits(cv('amount')), isoDate=persianToIso(cv('date')); if (!cv('number') || amount === null || amount <= 0 || !Number.isSafeInteger(amount*10) || !isoDate) throw new Error(INVENTORY_TEXT_FA.checkInvalid); item.check={ number:cv('number'), amount, date:cv('date'), isoDate, bank:cv('bank'), owner:cv('owner'), direction:cv('direction'), note:cv('note'), reminder:get('inv-check-reminder-190').checked }; } else if (previous?.check) delete item.check;
       item.customerGroup=purchase ? INVENTORY_TEXT_FA.sellerRole : (get('inv-person-role').value || 'مشتری'); item.payment.group=get('inv-pay-group').value || '';
-      if (previous?.proforma && !item.proforma) item.convertedAt = new Date().toISOString();
+      if (converted) { item.proformaNumber = previous.number; item.convertedAt = new Date().toISOString(); }
       item.accounting = { ...accounting, status:'pending' };
       if (item.kind === 'inventory_sale' && !item.proforma) {
         const prospective = [...list.filter(entry => entry !== previous), item];
         if (inventoryTotals188(prospective).some(entry => entry.qty < 0) && !confirm(INVENTORY_TEXT_FA.warehouseNegative)) return;
       }
+      if (newProforma) localStorage.setItem('proformaSequence192', String(Number(number.slice(3))));
       if (previous) list[list.indexOf(previous)] = item; else list.unshift(item); invoiceSaveData('invoices', list); committed172 = true; if (item.check?.reminder) { const old = rem.find(r => r.invoiceCheckId === item.id); const reminder = invoiceReminder190(item,item.check,old); if (old) Object.assign(old,reminder); else rem.push(reminder); saveRem(); }
       let contactNote=''; try { if(typeof contactSaveFacts173p==='function') { const r=contactSaveFacts173p([{name:item.customer,phone:item.phone,role:item.customerGroup},{name:item.ownerName,phone:item.ownerPhone,role:'صاحب خودرو'},{name:item.payment.recipient,account:item.payment.account,role:item.payment.group || 'سایر'},{name:item.assistant,role:'دستیار'}]); if(r.skipped.length) contactNote=' برخی نام‌های مشابه برای جلوگیری از ادغام نیاز به بررسی دارند.'; } } catch (_) { contactNote=' ذخیرهٔ مخاطب انجام نشد؛ از بخش مخاطبین بررسی کن.'; }
       editingInvoiceId = null; get('inv-save').textContent = 'ذخیره فاکتور'; get('inv-message').textContent = '✅ فاکتور ذخیره شد؛ در فهرست فاکتورها آن را بررسی و تأیید کن.' + contactNote; get('inv-number').value = ''; get('inv-save').disabled = true; invoiceShowList(get('inv-search').value); if (typeof addSaved164 === 'function' && typeof tab !== 'undefined' && tab === 'add' && !contactNote) setTimeout(() => addSaved164('invoice'), 0);

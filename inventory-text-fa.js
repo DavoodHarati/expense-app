@@ -1,5 +1,13 @@
 // Persian labels for the inventory feature. Save this file as UTF-8.
 window.INVENTORY_TEXT_FA = Object.freeze({
+  proformaNumberPlaceholder: 'شماره پیش‌فاکتور خودکار است',
+  proformaCounterError: 'شمارندهٔ پیش‌فاکتور معتبر نیست؛ ابتدا پشتیبان را بررسی کنید.',
+  invoiceNumberPlaceholder: 'شماره فاکتور (اختیاری)',
+  reportIncomeDescription: 'جمع فاکتورهای تأییدشده',
+  reportExpenseDescription: 'جمع هزینه‌های ثبت‌شده',
+  reportProfitDescription: 'سهم صاحب‌کار پس از لوازم و دستیار، منهای فاکتورهای هزینه',
+  reportDebtDescription: 'هنوز پرداخت‌نشده',
+  reportCountDescription: 'بدون پیش‌فاکتور',
   topReports: 'گزارش برتر',
   topMonthly: 'سود و زیان ماهانه',
   topDebtors: 'بدهکاران نسیه',

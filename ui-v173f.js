@@ -10,8 +10,8 @@ function searchReminderDate173j(item) {
 // All data shown here is read-only; receipt archive creation is deliberately not called.
 function searchGroups173f(query, data) {
   const match = fields => searchMatches173e(fields, query);
-  const invoices = (data.invoices || []).filter(i => match([i.number,i.customer,i.ownerName,i.phone,i.date,i.total,...(i.lines || []).map(x=>x.name)]));
-  const transactions = (data.transactions || []).filter(t => (data.includeGhost || !t.ghost) && match([t.desc,t.note,t.person,t.seller,t.customer,t.service,t.bank,t.account,t.date,t.amount,Number(t.amount)/10]));
+  const invoices = (data.invoices || []).filter(i => match([i.number,i.proformaNumber,i.customer,i.ownerName,i.phone,i.date,i.total,...(i.lines || []).map(x=>x.name)]));
+  const transactions = (data.transactions || []).filter(t => !t.pending && (data.includeGhost || !t.ghost) && match([t.desc,t.note,t.person,t.seller,t.customer,t.service,t.bank,t.account,t.date,t.amount,Number(t.amount)/10]));
   const receipts = (data.receipts || []).map(item => ({...item, parsed:parseReceipt(item.raw || '')})).filter(item => match([item.raw,item.parsed?.name,item.parsed?.date,item.parsed?.amount,Number(item.parsed?.amount)/10,item.linked?.person,item.linked?.seller,item.linked?.date,item.linked?.amount]));
   return [
     {key:'invoices',title:'فاکتورها',rows:invoices.filter(i=>i.kind!=='فروش')},

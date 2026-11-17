@@ -8,7 +8,7 @@ function searchMatches173e(fields, query) {
 }
 function searchData173e(query, transactions, invoices) {
   const expenses = transactions.filter(t => !t.ghost && t.type === 'debit' && searchMatches173e([t.desc,t.note,t.person,t.seller,t.customer,t.date,t.amount,Number(t.amount)/10],query));
-  const matches = invoices.filter(i => searchMatches173e([i.number,i.customer,i.ownerName,i.date,i.total,...(i.lines || []).map(line=>line.name)],query));
+  const matches = invoices.filter(i => searchMatches173e([i.number,i.proformaNumber,i.customer,i.ownerName,i.date,i.total,...(i.lines || []).map(line=>line.name)],query));
   return {expenses,invoices:matches.filter(i=>i.kind !== 'فروش'),sales:matches.filter(i=>i.kind === 'فروش')};
 }
 function searchRender173e() {
