@@ -118,7 +118,7 @@ let welcomeDismissed = false;
 // انتقال بین حساب‌های خودم
 const toMin = d => { d = String(d).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)); const m = d.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/); if (!m) return 1e12; return ((+m[1] * 372 + +m[2] * 31 + +m[3]) * 24 + (+m[4] || 0)) * 60 + (+m[5] || 0); };
 function nowStr() {
-  const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+  const n = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tehran' }).formatToParts(new Date());
   const g = t => n.find(x => x.type === t).value;
   return `${g('year')}/${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`;
 }
@@ -594,6 +594,7 @@ function dkeys() {
 function render() {
   const y = window.scrollY, was = new Set(dkeys().filter(([d]) => d.open).map(x => x[1])), t0 = tab;
   _render2();
+  updateInboxBadge188();
   if (tab === t0) { dkeys().forEach(([d, k]) => { if (was.has(k) && !(tab === 'add' && d.id === 'manual-more-164')) d.open = true; }); window.scrollTo(0, y); }
   if (typeof splashComplete173g === 'function') splashComplete173g();
 }
@@ -1082,7 +1083,7 @@ function filterBar() {
 let ord = localStorage.getItem('ord') || 'sms';
 function ordTx(l) { return [...l].sort(ord === 'sms' ? (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id) : (a, b) => b.id - a.id); }
 function ordBar() { return `<div class="chips"><span class="mut" style="align-self:center">مرتب‌سازی:</span><button class="chip ordb ${ord === 'sms' ? 'on' : 'sec'}" data-o="sms">تاریخ پیامک</button><button class="chip ordb ${ord === 'entry' ? 'on' : 'sec'}" data-o="entry">زمان ورود به برنامه</button></div>`; }
-const fmt = ms => ms ? new Date(ms).toLocaleString('fa-IR') : '—';
+const fmt = ms => ms ? new Date(ms).toLocaleString('fa-IR', { timeZone:'Asia/Tehran' }) : '—';
 // اطلاعات نمایشی؛ ذخیره‌نشدن آن نباید روند اتصال را تغییر دهد.
 function noteSyncSuccess159() { try { localStorage.setItem('lastSyncOk', String(Date.now())); } catch (_) {} }
 function infoStatus159() {
@@ -1150,7 +1151,7 @@ function statusCard() {
   const subjectStatus = lastInvoice ? `آخرین فاکتور: ${esc(lastInvoice.customer || 'بدون نام')} · ${esc(lastInvoice.date || '')}` : lastWork ? `آخرین کارکرد: ${esc(lastWork.person || '')} · ${esc(lastWork.date || '')}` : lastReminder ? `آخرین یادآوری: ${esc(lastReminder.title || '')}` : topic !== 'expenses' ? 'هنوز موردی در این بخش ثبت نشده است.' : '';
   return `<div class="card"><b>آخرین وضعیت</b>
    <div class="mut" style="margin-top:6px">آخرین پیامک رسیده: ${l ? fmt(l.at) + ' · ' + (l.ok ? '✅ ' : '⚠️ ') + esc(l.msg) : 'هنوز نیامده'}</div>
-   <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? fmt(lt.id) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
+   <div class="mut">آخرین تراکنش ثبت‌شده: ${lt ? esc(lt.date || (lt.updatedAt ? fmt(lt.updatedAt) : '—')) + ' · ' + esc(lt.desc || (lt.pending ? 'منتظر توضیح' : '—')) : '—'}</div>
    <div class="mut" id="home-sync-status">${esc(homeSyncStatus())}</div>${subjectStatus ? `<div class="mut">${subjectStatus}</div>` : ''}
    ${load('directSyncState', null)?.id ? `<button type="button" id="home-direct-start" style="margin-top:8px" ${directAutoSession ? 'hidden' : ''}>اتصال خودکار به گوگل</button>` : ''}
    <div class="mut">${esc(syncMsg)}</div></div>`; }
@@ -1179,7 +1180,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۷';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۸';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1257,13 +1258,17 @@ function rowHtml(t, statusMap) {
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
 function inventoryEvents184(invoices) {
-  return invoices.filter(i => i.kind === 'inventory_purchase' && !i.proforma).flatMap(i => (i.lines || []).filter(l => l.name && Number.isSafeInteger(Number(l.quantity)) && Number(l.quantity) > 0).map(l => ({ref:'buy:' + String(i.number || ''), name:String(l.name).trim(), qty:Number(l.quantity)})));
+  return invoices.filter(i => (i.kind === 'inventory_purchase' || i.kind === 'inventory_sale') && !i.proforma).flatMap(i => (i.lines || []).filter(l => l.name && Number.isSafeInteger(Number(l.quantity)) && Number(l.quantity) > 0).map(l => ({ref:(i.kind === 'inventory_purchase' ? 'buy:' : 'sale:') + String(i.number || ''), name:String(l.name).trim(), qty:Number(l.quantity) * (i.kind === 'inventory_sale' ? -1 : 1)})));
 }
-function inventoryReport184(invoices) {
+function inventoryTotals188(invoices) {
   const totals = new Map();
   for (const e of inventoryEvents184(invoices)) { const key = e.name.replace(/ي/g,'ی').replace(/ك/g,'ک').replace(/\s+/g,' ').toLowerCase(); const item = totals.get(key) || {name:e.name,qty:0}; item.qty += e.qty; totals.set(key,item); }
+  return [...totals.values()];
+}
+function inventoryReport184(invoices) {
+  const totals = inventoryTotals188(invoices);
   const t=INVENTORY_TEXT_FA;
-  return '<section class="card" dir="rtl"><h3>'+esc(t.warehouseTab)+'</h3><div class="mut">'+esc(t.warehouseSource)+'</div>' + ([...totals.values()].map(i=>'<div class="row" style="padding:12px 0;border-bottom:1px solid #eee"><b>'+esc(i.name)+'</b><span>'+esc(t.warehouseStock)+': '+i.qty.toLocaleString('fa-IR')+'</span></div>').join('') || '<p class="mut">'+esc(t.warehouseEmpty)+'</p>') + '</section>';
+  return '<section class="card" dir="rtl"><h3>'+esc(t.warehouseTab)+'</h3><div class="mut">'+esc(t.warehouseSource)+'</div>' + (totals.map(i=>'<div class="row" style="padding:12px 0;border-bottom:1px solid #eee"><b>'+esc(i.name)+'</b><span>'+esc(t.warehouseStock)+': '+i.qty.toLocaleString('fa-IR')+(i.qty < 0 ? ' · '+esc(t.warehouseNegativeLabel) : '')+'</span></div>').join('') || '<p class="mut">'+esc(t.warehouseEmpty)+'</p>') + '</section>';
 }
 function smsAge184(date, today) {
   const start=persianToIso(String(date || '').slice(0,10)), end=persianToIso(String(today || '').slice(0,10));
@@ -1275,6 +1280,31 @@ function smsAgeBadge184(date) {
   const a=smsAge184(date,nowStr()), t=INVENTORY_TEXT_FA;
   return a ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;border-radius:50%;color:white;background:'+a.color+'">'+a.days.toLocaleString('fa-IR')+' '+esc(t.inboxDays)+'</span>' : '<span class="mut">'+esc(t.inboxUnknownAge)+'</span>';
 }
+const SMS_HOME_DAYS_188 = 3;
+let smsInboxOpen188 = false;
+function splitPending188(rows, today) {
+  const recent = [], older = [];
+  for (const row of rows.filter(item => item.pending)) {
+    const age = smsAge184(row.date, today);
+    (age && age.days <= SMS_HOME_DAYS_188 ? recent : older).push(row);
+  }
+  return { recent, older };
+}
+function updateInboxBadge188() {
+  const button = document.getElementById('sms-inbox-188'), badge = document.getElementById('sms-inbox-count-188');
+  if (!button || !badge) return;
+  const count = tx.filter(item => item.pending).length;
+  button.setAttribute('aria-label', INVENTORY_TEXT_FA.inboxTitle);
+  badge.textContent = count.toLocaleString('fa-IR');
+  badge.hidden = count === 0;
+}
+document.addEventListener('click', event => {
+  if (event.target.closest('#sms-inbox-188')) {
+    if (typeof searchClose173o === 'function') searchClose173o();
+    topic = 'expenses'; tab = 'home'; smsInboxOpen188 = true; render();
+    document.getElementById('sms-older-188')?.scrollIntoView({ block:'start', behavior:'smooth' });
+  } else if (event.target.closest('#sms-inbox-close-188')) { smsInboxOpen188 = false; render(); }
+});
 function homeHtml() {
   return (featureOn('reminder') ? dueBanner157() + remBanner() : '') + homeHtml0();
 }
@@ -1287,11 +1317,12 @@ function homeHtml0() {
   const mt = tx.filter(t => !t.ghost && isSel(t.account) && !t.pending && !t.xfer && !t.loan && monthOf(t) === cur);
   const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
-  const smsPending = tx.filter(t => t.pending);
+  const inbox = splitPending188(tx, nowStr()), smsPending = inbox.recent;
   return `${banner ? `<div class="card">${banner}</div>` : ''}
   ${xsugHtml()}
   ${featureOn('sms') ? rcReviewHtml() : ''}
   ${smsPending.length ? `<section class="card"><h3>${esc(INVENTORY_TEXT_FA.inboxTitle)} (${smsPending.length.toLocaleString('fa-IR')})</h3>${smsPending.map(t => '<div>'+smsAgeBadge184(t.date)+pendingCard(t)+'</div>').join('')}</section>` : ''}
+  ${smsInboxOpen188 ? `<section class="card" id="sms-older-188"><h3>${esc(INVENTORY_TEXT_FA.inboxOlder)} (${inbox.older.length.toLocaleString('fa-IR')})</h3><button type="button" class="sec" id="sms-inbox-close-188">${esc(INVENTORY_TEXT_FA.inboxClose)}</button>${inbox.older.map(t => '<div>'+smsAgeBadge184(t.date)+pendingCard(t)+'</div>').join('') || '<p class="mut">'+esc(INVENTORY_TEXT_FA.inboxEmpty)+'</p>'}</section>` : ''}
   ${filterBar()}
   ${statusCard()}
   <div class="hero"><div style="opacity:.8">${!sel || sel.length > 1 ? 'مجموع موجودی' : 'موجودی'}</div><div class="big">${toman(total)} <small>تومان</small></div>
@@ -1856,7 +1887,7 @@ async function doPush(manualUrl = null) {
     const r = await (await accountOwnerFetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ tx, accounts, rem, profile: { job: job(), work: work(), cols: localStorage.getItem('cols') || '{}', lab: JSON.stringify({ cats: localStorage.getItem('cats'), icats: localStorage.getItem('icats'), ctypes: localStorage.getItem('ctypes'), svq: localStorage.getItem('svq'), carModels: localStorage.getItem('carModels'), defaultCustomerType: localStorage.getItem('defaultCustomerType'), ppl: localStorage.getItem('ppl'), pplIgnored: localStorage.getItem('pplIgnored') }) }, log: log.slice(0, 100) }) })).json();
     if (!current()) return false;
     if (!r.ok) throw new Error(r.error);
-    if (!manualUrl && beforeSend === localStorage.getItem('tx')) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); noteSyncSuccess159(); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR'); return true;
+    if (!manualUrl && beforeSend === localStorage.getItem('tx')) localStorage.removeItem('dirty'); localStorage.setItem('lastSync', Date.now()); noteSyncSuccess159(); syncMsg = '✅ ذخیره در شیت ' + new Date().toLocaleTimeString('fa-IR', { timeZone:'Asia/Tehran' }); return true;
   } catch (e) { syncMsg = '⚠️ ارسال به شیت نشد: ' + (e && e.message || e) + (manualUrl ? '؛ نتیجه را پیش از تلاش مجدد بررسی کن.' : ' — بعداً دوباره تلاش می‌شود'); return false; } finally { legacyInFlight--; }
 }
 function manualJsonpRead(url) {

@@ -101,6 +101,7 @@ function addPage164() {
     const form = document.getElementById('invoice-form-fields');
     if (form) { form.insertAdjacentHTML('afterbegin','<div class="invoice-types-170" id="invoice-add-types-173n"><button type="button" data-kind="خدمات">خدمات</button><button type="button" data-kind="فروش">فروش</button><button type="button" data-kind="هزینه">هزینه</button><button type="button" data-kind="نسیه">نسیه</button></div>');
       if (featureOn('warehouse')) { const button = document.createElement('button'); button.type = 'button'; button.dataset.kind = 'inventory_purchase'; button.textContent = INVENTORY_TEXT_FA.purchaseKind; form.querySelector('#invoice-add-types-173n').appendChild(button); }
+      if (featureOn('warehouse')) { const button = document.createElement('button'); button.type = 'button'; button.dataset.kind = 'inventory_sale'; button.textContent = INVENTORY_TEXT_FA.warehouseSale; form.querySelector('#invoice-add-types-173n').appendChild(button); }
       form.querySelector('#invoice-add-types-173n').addEventListener('click', event => { const button=event.target.closest('button[data-kind]'); if(!button)return; const kind=document.getElementById('inv-kind'); if(button.dataset.kind==='نسیه') document.getElementById('inv-payment').value='unpaid'; else { kind.value=button.dataset.kind; kind.dispatchEvent(new Event('change')); } form.querySelectorAll('#invoice-add-types-173n button').forEach(b=>b.setAttribute('aria-pressed',String(b===button))); });
     }
   }
