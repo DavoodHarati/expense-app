@@ -598,7 +598,7 @@ function render() {
   if (typeof splashComplete173g === 'function') splashComplete173g();
 }
 function _render2() { _render(); if ((topic === 'work' && tab !== 'contacts' && tab !== 'settings' && tab !== 'add') || tab === 'loans') { document.getElementById('app').insertAdjacentHTML('afterbegin', '<details class="card"><summary><b>پاک‌سازی سهم‌های تکراری</b></summary><div class="mut">ابتدا پیش‌نمایش را ببین؛ حذف فقط با تأیید و پس از پشتیبان انجام می‌شود.</div><button type="button" id="share-preview-173i">بررسی تکراری‌ها</button><div id="share-preview-box-173i"></div></details>'); } document.querySelectorAll('.card[data-id]').forEach(c => { colRefresh(c); balHint(c); updateCategorySuggestion(c); }); if (tab === 'add' && topic === 'expenses') { const sms = document.getElementById('sms')?.closest('.card'); if (sms) sms.hidden = !featureOn('sms'); } document.querySelectorAll('[data-feature-section]').forEach(el => { el.hidden = !featureOn(el.dataset.featureSection); }); addPage164(); }
-const TOPIC_FEATURE_163 = { invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
+const TOPIC_FEATURE_163 = { warehouse:'warehouse', invoices:'invoice', sales:'invoice', work:'assistant', reminders:'reminder', receipts:'sms' };
 function navigationState163(currentTab, currentTopic, enabled) {
   const diary = currentTab === 'report' || currentTab === 'contacts';
   return { diary, add:currentTab === 'add', topic:TOPIC_FEATURE_163[currentTopic] && !enabled(TOPIC_FEATURE_163[currentTopic]) ? 'expenses' : currentTopic, visible:key => !TOPIC_FEATURE_163[key] || enabled(TOPIC_FEATURE_163[key]) };
@@ -615,9 +615,9 @@ function navigationScroll171(button, smooth = true) {
   if (button && typeof button.scrollIntoView === 'function') button.scrollIntoView({ inline:'center', block:'nearest', behavior:smooth ? 'smooth' : 'auto' });
 }
 function _render() {
-  const topicFeature = { invoices: 'invoice', sales: 'invoice', work: 'assistant', reminders: 'reminder', receipts: 'sms' };
+  const topicFeature = { warehouse: 'warehouse', invoices: 'invoice', sales: 'invoice', work: 'assistant', reminders: 'reminder', receipts: 'sms' };
   if (topicFeature[topic] && !featureOn(topicFeature[topic])) topic = 'expenses';
-  document.querySelectorAll('[data-topic]').forEach(b => { b.hidden = false; b.disabled = !!topicFeature[b.dataset.topic] && !featureOn(topicFeature[b.dataset.topic]); });
+  document.querySelectorAll('[data-topic]').forEach(b => { b.hidden = b.dataset.topic === 'warehouse' && !featureOn('warehouse'); if (b.dataset.topic === 'warehouse') b.textContent = INVENTORY_TEXT_FA.warehouseTab; b.disabled = !!topicFeature[b.dataset.topic] && !featureOn(topicFeature[b.dataset.topic]); });
   navigationRender163();
   document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
   const el = $('#app');
@@ -625,6 +625,7 @@ function _render() {
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
   if (tab === 'rem') { topic = 'reminders'; tab = 'home'; }
   if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
+    if (topic === 'warehouse') { el.innerHTML = inventoryReport184(invoiceList()); return; }
     if ((topic === 'invoices' || topic === 'sales') && tab !== 'add') {
       const salesOnly = topic === 'sales', list = invoiceList().filter(item => !salesOnly || item.kind === 'فروش'), confirmed = list.filter(item => item.accounting?.status === 'confirmed'), unpaid = list.filter(item => invoiceIsUnpaid173k(item, tx));
       el.innerHTML = (tab === 'home' ? statusCard() : '') + invoiceLedgerHtml(list) + invoiceHtml();
@@ -1178,7 +1179,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۳';
+const BUILD = '2026-11-17T12:26:03.842Z'; const BUILD_VERSION = '۱۸۴';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
@@ -1255,6 +1256,25 @@ function rowHtml(t, statusMap) {
   ${linkedInvoice177 && ownerPercent177 != null && Number.isFinite(Number(ownerPercent177)) ? `<div class="mut">درصد سهم من در فاکتور: ${Number(ownerPercent177).toLocaleString('fa-IR')}٪</div>` : ''}
   <div class="row" style="margin-top:6px">${t.ghost && !t.parent ? `<button class="sec wdel" data-id="${t.id}">🗑 حذف</button>` : '<button class="sec ed">ویرایش</button>'}${tab === 'contacts' && lp && t.loan ? `<button type="button" class="sec workreview" data-id="${t.id}">مرور</button>` : ''}${!t.ghost && t.type === 'debit' && (t.receipt || t.loan) ? `<details class="rcpbox"><summary class="mut">🧾 رسید بانکی${t.receipt ? '' : ' (ندارد)'}</summary>${t.receipt ? `<div style="font-size:13px;white-space:pre-wrap;margin:6px 0">${esc(t.receipt)}</div><button class="sec rcpdel" data-id="${t.id}" style="color:#c0392b">🗑 حذف رسید</button>` : `<textarea class="rcpin" rows="3" placeholder="متن پیامک رسید بانک را اینجا بچسبان"></textarea><button class="rcpadd" data-id="${t.id}">چسباندن پیامک رسید</button>`}</details>` : ''}${t.raw ? `<details><summary class="mut">متن پیامک</summary><div style="font-size:13px;white-space:pre-wrap">${esc(t.raw)}</div></details>` : ''}</div></div>`;
 }
+function inventoryEvents184(invoices) {
+  return invoices.filter(i => i.kind === 'inventory_purchase' && !i.proforma).flatMap(i => (i.lines || []).filter(l => l.name && Number.isSafeInteger(Number(l.quantity)) && Number(l.quantity) > 0).map(l => ({ref:'buy:' + String(i.number || ''), name:String(l.name).trim(), qty:Number(l.quantity)})));
+}
+function inventoryReport184(invoices) {
+  const totals = new Map();
+  for (const e of inventoryEvents184(invoices)) { const key = e.name.replace(/ي/g,'ی').replace(/ك/g,'ک').replace(/\s+/g,' ').toLowerCase(); const item = totals.get(key) || {name:e.name,qty:0}; item.qty += e.qty; totals.set(key,item); }
+  const t=INVENTORY_TEXT_FA;
+  return '<section class="card" dir="rtl"><h3>'+esc(t.warehouseTab)+'</h3><div class="mut">'+esc(t.warehouseSource)+'</div>' + ([...totals.values()].map(i=>'<div class="row" style="padding:12px 0;border-bottom:1px solid #eee"><b>'+esc(i.name)+'</b><span>'+esc(t.warehouseStock)+': '+i.qty.toLocaleString('fa-IR')+'</span></div>').join('') || '<p class="mut">'+esc(t.warehouseEmpty)+'</p>') + '</section>';
+}
+function smsAge184(date, today) {
+  const start=persianToIso(String(date || '').slice(0,10)), end=persianToIso(String(today || '').slice(0,10));
+  if (!start || !end) return null;
+  const days=Math.max(0,Math.floor((Date.parse(end+'T00:00:00Z')-Date.parse(start+'T00:00:00Z'))/86400000));
+  return Number.isFinite(days) ? {days,color:days<3?'#16803d':days<=7?'#9a6700':days<=30?'#c45500':'#bd2626'} : null;
+}
+function smsAgeBadge184(date) {
+  const a=smsAge184(date,nowStr()), t=INVENTORY_TEXT_FA;
+  return a ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;border-radius:50%;color:white;background:'+a.color+'">'+a.days.toLocaleString('fa-IR')+' '+esc(t.inboxDays)+'</span>' : '<span class="mut">'+esc(t.inboxUnknownAge)+'</span>';
+}
 function homeHtml() {
   return (featureOn('reminder') ? dueBanner157() + remBanner() : '') + homeHtml0();
 }
@@ -1264,14 +1284,15 @@ function homeHtml0() {
   const accs = Object.keys(bal).filter(isSel);
   const total = accs.reduce((s, a) => s + bal[a], 0);
   const cur = tx.filter(t => !t.ghost).map(monthOf).sort().pop();
-  const mt = tx.filter(t => !t.ghost && isSel(t.account) && !t.xfer && !t.loan && monthOf(t) === cur);
+  const mt = tx.filter(t => !t.ghost && isSel(t.account) && !t.pending && !t.xfer && !t.loan && monthOf(t) === cur);
   const spent = mt.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
   const got = mt.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
-  const pend = tx.filter(t => t.pending);
+  const pend = tx.filter(t => t.pending && !t.raw), smsPending = tx.filter(t => t.pending && t.raw);
   return `${banner ? `<div class="card">${banner}</div>` : ''}
   ${xsugHtml()}
   ${featureOn('sms') ? rcReviewHtml() : ''}
   ${pend.length ? `<h3>منتظر توضیح (${pend.length.toLocaleString('fa-IR')})</h3>` + pend.map(pendingCard).join('') : ''}
+  ${featureOn('sms') && smsPending.length ? `<details class="card"><summary><b>${esc(INVENTORY_TEXT_FA.inboxTitle)} (${smsPending.length.toLocaleString('fa-IR')})</b></summary>${smsPending.map(t => '<div>'+smsAgeBadge184(t.date)+pendingCard(t)+'</div>').join('')}</details>` : ''}
   ${filterBar()}
   ${statusCard()}
   <div class="hero"><div style="opacity:.8">${!sel || sel.length > 1 ? 'مجموع موجودی' : 'موجودی'}</div><div class="big">${toman(total)} <small>تومان</small></div>
@@ -1320,7 +1341,7 @@ function reportHtml() {
   const months = [...new Set(tx.map(monthOf))].sort().reverse();
   if (!month || !months.includes(month)) month = months[0];
   const list = base.filter(t => monthOf(t) === month);
-  const real = list.filter(t => !t.ghost && !t.xfer && !t.loan);
+  const real = list.filter(t => !t.ghost && !t.xfer && !t.loan).filter(t => !t.pending);
   const loans = {}; tx.filter(t => t.loan && !isWage(t) && isSel(t.account)).forEach(t => loans[t.person] = (loans[t.person] || 0) + LOAN[t.loan][1] * t.amount);
   const days = new Set(real.filter(t => t.type === 'debit').map(t => t.date.slice(0, 10))).size || 1;
   const topD = Object.entries(real.filter(t => t.type === 'debit' && t.desc).reduce((m, t) => (m[t.desc] = (m[t.desc] || 0) + t.amount, m), {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -1332,7 +1353,7 @@ function reportHtml() {
   const incBy = { cu: by(inn.filter(t => t.customer), t => t.customer), sv: by(inn.filter(t => t.service), t => t.service) };
   const tot = sum(out) || 1, mx = cats[0]?.[1] || 1;
   const accRows = allAccs().filter(isSel).map(a => {
-    const l = list.filter(t => t.account === a && !t.ghost);
+    const l = list.filter(t => t.account === a && !t.ghost && !t.pending);
     return { a, o: sum(l.filter(t => t.type === 'debit' && !t.xfer)), i: sum(l.filter(t => t.type === 'credit' && !t.xfer)), xo: sum(l.filter(t => t.type === 'debit' && t.xfer)), xi: sum(l.filter(t => t.type === 'credit' && t.xfer)) };
   }).filter(r => r.o || r.i || r.xo || r.xi);
   if (!months.length) return filterBar() + invoiceLedgerHtml() + '<div class="card mut">تراکنشی نیست.</div>';

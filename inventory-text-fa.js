@@ -33,5 +33,12 @@ window.INVENTORY_TEXT_FA = Object.freeze({
   reportDebt: 'مانده نسیه',
   reportCount: 'تعداد فاکتور',
   reportTotal: 'جمع مبلغ',
-  reportNote: 'فقط فاکتورهای تأییدشده و غیرپیش‌فاکتور شمرده می‌شوند.'
+  reportNote: 'فقط فاکتورهای تأییدشده و غیرپیش‌فاکتور شمرده می‌شوند.',
+  warehouseTab: 'انبار',
+  warehouseEmpty: 'هنوز کالایی در انبار ثبت نشده است.',
+  warehouseStock: 'موجودی',
+  warehouseSource: 'موجودی از فاکتورهای خرید انبار محاسبه می‌شود.',
+  inboxTitle: 'پیامک‌های تأییدنشده',
+  inboxDays: 'روز',
+  inboxUnknownAge: 'تاریخ نامشخص'
 });
