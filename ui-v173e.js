@@ -42,10 +42,10 @@ async function shortcutCopy173e(value, clipboard, doc) {
 }
 function shortcutSettings173e(container) {
   const section=document.createElement('details'); section.className='card'; section.id='shortcut-settings-173e';
-  section.innerHTML='<summary>اتصال پیامک / شرتکات آیفون</summary><div class="mut">نشانی: '+(shortcutUrl173e()?'script.google.com/…/exec':'ثبت نشده')+'</div><button type="button" id="shortcut-copy-173e">کپی آدرس اتصال برای شرتکات</button> <button type="button" class="sec" id="shortcut-open-173e" '+(!SHORTCUT_ICLOUD_URL?'disabled':'')+'>افزودن شرتکات'+(!SHORTCUT_ICLOUD_URL?' · به‌زودی':'')+'</button><div id="shortcut-status-173e" class="mut" aria-live="polite"></div><ol><li>کپی آدرس را بزن.</li><li>شرتکات را اضافه کن.</li><li>در Shortcuts، تب Automation، سه اتوماسیون پیامک بساز.</li><li>در هر کدام Run Shortcut را انتخاب کن و ورودی را Message بگذار.</li></ol>';
+  section.innerHTML='<summary>اتصال پیامک / شرتکات آیفون</summary><div class="mut">نشانی: '+(shortcutUrl173e()?'script.google.com/…/exec':'ثبت نشده')+'</div><button type="button" id="shortcut-copy-173e">کپی آدرس اتصال برای شرتکات</button><div id="shortcut-status-173e" class="mut" aria-live="polite"></div><ol><li>کپی آدرس را بزن.</li><li>شرتکات را اضافه کن.</li><li>در Shortcuts، تب Automation، سه اتوماسیون پیامک بساز.</li><li>در هر کدام Run Shortcut را انتخاب کن و ورودی را Message بگذار.</li></ol>';
   container.appendChild(section);
   section.querySelector('#shortcut-copy-173e').onclick=async()=>{const url=shortcutUrl173e(),status=section.querySelector('#shortcut-status-173e'); if(!url){status.textContent='آدرس اتصال پیامک در این گوشی ثبت نشده است.';return;} status.textContent=await shortcutCopy173e(url,navigator.clipboard,document)?'کپی شد ✓':'کپی انجام نشد؛ دسترسی کلیپ‌بورد را بررسی کن.';};
-  section.querySelector('#shortcut-open-173e').onclick=()=>{if(SHORTCUT_ICLOUD_URL) window.open(SHORTCUT_ICLOUD_URL,'_blank','noopener');};
+  if (SHORTCUT_ICLOUD_URL) { const button=document.createElement('button'); button.type='button'; button.className='sec'; button.id='shortcut-open-173e'; button.textContent=window.INVENTORY_TEXT_FA.shortcutAddBtn198; button.onclick=()=>window.open(SHORTCUT_ICLOUD_URL, '_blank'); const help=document.createElement('div'); help.className='mut'; help.textContent=window.INVENTORY_TEXT_FA.shortcutAddHelp198; const status=section.querySelector('#shortcut-status-173e'); status.before(button,help); }
 }
 function searchClose173o() {
   const panel=document.getElementById('search-panel-173e'), app=document.getElementById('app');
