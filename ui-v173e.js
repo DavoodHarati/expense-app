@@ -1,5 +1,5 @@
 'use strict';
-const SHORTCUT_ICLOUD_URL = '';
+const SHORTCUT_ICLOUD_URL = 'https://www.icloud.com/shortcuts/PASTE_HERE';
 function searchNormalize173e(value) {
   return String(value == null ? '' : value).replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/[۰-۹]/g,c=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).replace(/[٠-٩]/g,c=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(c))).replace(/[٬,\s\u200c]/g,'').toLowerCase();
 }
