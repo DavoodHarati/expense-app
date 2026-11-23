@@ -625,6 +625,7 @@ function _render() {
   document.querySelectorAll('[data-topic]').forEach(b => b.classList.toggle('on', b.dataset.topic === topic));
   const el = $('#app');
   el.classList.remove('invoice-page-173e', 'invoice-report-page-173e');
+  if (typeof onboardingMaybeShow199 === 'function' && onboardingMaybeShow199()) return;
   if (!SYNC() && !localStorage.getItem('noSync')) { el.innerHTML = setupHtml(); return; }
   if (tab === 'rem') { topic = 'reminders'; tab = 'home'; }
   if (tab !== 'contacts' && tab !== 'settings' && topic !== 'expenses') {
@@ -955,6 +956,7 @@ function _render() {
     el.insertAdjacentHTML('afterbegin', '<div class="card" id="connection-hub-168"></div>');
     hubRender(document.getElementById('connection-hub-168'));
     shortcutSettings173e(el);
+    if (typeof onboardingSettingsMount199 === 'function') onboardingSettingsMount199(el);
     settingsLayout(el);
     settingsAccordion170(el);
     sheetRegistryRender();
@@ -967,7 +969,7 @@ function _render() {
 
 // فقط جای کارت‌های موجود را عوض می‌کند؛ خود کارت‌ها و رویدادهایشان حفظ می‌شوند.
 const SETTINGS_GROUP_BY_ID_196 = Object.freeze({
-  'features-settings':'appearance', 'shortcut-settings-173e':'messages', 'jbc':'appearance', 'lbc':'appearance',
+  'features-settings':'appearance', 'onboarding-settings-199':'appearance', 'shortcut-settings-173e':'messages', 'jbc':'appearance', 'lbc':'appearance',
   'settings-accounts-196':'accounts', 'budget-settings':'accounts',
   'legacy-inbox':'messages', 'settings-sms-log-196':'messages',
   'connection-hub-168':'google', 'welcome-sync':'google', 'legacy-sync-settings':'google',
@@ -1187,7 +1189,7 @@ function workList(p, L) {
 }
 let lp = null, showAssistantTotal = false;
 
-const BUILD = '2026-11-20T18:22:44Z'; const BUILD_VERSION = '\u06f1\u06f9\u06f8';
+const BUILD = '2026-11-23T11:30:39Z'; const BUILD_VERSION = '\u06f1\u06f9\u06f9';
 
 document.addEventListener('input', event => { if (event.target.id === 'wa') invoiceAmountInput(event.target); });
 function pdfPerson(p, layout = 'table') {
